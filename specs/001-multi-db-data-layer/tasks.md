@@ -127,7 +127,7 @@ This document breaks down the implementation plan into discrete, executable task
 ### Phase 1.2 Completion
 
 - [x] T046 Document SQL Server implementation in docs/sql-server-setup.md
-- [ ] T047 Commit changes: `git add . && git commit -m "Phase 1.2: SQL Server 2025 implementation with HNSW indexing"`
+- [x] T047 Commit changes: `git add . && git commit -m "Phase 1.2: SQL Server 2025 implementation with HNSW indexing"`
 
 ---
 
