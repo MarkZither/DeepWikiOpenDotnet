@@ -56,7 +56,7 @@ public interface IVectorStore
     /// Performance: With HNSW indexing, expects &lt;500ms @ 10K docs, &lt;2s @ 3M docs.
     /// </remarks>
     Task<List<DeepWiki.Data.Entities.DocumentEntity>> QueryNearestAsync(
-        float[] queryEmbedding,
+        ReadOnlyMemory<float> queryEmbedding,
         int k = 10,
         string? repoUrlFilter = null,
         CancellationToken cancellationToken = default);

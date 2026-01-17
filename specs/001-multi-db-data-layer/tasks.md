@@ -33,38 +33,38 @@ This document breaks down the implementation plan into discrete, executable task
 
 ### Setup Tasks
 
-- [ ] T001 Create .NET 10 project structure and solution file
-- [ ] T002 [P] Create DeepWiki.Data class library project in src/DeepWiki.Data
-- [ ] T003 [P] Create DeepWiki.Data.Tests xUnit project in tests/DeepWiki.Data.Tests
-- [ ] T004 Add System.Text.Json and xUnit dependencies to projects
-- [ ] T005 Create directory structure: Entities/, Interfaces/, obj/, bin/
+- [x] T001 Create .NET 10 project structure and solution file
+- [x] T002 [P] Create DeepWiki.Data class library project in src/DeepWiki.Data
+- [x] T003 [P] Create DeepWiki.Data.Tests xUnit project in tests/DeepWiki.Data.Tests
+- [x] T004 Add System.Text.Json and xUnit dependencies to projects
+- [x] T005 Create directory structure: Entities/, Interfaces/, obj/, bin/
 
 ### Entity Implementation (US1, US2)
 
-- [ ] T006 [P] [US1] Write unit tests for DocumentEntity embedding validation in tests/DeepWiki.Data.Tests/Entities/DocumentEntityTests.cs
-- [ ] T007 [P] [US1] Write unit tests for required properties (Id, RepoUrl, FilePath, Text) initialization
-- [ ] T008 [P] [US1] Write unit tests for optional properties and defaults (IsCode, IsImplementation, TokenCount)
-- [ ] T009 [P] [US1] Write unit tests for JSON metadata serialization round-trip in tests/DeepWiki.Data.Tests/Entities/DocumentEntityTests.cs
-- [ ] T010 [P] [US1] Write unit tests for edge cases (max lengths, null handling, timestamps)
-- [ ] T011 [US1] Implement DocumentEntity.cs in src/DeepWiki.Data/Entities/ with 13 properties and ValidateEmbedding() method
-- [ ] T012 [US1] Verify all unit tests pass and achieve ≥90% code coverage
+- [x] T006 [P] [US1] Write unit tests for DocumentEntity embedding validation in tests/DeepWiki.Data.Tests/Entities/DocumentEntityTests.cs
+- [x] T007 [P] [US1] Write unit tests for required properties (Id, RepoUrl, FilePath, Text) initialization
+- [x] T008 [P] [US1] Write unit tests for optional properties and defaults (IsCode, IsImplementation, TokenCount)
+- [x] T009 [P] [US1] Write unit tests for JSON metadata serialization round-trip in tests/DeepWiki.Data.Tests/Entities/DocumentEntityTests.cs
+- [x] T010 [P] [US1] Write unit tests for edge cases (max lengths, null handling, timestamps)
+- [x] T011 [US1] Implement DocumentEntity.cs in src/DeepWiki.Data/Entities/ with 13 properties and ValidateEmbedding() method
+- [x] T012 [US1] Verify all unit tests pass and achieve ≥90% code coverage
 
 ### Interface Definitions (US1, US2)
 
-- [ ] T013 [P] [US2] Implement IVectorStore interface in src/DeepWiki.Data/Interfaces/IVectorStore.cs
-- [ ] T013a Includes methods: UpsertAsync, QueryNearestAsync, DeleteAsync, DeleteByRepoAsync, CountAsync
-- [ ] T013b Add comprehensive XML documentation with performance remarks
-- [ ] T014 [P] [US2] Implement IDocumentRepository interface in src/DeepWiki.Data/Interfaces/IDocumentRepository.cs
-- [ ] T014a Includes methods: GetByIdAsync, GetByRepoAsync, AddAsync, UpdateAsync, DeleteAsync, ExistsAsync
-- [ ] T014b Add comprehensive XML documentation with pagination and concurrency remarks
+- [x] T013 [P] [US2] Implement IVectorStore interface in src/DeepWiki.Data/Interfaces/IVectorStore.cs
+- [x] T013a Includes methods: UpsertAsync, QueryNearestAsync, DeleteAsync, DeleteByRepoAsync, CountAsync
+- [x] T013b Add comprehensive XML documentation with performance remarks
+- [x] T014 [P] [US2] Implement IDocumentRepository interface in src/DeepWiki.Data/Interfaces/IDocumentRepository.cs
+- [x] T014a Includes methods: GetByIdAsync, GetByRepoAsync, AddAsync, UpdateAsync, DeleteAsync, ExistsAsync
+- [x] T014b Add comprehensive XML documentation with pagination and concurrency remarks
 
 ### Phase 1.1 Completion
 
-- [ ] T015 Run full build: `dotnet build`
-- [ ] T016 Run unit test suite: `dotnet test tests/DeepWiki.Data.Tests/`
-- [ ] T017 Verify code coverage ≥90%: `dotnet test --collect:"XPlat Code Coverage"`
-- [ ] T018 Document Phase 1.1 completion in PHASE_1_1_COMPLETION_REPORT.md
-- [ ] T019 Commit changes: `git add . && git commit -m "Phase 1.1: Base project setup with entities and interfaces"`
+- [x] T015 Run full build: `dotnet build`
+- [x] T016 Run unit test suite: `dotnet test tests/DeepWiki.Data.Tests/`
+- [x] T017 Verify code coverage ≥90%: `dotnet test --collect:"XPlat Code Coverage"`
+- [x] T018 Document Phase 1.1 completion in PHASE_1_1_COMPLETION_REPORT.md
+- [x] T019 Commit changes: `git add . && git commit -m "Phase 1.1: Base project setup with entities and interfaces"`
 
 ---
 
@@ -80,53 +80,53 @@ This document breaks down the implementation plan into discrete, executable task
 
 ### Project & Configuration
 
-- [ ] T020 [P] Create DeepWiki.Data.SqlServer project in src/DeepWiki.Data.SqlServer
-- [ ] T021 [P] Add EF Core 10.x and Microsoft.EntityFrameworkCore.SqlServer dependencies
-- [ ] T022 [P] Add Testcontainers[MsSql] dependency to tests/DeepWiki.Data.SqlServer.Tests
-- [ ] T023 Create directory structure: Configuration/, DbContexts/, Repositories/, Health/, Tests/
+- [x] T020 [P] Create DeepWiki.Data.SqlServer project in src/DeepWiki.Data.SqlServer
+- [x] T021 [P] Add EF Core 10.x and Microsoft.EntityFrameworkCore.SqlServer dependencies
+- [x] T022 [P] Add Testcontainers[MsSql] dependency to tests/DeepWiki.Data.SqlServer.Tests
+- [x] T023 Create directory structure: Configuration/, DbContexts/, Repositories/, Health/, Tests/
 
 ### Entity Configuration (US1, US2, US3)
 
-- [ ] T024 [P] [US3] Write integration test for DocumentEntity with SQL Server vector(1536) column in tests/DeepWiki.Data.SqlServer.Tests/Integration/SqlServerVectorStoreTests.cs
-- [ ] T025 [P] [US3] Write integration test for vector index HNSW creation with VECTOR_DISTANCE() operator
-- [ ] T026 [P] [US3] Implement DocumentEntityConfiguration.cs in src/DeepWiki.Data.SqlServer/Configuration/
-- [ ] T026a Configure vector(1536) column type mapping
-- [ ] T026b Configure HNSW index with m=16, ef_construction=200
-- [ ] T027 [US3] Implement SqlServerVectorDbContext.cs with DbSet<DocumentEntity> and retry policy
+- [x] T024 [P] [US3] Write integration test for DocumentEntity with SQL Server vector(1536) column in tests/DeepWiki.Data.SqlServer.Tests/Integration/SqlServerVectorStoreTests.cs
+- [x] T025 [P] [US3] Write integration test for vector index HNSW creation with VECTOR_DISTANCE() operator
+- [x] T026 [P] [US3] Implement DocumentEntityConfiguration.cs in src/DeepWiki.Data.SqlServer/Configuration/
+- [x] T026a Configure vector(1536) column type mapping
+- [x] T026b Configure HNSW index with m=16, ef_construction=200
+- [x] T027 [US3] Implement SqlServerVectorDbContext.cs with DbSet<DocumentEntity> and retry policy
 
 ### Repository Implementation (US1, US2)
 
-- [ ] T028 [P] [US1] Write integration tests for SqlServerDocumentRepository.AddAsync() in tests/DeepWiki.Data.SqlServer.Tests/Integration/SqlServerDocumentRepositoryTests.cs
-- [ ] T029 [P] [US1] Write integration tests for GetByIdAsync() and GetByRepoAsync() with pagination
-- [ ] T030 [P] [US2] Write integration tests for SqlServerVectorStore.QueryNearestAsync() with various k values
-- [ ] T031 [P] [US2] Write integration tests for VECTOR_DISTANCE() query returning sorted results
-- [ ] T032 [P] [US1] Implement SqlServerDocumentRepository.cs with IDocumentRepository methods
-- [ ] T032a AddAsync, UpdateAsync, DeleteAsync, GetByIdAsync, GetByRepoAsync, ExistsAsync
-- [ ] T033 [P] [US2] Implement SqlServerVectorStore.cs with IVectorStore methods
-- [ ] T033a UpsertAsync, QueryNearestAsync, DeleteAsync, DeleteByRepoAsync, CountAsync
-- [ ] T033b Use VECTOR_DISTANCE() for cosine similarity queries
-- [ ] T034 [US3] Implement SqlServerHealthCheck.cs with version validation (SQL Server ≥2025)
+- [x] T028 [P] [US1] Write integration tests for SqlServerDocumentRepository.AddAsync() in tests/DeepWiki.Data.SqlServer.Tests/Integration/SqlServerDocumentRepositoryTests.cs
+- [x] T029 [P] [US1] Write integration tests for GetByIdAsync() and GetByRepoAsync() with pagination
+- [x] T030 [P] [US2] Write integration tests for SqlServerVectorStore.QueryNearestAsync() with various k values
+- [x] T031 [P] [US2] Write integration tests for VECTOR_DISTANCE() query returning sorted results
+- [x] T032 [P] [US1] Implement SqlServerDocumentRepository.cs with IDocumentRepository methods
+- [x] T032a AddAsync, UpdateAsync, DeleteAsync, GetByIdAsync, GetByRepoAsync, ExistsAsync
+- [x] T033 [P] [US2] Implement SqlServerVectorStore.cs with IVectorStore methods
+- [x] T033a UpsertAsync, QueryNearestAsync, DeleteAsync, DeleteByRepoAsync, CountAsync
+- [x] T033b Use VECTOR_DISTANCE() for cosine similarity queries
+- [x] T034 [US3] Implement SqlServerHealthCheck.cs with version validation (SQL Server ≥2025)
 
 ### Migrations & Indexes (US1, US2)
 
-- [ ] T035 [P] Create EF Core migration for DocumentEntity table creation
-- [ ] T036 [P] Add HNSW vector index SQL to migration script
-- [ ] T037 Write seed data script for test documents (sample repositories with embeddings)
-- [ ] T038 Test migration applies without errors on fresh SQL Server 2025 database
+- [x] T035 [P] Create EF Core migration for DocumentEntity table creation
+- [x] T036 [P] Add HNSW vector index SQL to migration script
+- [x] T037 Write seed data script for test documents (sample repositories with embeddings)
+- [x] T038 Test migration applies without errors on fresh SQL Server 2025 database
 
 ### Integration Testing (US1, US2)
 
-- [ ] T039 [P] Create SqlServerTestFixture.cs in tests/DeepWiki.Data.SqlServer.Tests/Fixtures/ using Testcontainers
-- [ ] T040 [P] Write integration tests for bulk operations (100 documents in transaction)
-- [ ] T041 [P] Write integration tests for concurrent update scenarios
+- [x] T039 [P] Create SqlServerTestFixture.cs in tests/DeepWiki.Data.SqlServer.Tests/Fixtures/ using Testcontainers
+- [x] T040 [P] Write integration tests for bulk operations (100 documents in transaction)
+- [x] T041 [P] Write integration tests for concurrent update scenarios
 - [ ] T042 Write performance benchmark for vector queries at 10K document scale
-- [ ] T043 Run full SQL Server test suite: `dotnet test tests/DeepWiki.Data.SqlServer.Tests/`
+- [x] T043 Run full SQL Server test suite: `dotnet test tests/DeepWiki.Data.SqlServer.Tests/`
 - [ ] T044 Verify query performance <500ms @ 10K documents
-- [ ] T045 Verify all integration tests pass with Testcontainers
+- [x] T045 Verify all integration tests pass with Testcontainers
 
 ### Phase 1.2 Completion
 
-- [ ] T046 Document SQL Server implementation in docs/sql-server-setup.md
+- [x] T046 Document SQL Server implementation in docs/sql-server-setup.md
 - [ ] T047 Commit changes: `git add . && git commit -m "Phase 1.2: SQL Server 2025 implementation with HNSW indexing"`
 
 ---

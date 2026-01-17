@@ -42,8 +42,9 @@ public class DocumentEntity
     /// <summary>
     /// Vector embedding representing semantic meaning. 
     /// Optional, exactly 1536 dimensions when non-null.
+    /// Uses ReadOnlyMemory for performance (no array allocations).
     /// </summary>
-    public float[]? Embedding { get; set; }
+    public ReadOnlyMemory<float>? Embedding { get; set; }
 
     /// <summary>
     /// File extension without dot (e.g., "cs", "md", "py"). Optional, max 10 characters.
@@ -88,10 +89,10 @@ public class DocumentEntity
     /// <exception cref="ArgumentException">If embedding is not null and dimensions != 1536.</exception>
     public void ValidateEmbedding()
     {
-        if (Embedding != null && Embedding.Length != 1536)
+        if (Embedding != null && Embedding.Value.Length != 1536)
         {
             throw new ArgumentException(
-                $"Embedding must be exactly 1536 dimensions (got {Embedding.Length})",
+                $"Embedding must be exactly 1536 dimensions (got {Embedding.Value.Length})",
                 nameof(Embedding));
         }
     }

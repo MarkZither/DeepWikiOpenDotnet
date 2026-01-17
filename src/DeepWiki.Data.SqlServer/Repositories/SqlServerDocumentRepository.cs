@@ -1,0 +1,87 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using DeepWiki.Data.Entities;
+using DeepWiki.Data.Interfaces;
+using DeepWiki.Data.SqlServer.DbContexts;
+using Microsoft.EntityFrameworkCore;
+
+namespace DeepWiki.Data.SqlServer.Repositories;
+
+/// <summary>
+/// SQL Server EF Core implementation of IDocumentRepository.
+/// Provides CRUD operations for documents using Entity Framework Core.
+/// </summary>
+public class SqlServerDocumentRepository : IDocumentRepository
+{
+    private readonly SqlServerVectorDbContext _context;
+
+    public SqlServerDocumentRepository(SqlServerVectorDbContext context)
+    {
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+    }
+
+    public async Task AddAsync(DocumentEntity document, CancellationToken cancellationToken = default)
+    {
+        if (document == null) throw new ArgumentNullException(nameof(document));
+
+        document.Id = Guid.NewGuid();
+        document.CreatedAt = DateTime.UtcNow;
+        document.UpdatedAt = DateTime.UtcNow;
+
+        _context.Documents.Add(document);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<DocumentEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _context.Documents
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+    }
+
+    public async Task<List<DocumentEntity>> GetByRepoAsync(
+        string repoUrl,
+        int skip = 0,
+        int take = 100,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(repoUrl)) throw new ArgumentNullException(nameof(repoUrl));
+        if (skip < 0) throw new ArgumentException("Skip must be >= 0", nameof(skip));
+        if (take < 1 || take > 1000) throw new ArgumentException("Take must be >= 1 and <= 1000", nameof(take));
+
+        return await _context.Documents
+            .Where(d => d.RepoUrl == repoUrl)
+            .OrderByDescending(d => d.CreatedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task UpdateAsync(DocumentEntity document, CancellationToken cancellationToken = default)
+    {
+        if (document == null) throw new ArgumentNullException(nameof(document));
+        if (document.Id == Guid.Empty) throw new ArgumentException("Document must have a valid ID", nameof(document));
+
+        document.UpdatedAt = DateTime.UtcNow;
+        _context.Documents.Update(document);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var document = await _context.Documents.FindAsync(new object[] { id }, cancellationToken: cancellationToken);
+        if (document != null)
+        {
+            _context.Documents.Remove(document);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _context.Documents
+            .AnyAsync(d => d.Id == id, cancellationToken);
+    }
+}

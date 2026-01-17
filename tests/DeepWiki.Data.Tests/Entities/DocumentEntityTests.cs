@@ -22,7 +22,7 @@ public class DocumentEntityTests
         string filePath = TestFilePath,
         string? title = TestTitle,
         string text = TestText,
-        float[]? embedding = null)
+        ReadOnlyMemory<float>? embedding = null)
     {
         return new DocumentEntity
         {
@@ -40,7 +40,7 @@ public class DocumentEntityTests
     public void ValidateEmbedding_WithValidDimensions_DoesNotThrow()
     {
         // Arrange
-        var entity = CreateTestEntity(embedding: new float[1536]);
+        var entity = CreateTestEntity(embedding: new ReadOnlyMemory<float>(new float[1536]));
 
         // Act & Assert
         entity.ValidateEmbedding(); // Should not throw
@@ -382,7 +382,7 @@ public class DocumentEntityTests
             IsImplementation = true,
             TokenCount = 42,
             MetadataJson = metadataJson,
-            Embedding = embedding
+            Embedding = new ReadOnlyMemory<float>(embedding)
         };
 
         // Assert
@@ -398,7 +398,7 @@ public class DocumentEntityTests
         Assert.Equal(42, entity.TokenCount);
         Assert.Equal(metadataJson, entity.MetadataJson);
         Assert.NotNull(entity.Embedding);
-        Assert.Equal(1536, entity.Embedding.Length);
+        Assert.Equal(1536, entity.Embedding.Value.Length);
         entity.ValidateEmbedding(); // Should not throw
     }
 
