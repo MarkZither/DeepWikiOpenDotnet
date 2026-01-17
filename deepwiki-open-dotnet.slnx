@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/deepwiki-open-dotnet.ApiService/deepwiki-open-dotnet.ApiService.csproj" />
+    <Project Path="src/deepwiki-open-dotnet.AppHost/deepwiki-open-dotnet.AppHost.csproj" />
+    <Project Path="src/deepwiki-open-dotnet.ServiceDefaults/deepwiki-open-dotnet.ServiceDefaults.csproj" />
+    <Project Path="src/deepwiki-open-dotnet.Web/deepwiki-open-dotnet.Web.csproj" />
+    <Project Path="src/DeepWiki.Data.Postgres/DeepWiki.Data.Postgres.csproj" />
+    <Project Path="src/DeepWiki.Data.SqlServer/DeepWiki.Data.SqlServer.csproj" />
+    <Project Path="src/DeepWiki.Data/DeepWiki.Data.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/deepwiki-open-dotnet.Tests/deepwiki-open-dotnet.Tests.csproj" />
+    <Project Path="tests/DeepWiki.Data.Postgres.Tests/DeepWiki.Data.Postgres.Tests.csproj" />
+    <Project Path="tests/DeepWiki.Data.SqlServer.Tests/DeepWiki.Data.SqlServer.Tests.csproj" />
+    <Project Path="tests/DeepWiki.Data.Tests/DeepWiki.Data.Tests.csproj" />
+  </Folder>
+</Solution>

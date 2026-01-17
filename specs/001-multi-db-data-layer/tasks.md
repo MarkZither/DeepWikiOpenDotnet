@@ -143,30 +143,30 @@ This document breaks down the implementation plan into discrete, executable task
 
 ### Project & Configuration
 
-- [ ] T048 [P] Create DeepWiki.Data.Postgres project in src/DeepWiki.Data.Postgres
-- [ ] T049 [P] Add EF Core 10.x and Npgsql.EntityFrameworkCore.PostgreSQL dependencies
-- [ ] T050 [P] Add Testcontainers[PostgreSql] dependency to tests/DeepWiki.Data.Postgres.Tests
-- [ ] T051 Create directory structure: Configuration/, DbContexts/, Repositories/, Health/, Tests/
+- [x] T048 [P] Create DeepWiki.Data.Postgres project in src/DeepWiki.Data.Postgres
+- [x] T049 [P] Add EF Core 10.x and Npgsql.EntityFrameworkCore.PostgreSQL dependencies
+- [x] T050 [P] Add Testcontainers[PostgreSql] dependency to tests/DeepWiki.Data.Postgres.Tests
+- [x] T051 Create directory structure: Configuration/, DbContexts/, Repositories/, Health/, Tests/
 
 ### Entity Configuration (US1, US2, US3)
 
-- [ ] T052 [P] [US3] Write integration test for DocumentEntity with pgvector column in tests/DeepWiki.Data.Postgres.Tests/Integration/PostgresVectorStoreTests.cs
-- [ ] T053 [P] [US3] Write integration test for vector index HNSW creation with <=> cosine distance operator
-- [ ] T054 [P] [US3] Implement DocumentEntityConfiguration.cs in src/DeepWiki.Data.Postgres/Configuration/
-- [ ] T054a Configure pgvector column type with snake_case naming
-- [ ] T054b Configure HNSW index with m=16, ef_construction=200
-- [ ] T055 [US3] Implement PostgresVectorDbContext.cs with pgvector extension creation in migration
+- [x] T052 [P] [US3] Write integration test for DocumentEntity with pgvector column in tests/DeepWiki.Data.Postgres.Tests/Integration/PostgresVectorStoreTests.cs
+- [x] T053 [P] [US3] Write integration test for vector index HNSW creation with <=> cosine distance operator
+- [x] T054 [P] [US3] Implement DocumentEntityConfiguration.cs in src/DeepWiki.Data.Postgres/Configuration/
+- [x] T054a Configure pgvector column type with snake_case naming
+- [x] T054b Configure HNSW index with m=16, ef_construction=200
+- [x] T055 [US3] Implement PostgresVectorDbContext.cs with pgvector extension creation in migration
 
 ### Repository Implementation (US1, US2)
 
-- [ ] T056 [P] [US1] Write integration tests for PostgresDocumentRepository.AddAsync() in tests/DeepWiki.Data.Postgres.Tests/Integration/PostgresDocumentRepositoryTests.cs
-- [ ] T057 [P] [US1] Write integration tests for GetByIdAsync() and GetByRepoAsync() with pagination
-- [ ] T058 [P] [US2] Write integration tests for PostgresVectorStore.QueryNearestAsync() with various k values
-- [ ] T059 [P] [US2] Write integration tests for <=> operator returning sorted results matching SQL Server
-- [ ] T060 [P] [US1] Implement PostgresDocumentRepository.cs with IDocumentRepository methods
-- [ ] T061 [P] [US2] Implement PostgresVectorStore.cs with IVectorStore methods
-- [ ] T061a Use <=> operator for cosine similarity queries (identical to SQL Server results)
-- [ ] T062 [US3] Implement PostgresHealthCheck.cs with pgvector extension validation
+- [x] T056 [P] [US1] Write integration tests for PostgresDocumentRepository.AddAsync() in tests/DeepWiki.Data.Postgres.Tests/Integration/PostgresDocumentRepositoryTests.cs
+- [x] T057 [P] [US1] Write integration tests for GetByIdAsync() and GetByRepoAsync() with pagination
+- [x] T058 [P] [US2] Write integration tests for PostgresVectorStore.QueryNearestAsync() with various k values
+- [x] T059 [P] [US2] Write integration tests for <=> operator returning sorted results matching SQL Server
+- [x] T060 [P] [US1] Implement PostgresDocumentRepository.cs with IDocumentRepository methods
+- [x] T061 [P] [US2] Implement PostgresVectorStore.cs with IVectorStore methods
+- [x] T061a Use <=> operator for cosine similarity queries (identical to SQL Server results)
+- [x] T062 [US3] Implement PostgresHealthCheck.cs with pgvector extension validation
 
 ### Migrations & Extensions (US1, US2)
 
@@ -178,7 +178,7 @@ This document breaks down the implementation plan into discrete, executable task
 
 ### Integration Testing & Parity (US1, US2, US3)
 
-- [ ] T068 [P] Create PostgresTestFixture.cs in tests/DeepWiki.Data.Postgres.Tests/Fixtures/ using Testcontainers
+- [x] T068 [P] Create PostgresTestFixture.cs in tests/DeepWiki.Data.Postgres.Tests/Fixtures/ using Testcontainers
 - [ ] T069 [P] Run identical test suite as SQL Server (copy tests and verify 100% parity)
 - [ ] T070 [P] Write cross-database parity test: store in SQL Server, compare results with PostgreSQL
 - [ ] T071 [P] Write performance benchmark for vector queries at 10K document scale
