@@ -66,9 +66,8 @@ public class SqlServerDocumentRepository : IDocumentRepository
 
         // Atomic conditional update: update only when UpdatedAt equals caller's original (optimistic concurrency)
         var originalUpdatedAt = document.UpdatedAt;
-        // Ensure a different timestamp even on low-precision DB types
-        var newUpdatedAt = DateTime.UtcNow.AddTicks(1);
-
+        // Ensure a different timestamp even on low-precision DB types by advancing original by 1ms
+        var newUpdatedAt = originalUpdatedAt.AddMilliseconds(1);
         Console.WriteLine($"[DIAG] SqlServer UpdateAsync id={document.Id} original={originalUpdatedAt:o} new={newUpdatedAt:o}");
 
         var updatedCount = await _context.Documents
