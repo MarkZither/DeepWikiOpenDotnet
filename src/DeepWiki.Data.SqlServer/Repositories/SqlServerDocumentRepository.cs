@@ -64,25 +64,27 @@ public class SqlServerDocumentRepository : IDocumentRepository
         if (document == null) throw new ArgumentNullException(nameof(document));
         if (document.Id == Guid.Empty) throw new ArgumentException("Document must have a valid ID", nameof(document));
 
-        // Use server-side conditional update to enforce optimistic concurrency on UpdatedAt
-        // Use EF Core concurrency mechanism for detached entity updates:
-        // Attach the detached entity and set original UpdatedAt as OriginalValue so SaveChanges generates a
-        // WHERE UpdatedAt = @originalUpdatedAt clause and throws DbUpdateConcurrencyException when it doesn't match.
+        // Atomic conditional update: update only when UpdatedAt equals caller's original (optimistic concurrency)
         var originalUpdatedAt = document.UpdatedAt;
         var newUpdatedAt = DateTime.UtcNow;
 
-        var entry = _context.Attach(document);
-        entry.State = Microsoft.EntityFrameworkCore.EntityState.Modified;
-        entry.Property(d => d.UpdatedAt).OriginalValue = originalUpdatedAt;
-        entry.Property(d => d.UpdatedAt).CurrentValue = newUpdatedAt;
+        var updatedCount = await _context.Documents
+            .Where(d => d.Id == document.Id && d.UpdatedAt == originalUpdatedAt)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(d => d.Title, document.Title)
+                .SetProperty(d => d.Text, document.Text)
+                .SetProperty(d => d.Embedding, document.Embedding)
+                .SetProperty(d => d.FileType, document.FileType)
+                .SetProperty(d => d.IsCode, document.IsCode)
+                .SetProperty(d => d.IsImplementation, document.IsImplementation)
+                .SetProperty(d => d.TokenCount, document.TokenCount)
+                .SetProperty(d => d.MetadataJson, document.MetadataJson)
+                .SetProperty(d => d.UpdatedAt, newUpdatedAt), cancellationToken);
 
-        try
+        if (updatedCount == 0)
         {
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
-        {
-            throw;
+            // No rows updated -> concurrency conflict
+            throw new Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException("Document update conflict");
         }
     }
 
