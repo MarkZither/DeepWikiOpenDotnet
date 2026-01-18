@@ -243,31 +243,31 @@ This document breaks down the implementation plan into discrete, executable task
 
 ### Performance & Benchmarking
 
-- [ ] T097 Write performance benchmark report with query times at 1K, 10K, 100K, 1M document scales
-- [ ] T098 Document SQL Server HNSW tuning parameters (m, ef_construction, ef_search)
-- [ ] T099 Document PostgreSQL index options (HNSW vs IVFFlat trade-offs)
-- [ ] T100 Create seed data scripts for testing different data sizes
+- [x] T097 Write performance benchmark report with query times at 1K, 10K, 100K, 1M document scales with benchmark.net
+- [x] T098 Document SQL Server HNSW tuning parameters (m, ef_construction, ef_search)
+- [x] T099 Document PostgreSQL index options (HNSW vs IVFFlat trade-offs)
+- [x] T100 Create seed data scripts for testing different data sizes
 
 ### Documentation
 
-- [ ] T101 Update README.md with feature overview and quickstart link
-- [ ] T102 Create troubleshooting guide (docs/troubleshooting.md) covering 10+ common issues
-- [ ] T103 Document deployment checklist for dev, staging, production
-- [ ] T104 Create health check endpoint documentation
-- [ ] T105 Document connection string configuration for all environments
+- [x] T101 Update README.md with feature overview and quickstart link
+- [x] T102 Create troubleshooting guide (docs/troubleshooting.md) covering 10+ common issues
+- [x] T103 Document deployment checklist for dev, staging, production
+- [x] T104 Create health check endpoint documentation
+- [x] T105 Document connection string configuration for all environments
 
 ### Quality & Release
 
-- [ ] T106 Review all code for constitution compliance (test-first, observability, security)
-- [ ] T107 Verify 90%+ code coverage across all test suites
-- [ ] T108 Ensure all integration tests pass on both SQL Server and PostgreSQL
-- [ ] T109 Final build verification: `dotnet build && dotnet test`
-- [ ] T110 Create release notes documenting all features and breaking changes
+- [x] T106 Review all code for constitution compliance (test-first, observability, security)
+- [x] T107 Verify 90%+ code coverage across all test suites
+- [x] T108 Ensure all integration tests pass on both SQL Server and PostgreSQL
+- [x] T109 Final build verification: `dotnet build && dotnet test`
+- [x] T110 Create release notes documenting all features and breaking changes
 
 ### Phase 1.5 Completion
 
-- [ ] T111 Tag release: `git tag -a v1.0.0 -m "Multi-database data access layer"`
-- [ ] T112 Commit final documentation: `git add . && git commit -m "Phase 1.5: Complete documentation and release"`
+- [x] T111 Tag release: `git tag -a v1.0.0 -m "Multi-database data access layer"`
+- [x] T112 Commit final documentation: `git add . && git commit -m "Phase 1.5: Complete documentation and release"`
 
 ---
 
