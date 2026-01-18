@@ -4,6 +4,8 @@
 **Spec**: [spec.md](spec.md) | **Plan**: [plan.md](plan.md)  
 **Prerequisites**: ✅ spec.md, ✅ plan.md (both complete)
 
+**FOUNDATIONAL CONTEXT**: This feature implements **Microsoft Agent Framework-compatible abstractions** for semantic document retrieval. All services (IVectorStore, ITokenizationService, IEmbeddingService) are designed as knowledge access services for Agent Framework agents to call via tool bindings. Agent Framework integration is validated in Slice 5 (T238-T242).
+
 **Organization**: Tasks grouped by 5 independent slices (Slice 1-5), each delivering a complete vertical feature. Each slice includes foundational setup, implementation, unit tests, and integration tests.
 
 ## Format: `- [ ] [TaskID] [P?] [Slice#] Description (file path)`
@@ -26,7 +28,7 @@
 - [ ] T004 Create `DeepWiki.Rag.Core.Tests` xUnit test project
 - [ ] T005 [P] Add NuGet dependencies to Abstractions: EF Core (9.0+) — src/DeepWiki.Data.Abstractions/DeepWiki.Data.Abstractions.csproj
 - [ ] T006 [P] Add NuGet dependencies to Rag.Core: EF Core, Azure.AI.OpenAI, OllamaSharp stub, Microsoft.Extensions.DependencyInjection — src/DeepWiki.Rag.Core/DeepWiki.Rag.Core.csproj
-- [ ] T007 [P] Update ApiService to reference both new libraries and configure DI (register IVectorStore, ITokenizationService, IEmbeddingService for Microsoft Agent Framework tool usage) — src/deepwiki-open-dotnet.ApiService/Program.cs
+- [ ] T007 [P] Update ApiService to reference both new libraries and configure DI: register IVectorStore, ITokenizationService, IEmbeddingService as singletons for dependency injection into Microsoft Agent Framework tool definitions. See T238-T242 for agent tool binding patterns — src/deepwiki-open-dotnet.ApiService/Program.cs
 - [ ] T008 Create fixture directory with test data — .specify/fixtures/embedding-samples/
 - [ ] T009 Create EF Core DbContext class for RAG (DbSet<DocumentEntity>) — src/DeepWiki.Rag.Core/RAGDbContext.cs
 
@@ -44,7 +46,7 @@
 
 ### T010-T019: Abstractions & Interface Design
 
-- [ ] T010 [P] [S1] Create `IVectorStore.cs` interface with QueryAsync, UpsertAsync, DeleteAsync, RebuildIndexAsync signatures — src/DeepWiki.Data.Abstractions/IVectorStore.cs
+- [ ] T010 [P] [S1] Create `IVectorStore.cs` interface (Microsoft Agent Framework-compatible) with QueryAsync(embedding[], k, filters), UpsertAsync(document), DeleteAsync(id), RebuildIndexAsync() signatures. All methods async, error-safe (no exceptions breaking agent loops), result types JSON-serializable for agent context — src/DeepWiki.Data.Abstractions/IVectorStore.cs
 - [ ] T011 [P] [S1] Create `DocumentEntity` domain model with ID, RepoUrl, FilePath, Title, Text, Embedding (vector), MetadataJson, timestamps — src/DeepWiki.Data.Abstractions/Models/DocumentEntity.cs
 - [ ] T012 [P] [S1] Create `VectorQueryResult` model with Document + similarity score — src/DeepWiki.Data.Abstractions/Models/VectorQueryResult.cs
 - [ ] T013 [P] [S1] Create EF Core migration for Documents table with vector(1536) column, indexes (repo+path, RepoUrl, columnstore) — src/DeepWiki.Rag.Core/Migrations/[timestamp]_InitialCreate.cs
@@ -96,7 +98,7 @@
 
 ### T041-T050: Tokenization Abstraction & Design
 
-- [ ] T041 [P] [S2] Create `ITokenizationService.cs` interface with CountTokensAsync(text, modelId) and ChunkAsync(text, maxTokens) — src/DeepWiki.Data.Abstractions/ITokenizationService.cs
+- [ ] T041 [P] [S2] Create `ITokenizationService.cs` interface (Microsoft Agent Framework-compatible) with CountTokensAsync(text, modelId) and ChunkAsync(text, maxTokens). Validate token counts before embedding calls to prevent agent tool failures. Result types must be JSON-serializable for use in agent context — src/DeepWiki.Data.Abstractions/ITokenizationService.cs
 - [ ] T042 [P] [S2] Create `TokenizationConfig.cs` with mappings for OpenAI (cl100k_base), Foundry (GPT tokenizer), Ollama (cl100k_base) models and their token limits — src/DeepWiki.Rag.Core/Tokenization/TokenizationConfig.cs
 - [ ] T043 [P] [S2] Create `ITokenEncoder.cs` interface for provider-specific token encoding — src/DeepWiki.Rag.Core/Tokenization/ITokenEncoder.cs
 
@@ -150,7 +152,7 @@
 
 ### T086-T105: Embedding Service Abstraction & Design
 
-- [ ] T086 [P] [S3] Create `IEmbeddingService.cs` interface with EmbedAsync(text) → float[], EmbedBatchAsync(texts) → IAsyncEnumerable<float[]>, Provider property — src/DeepWiki.Data.Abstractions/IEmbeddingService.cs
+- [ ] T086 [P] [S3] Create `IEmbeddingService.cs` interface (Microsoft Agent Framework-compatible) with EmbedAsync(text) → float[], EmbedBatchAsync(texts) → IAsyncEnumerable<float[]>, Provider property. All methods async, resilient error handling for agent tool calls, result types JSON-serializable for agent context passing. Supports agent knowledge retrieval workflows — src/DeepWiki.Data.Abstractions/IEmbeddingService.cs
 - [ ] T087 [P] [S3] Create `EmbeddingRequest.cs` model with Text, ModelId, MetadataHint, RetryCount — src/DeepWiki.Data.Abstractions/Models/EmbeddingRequest.cs
 - [ ] T088 [P] [S3] Create `EmbeddingResponse.cs` model with Vector (float[]), Provider, Latency — src/DeepWiki.Data.Abstractions/Models/EmbeddingResponse.cs
 - [ ] T089 [P] [S3] Create `RetryPolicy.cs` with exponential backoff logic (3 retries, base delay 100ms, max 10s) and fallback strategy (cached embedding if available) — src/DeepWiki.Rag.Core/Embedding/RetryPolicy.cs
@@ -335,13 +337,13 @@
 
 **Checkpoint**: Slice 5 complete. Full end-to-end integration tested; documentation complete; CI/CD wired; all success criteria validated; ready for review and merge to main.
 
-### T238-T242: Agent Framework Integration Testing (A4 Remediation)
+### T238-T242: Microsoft Agent Framework Integration Testing
 
-- [ ] T238 [P] [S5] Create `AgentFrameworkIntegrationTests.cs` xUnit class testing Vector Store with Agent Framework tools — tests/DeepWiki.Rag.Core.Tests/AgentFramework/AgentFrameworkIntegrationTests.cs
-- [ ] T239 [S5] Create sample Agent Framework agent with `queryKnowledge` tool using IVectorStore (tool definition, parameter binding, context integration) — examples/AgentWithKnowledgeRetrieval.cs
-- [ ] T240 [S5] Integration test: Agent calls `queryKnowledge(question)` → IVectorStore.QueryAsync() → returns documents → agent integrates into reasoning context
-- [ ] T241 [S5] Integration test: E2E agent reasoning with Vector Store (agent question → retrieve documents → reason over context → generate answer with citations)
-- [ ] T242 [S5] Performance test: Measure agent response time with Vector Store latency (target: <1s total agent response = agent reasoning <500ms + Vector Store query <500ms)
+- [ ] T238 [P] [S5] Create `AgentFrameworkIntegrationTests.cs` xUnit class testing Vector Store with Microsoft Agent Framework agent tool bindings. Validate tool definitions, parameter binding, and knowledge context integration — tests/DeepWiki.Rag.Core.Tests/AgentFramework/AgentFrameworkIntegrationTests.cs
+- [ ] T239 [S5] Create sample Microsoft Agent Framework agent with `queryKnowledge` tool using IVectorStore (tool definition with @Tool attribute, parameter descriptions for agent reasoning, JSON-serializable context integration) — examples/AgentWithKnowledgeRetrieval.cs
+- [ ] T240 [S5] Integration test: Microsoft Agent Framework agent calls `queryKnowledge(question)` tool → IVectorStore.QueryAsync() → retrieves documents → agent integrates knowledge into reasoning context
+- [ ] T241 [S5] Integration test: End-to-end agent reasoning with Vector Store: agent question → retrieve documents → reason over context → generate answer with citations (validates agent framework compatibility)
+- [ ] T242 [S5] Performance test: Measure Microsoft Agent Framework agent response time with Vector Store latency (target: <1s total agent response = agent reasoning <500ms + Vector Store query <500ms)
 
 **Checkpoint**: Agent Framework integration verified. Vector Store usable directly from Agent Framework tools. E2E agent reasoning with knowledge retrieval tested.
 
