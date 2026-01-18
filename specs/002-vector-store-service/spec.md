@@ -220,3 +220,11 @@ Users want to limit searches to specific repositories or file types. The vector 
 - Port embedding factory from `tools/embedder.py`
 - Port retrieval patterns from `rag.py` (context selection logic)
 - All unit tests mock external services; integration tests use test SQL Server instance
+
+## Testing & fixtures location
+
+- **Fixtures location:** Test fixtures (sample documents, embeddings, token-count samples) are stored inside the test project to keep test assets colocated with their tests: `tests/DeepWiki.Rag.Core.Tests/fixtures/embedding-samples/`.
+- **Why:** Keeping fixtures with tests simplifies discovery, makes CI deterministic, and avoids ambiguity about which fixtures are canonical for tests. `.specify/` remains available for specification artifacts but is not used as the runtime fixtures directory.
+- **Regeneration:** Use the included .NET tool `tests/DeepWiki.Rag.Core.Tests/tools/EmbeddingFixtureGenerator` to regenerate `sample-embeddings.json` from a local provider (Ollama/Foundry) when needed. Generated fixtures should be committed so CI uses deterministic data.
+- **CI guidance:** CI must not call external embedding providers directly; use committed fixtures or provider mocks for CI runs. If a local provider is required for manual runs, document how to run those tests locally with host/port flags.
+
