@@ -245,4 +245,78 @@ public class PostgresVectorStoreTests : IAsyncLifetime
         // Assert
         Assert.Equal(1, count);
     }
-}
+    [Fact]
+    public async Task UpsertFromFixtures_ShouldInsertAndQueryUsingRealEmbeddings()
+    {
+        // Arrange: load fixtures from repo
+        var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        var docsPath = Path.Combine(repoRoot, "tests", "DeepWiki.Rag.Core.Tests", "fixtures", "embedding-samples", "sample-documents.json");
+        var embsPath = Path.Combine(repoRoot, "tests", "DeepWiki.Rag.Core.Tests", "fixtures", "embedding-samples", "sample-embeddings.json");
+
+        var docsJson = await File.ReadAllTextAsync(docsPath);
+        var embsJson = await File.ReadAllTextAsync(embsPath);
+
+        var docs = System.Text.Json.JsonSerializer.Deserialize<List<FixtureDoc>>(docsJson) ?? new List<FixtureDoc>();
+        var embs = System.Text.Json.JsonSerializer.Deserialize<List<FixtureEmb>>(embsJson) ?? new List<FixtureEmb>();
+
+        // Upsert fixtures (pad/truncate embeddings to 1536 dims)
+        var fixedMap = new Dictionary<string, (float[] Emb, string FilePath)>();
+        foreach (var emb in embs)
+        {
+            var docSrc = docs.FirstOrDefault(d => d.Id == emb.Id);
+            if (docSrc == null) continue;
+
+            var raw = emb.Embedding.ToArray();
+            var fixedEmb = new float[1536];
+            Array.Fill(fixedEmb, 0f);
+            Array.Copy(raw, fixedEmb, Math.Min(raw.Length, 1536));
+
+            fixedMap[emb.Id] = (fixedEmb, docSrc.FilePath);
+
+            var doc = new DocumentEntity
+            {
+                Id = Guid.Parse(docSrc.Id),
+                RepoUrl = docSrc.RepoUrl,
+                FilePath = docSrc.FilePath,
+                Title = docSrc.Title,
+                Text = docSrc.Text,
+                Embedding = new ReadOnlyMemory<float>(fixedEmb),
+                FileType = Path.GetExtension(docSrc.FilePath).TrimStart('.'),
+                IsCode = docSrc.FilePath.EndsWith(".cs"),
+                IsImplementation = true,
+                TokenCount = 1,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                MetadataJson = "{}"
+            };
+
+            await _vectorStore!.UpsertAsync(doc, CancellationToken.None);
+        }
+
+        // Act: verify insertion count
+        var total = await _vectorStore!.CountAsync(null, CancellationToken.None);
+        Assert.Equal(fixedMap.Count, total);
+
+        // Assert: at least half of the upserted docs return themselves (by FilePath) within top-3 nearest
+        var successes = 0;
+        foreach (var kvp in fixedMap)
+        {
+            var queryEmb = new ReadOnlyMemory<float>(kvp.Value.Emb);
+            var results = await _vectorStore!.QueryNearestAsync(queryEmb, 3, null, CancellationToken.None);
+            if (results.Any(r => r.FilePath == kvp.Value.FilePath)) successes++;
+        }
+
+        Assert.True(successes >= Math.Max(1, fixedMap.Count / 2), $"Expected at least {Math.Max(1, fixedMap.Count / 2)} matches, got {successes}");
+    }
+
+    private record FixtureDoc(
+        [property: System.Text.Json.Serialization.JsonPropertyName("id")] string Id,
+        [property: System.Text.Json.Serialization.JsonPropertyName("repoUrl")] string RepoUrl,
+        [property: System.Text.Json.Serialization.JsonPropertyName("filePath")] string FilePath,
+        [property: System.Text.Json.Serialization.JsonPropertyName("title")] string Title,
+        [property: System.Text.Json.Serialization.JsonPropertyName("text")] string Text,
+        [property: System.Text.Json.Serialization.JsonPropertyName("metadata")] object Metadata);
+
+    private record FixtureEmb(
+        [property: System.Text.Json.Serialization.JsonPropertyName("id")] string Id,
+        [property: System.Text.Json.Serialization.JsonPropertyName("embedding")] List<float> Embedding);}
