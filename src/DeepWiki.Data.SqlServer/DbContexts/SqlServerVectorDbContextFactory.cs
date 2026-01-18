@@ -11,13 +11,14 @@ public class SqlServerVectorDbContextFactory : IDesignTimeDbContextFactory<SqlSe
 {
     public SqlServerVectorDbContext CreateDbContext(string[] args)
     {
+        var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
+            ?? Environment.GetEnvironmentVariable("DEEPWIKI_CONNECTION_STRING")
+            ?? throw new InvalidOperationException(
+                "Connection string not configured. Set CONNECTION_STRING or DEEPWIKI_CONNECTION_STRING environment variable.");
+
         var optionsBuilder = new DbContextOptionsBuilder<SqlServerVectorDbContext>();
         
-        // Use default connection string for design-time
-        // In real scenarios, this would be configured via appsettings.json or environment variables
-        const string defaultConnectionString = "Server=localhost;Database=DeepWiki;User Id=sa;Password=Strong@Password123;Encrypt=false;TrustServerCertificate=true;";
-        
-        optionsBuilder.UseSqlServer(defaultConnectionString, options =>
+        optionsBuilder.UseSqlServer(connectionString, options =>
         {
             options.MaxBatchSize(100);
             options.CommandTimeout(30);

@@ -64,23 +64,26 @@ dotnet build src/DeepWiki.Data.Postgres/
 ```bash
 cd src/DeepWiki.Data.SqlServer
 dotnet user-secrets init
-dotnet user-secrets set "ConnectionStrings:VectorDatabase" "Server=localhost,1433;Database=DeepWikiVector;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True"
+dotnet user-secrets set "ConnectionStrings:VectorDatabase" "<your-sql-server-connection-string>"
+# Example format: Server=localhost,1433;Database=DeepWikiVector;User Id=sa;TrustServerCertificate=True
 ```
 
 **PostgreSQL**:
 ```bash
 cd src/DeepWiki.Data.Postgres
 dotnet user-secrets init
-dotnet user-secrets set "ConnectionStrings:VectorDatabase" "Host=localhost;Port=5432;Database=deepwiki_vector;Username=postgres;Password=password"
+dotnet user-secrets set "ConnectionStrings:VectorDatabase" "<your-postgres-connection-string>"
+# Example format: Host=localhost;Port=5432;Database=deepwiki_vector;Username=postgres
 ```
 
 ### Production (Environment Variables)
 
 ```bash
-# Docker/Kubernetes environment variables
-export ConnectionStrings__VectorDatabase="Server=prod-sql.example.com;..."
+# Set connection string via environment variable
+export ConnectionStrings__VectorDatabase="<production-connection-string>"
 
-# Or use Azure Key Vault / HashiCorp Vault (see deployment docs)
+# Recommended: Use Azure Key Vault, AWS Secrets Manager, or HashiCorp Vault
+# See deployment docs for secure configuration patterns
 ```
 
 ---
@@ -298,7 +301,7 @@ app.Run();
     "Provider": "SqlServer"
   },
   "ConnectionStrings": {
-    "VectorDatabase": "Server=localhost;Database=DeepWikiVector;..."
+    "VectorDatabase": "<set-via-user-secrets-or-environment-variable>"
   }
 }
 ```

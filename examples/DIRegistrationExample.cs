@@ -4,38 +4,53 @@ using DeepWiki.Data.SqlServer.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// Console application demonstrating DeepWiki data access layer setup with dependency injection.
 /// 
 /// This example shows how to:
-/// 1. Register SQL Server data layer services
-/// 2. Add documents to the database
-/// 3. Query documents by similarity
-/// 4. Switch between SQL Server and PostgreSQL
+/// 1. Load configuration from User Secrets and environment variables
+/// 2. Register SQL Server data layer services securely
+/// 3. Add documents to the database
+/// 4. Query documents by similarity
+/// 5. Switch between SQL Server and PostgreSQL via configuration
+/// 
+/// To run this example:
+/// 1. Set up User Secrets: dotnet user-secrets init
+/// 2. Add connection string: dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<your-connection-string>"
+/// 3. Run: dotnet run
 /// </summary>
 var host = Host.CreateDefaultBuilder(args)
+    .ConfigureAppConfiguration((context, config) =>
+    {
+        // Load configuration from User Secrets (dev), environment variables, and appsettings
+        config.AddUserSecrets<Program>();
+        config.AddEnvironmentVariables();
+    })
     .ConfigureServices((context, services) =>
     {
-        // Configure which database to use (SQL Server in this example)
+        // Get configuration values from secure sources only
         var databaseType = context.Configuration["DatabaseType"] ?? "SqlServer";
-        var connectionString = context.Configuration["ConnectionStrings:DefaultConnection"]
-            ?? "Server=localhost,1433;Database=deepwiki;User Id=sa;Password=YourPassword;Encrypt=false;";
+        var connectionString = context.Configuration["ConnectionStrings:DefaultConnection"];
+        
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Connection string not found. Configure via User Secrets, environment variables, or appsettings.json");
+        }
 
         if (databaseType.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
         {
-            // Register SQL Server data layer
-            services.AddSqlServerDataLayer(connectionString);
+            // Register SQL Server data layer - connection string comes from secure configuration
+            services.AddSqlServerDataLayer("ConnectionStrings:DefaultConnection", context.Configuration);
             Console.WriteLine("Configured for SQL Server");
         }
         else if (databaseType.Equals("Postgres", StringComparison.OrdinalIgnoreCase))
         {
             // Register PostgreSQL data layer
-            // Uncomment when you have PostgreSQL available:
-            // var postgresServices = new ServiceCollection();
-            // postgresServices.AddPostgresDataLayer(connectionString);
-            // services.Add(postgresServices);
-            throw new NotImplementedException("PostgreSQL example not yet shown. See DI configuration docs.");
+            services.AddPostgresDataLayer("ConnectionStrings:DefaultConnection", context.Configuration);
+            Console.WriteLine("Configured for PostgreSQL");
         }
         else
         {
@@ -47,11 +62,12 @@ var host = Host.CreateDefaultBuilder(args)
 // Get the vector store from DI container
 var vectorStore = host.Services.GetRequiredService<IVectorStore>();
 var documentRepository = host.Services.GetRequiredService<IDocumentRepository>();
+var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
-Console.WriteLine("DeepWiki Data Access Layer - DI Example\n");
+logger.LogInformation("DeepWiki Data Access Layer - DI Example Starting");
 
 // Example 1: Add a document
-Console.WriteLine("=== Example 1: Adding a document ===");
+logger.LogInformation("=== Example 1: Adding a document ===");
 var newDocument = new DocumentEntity
 {
     Id = Guid.NewGuid(),
@@ -68,55 +84,55 @@ var newDocument = new DocumentEntity
 };
 
 await documentRepository.AddAsync(newDocument);
-Console.WriteLine($"✓ Added document: {newDocument.Title} (ID: {newDocument.Id})");
+logger.LogInformation("✓ Added document: {Title} (ID: {DocumentId})", newDocument.Title, newDocument.Id);
 
 // Example 2: Retrieve the document
-Console.WriteLine("\n=== Example 2: Retrieving a document ===");
+logger.LogInformation("=== Example 2: Retrieving a document ===");
 var retrieved = await documentRepository.GetByIdAsync(newDocument.Id);
 if (retrieved != null)
 {
-    Console.WriteLine($"✓ Retrieved document: {retrieved.Title}");
-    Console.WriteLine($"  Repository: {retrieved.RepoUrl}");
-    Console.WriteLine($"  File: {retrieved.FilePath}");
-    Console.WriteLine($"  Created: {retrieved.CreatedAt:yyyy-MM-dd HH:mm:ss}");
+    logger.LogInformation("✓ Retrieved document: {Title}", retrieved.Title);
+    logger.LogInformation("  Repository: {Repository}", retrieved.RepoUrl);
+    logger.LogInformation("  File: {FilePath}", retrieved.FilePath);
+    logger.LogInformation("  Created: {CreatedAt:yyyy-MM-dd HH:mm:ss}", retrieved.CreatedAt);
 }
 
 // Example 3: Vector search
-Console.WriteLine("\n=== Example 3: Vector similarity search ===");
+logger.LogInformation("=== Example 3: Vector similarity search ===");
 var queryEmbedding = GenerateSampleEmbedding();
 var similarDocuments = await vectorStore.QueryNearestAsync(queryEmbedding, k: 5);
-Console.WriteLine($"✓ Found {similarDocuments.Count} documents similar to query");
+logger.LogInformation("✓ Found {DocumentCount} documents similar to query", similarDocuments.Count);
 foreach (var doc in similarDocuments)
 {
-    Console.WriteLine($"  - {doc.Title} ({doc.FilePath})");
+    logger.LogInformation("  - {Title} ({FilePath})", doc.Title, doc.FilePath);
 }
 
 // Example 4: Get all documents from repository
-Console.WriteLine("\n=== Example 4: Listing documents from repository ===");
+logger.LogInformation("=== Example 4: Listing documents from repository ===");
 var repoDocuments = await documentRepository.GetByRepoAsync(newDocument.RepoUrl);
-Console.WriteLine($"✓ Found {repoDocuments.Count} documents in repository");
+logger.LogInformation("✓ Found {DocumentCount} documents in repository", repoDocuments.Count);
 foreach (var doc in repoDocuments)
 {
-    Console.WriteLine($"  - {doc.Title}");
+    logger.LogInformation("  - {Title}", doc.Title);
 }
 
 // Example 5: Count documents
-Console.WriteLine("\n=== Example 5: Counting documents ===");
+logger.LogInformation("=== Example 5: Counting documents ===");
 int totalCount = await vectorStore.CountAsync();
 int repoCount = await vectorStore.CountAsync(newDocument.RepoUrl);
-Console.WriteLine($"✓ Total documents: {totalCount}");
-Console.WriteLine($"✓ Documents in this repo: {repoCount}");
+logger.LogInformation("✓ Total documents: {TotalCount}", totalCount);
+logger.LogInformation("✓ Documents in this repo: {RepoCount}", repoCount);
 
 // Example 6: Update a document
-Console.WriteLine("\n=== Example 6: Updating a document ===");
+logger.LogInformation("=== Example 6: Updating a document ===");
 retrieved!.Title = "Updated: Main Program File";
 retrieved.Text = "Updated content with more information";
 await documentRepository.UpdateAsync(retrieved);
-Console.WriteLine($"✓ Updated document: {retrieved.Title}");
+logger.LogInformation("✓ Updated document: {Title}", retrieved.Title);
 
-Console.WriteLine("\n=== Demonstration Complete ===");
-Console.WriteLine("This example shows basic CRUD operations and vector search.");
-Console.WriteLine("For more features, see the documentation in docs/");
+logger.LogInformation("=== Demonstration Complete ===");
+logger.LogInformation("Configuration loaded from: User Secrets, Environment Variables, or appsettings.json");
+logger.LogInformation("For more features, see the documentation in docs/");
 
 // Example helper function to generate sample embeddings
 static ReadOnlyMemory<float> GenerateSampleEmbedding()

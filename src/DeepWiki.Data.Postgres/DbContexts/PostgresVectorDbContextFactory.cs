@@ -8,8 +8,10 @@ namespace DeepWiki.Data.Postgres.DbContexts
     {
         public PostgresVectorDbContext CreateDbContext(string[] args)
         {
-            var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING") 
-                ?? "Server=localhost;Port=5432;Database=deepwiki;User Id=postgres;Password=password;";
+            var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
+                ?? Environment.GetEnvironmentVariable("DEEPWIKI_POSTGRES_CONNECTION")
+                ?? throw new InvalidOperationException(
+                    "Connection string not configured. Set CONNECTION_STRING or DEEPWIKI_POSTGRES_CONNECTION environment variable.");
 
             var optionsBuilder = new DbContextOptionsBuilder<PostgresVectorDbContext>();
             

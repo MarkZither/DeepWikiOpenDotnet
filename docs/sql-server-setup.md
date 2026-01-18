@@ -289,15 +289,17 @@ builder.Property(d => d.Embedding).HasConversion(converter);
 
 ### Connection String
 
-Development (Testcontainers/Docker):
-```
-Server=localhost;Database=DeepWiki;User Id=sa;Password=Strong@Password123;Encrypt=false;TrustServerCertificate=true;
-```
+**SECURITY NOTE**: Never hardcode connection strings in code or commit them to source control. Use one of these secure approaches:
 
-Production (with encryption):
-```
-Server=prod-sql.database.windows.net;Database=DeepWiki;User Id=admin@prod;Password=***;Encrypt=true;Connection Timeout=30;
-```
+**Development**:
+- Use `dotnet user-secrets` to store connection string locally
+- Or set environment variable `CONNECTION_STRING` or `DEEPWIKI_CONNECTION_STRING`
+- See [Dependency Injection Guide](./dependency-injection.md#user-secrets-setup-development) for setup instructions
+
+**Production**:
+- Use environment variables from secure deployment pipeline
+- Recommended: Azure Key Vault or similar secret management service
+- See [Dependency Injection Guide](./dependency-injection.md#environment-variables-production) for examples
 
 ### Retry Policy
 

@@ -25,7 +25,12 @@ public static class ServiceCollectionExtensions
     /// - IDocumentRepository -> SqlServerDocumentRepository
     /// 
     /// The connection string should target SQL Server 2025 or later with vector type support.
-    /// Example: "Server=localhost,1433;Database=deepwiki;User Id=sa;Password=YourPassword;Encrypt=false;"
+    /// Load the connection string securely from:
+    /// - User Secrets (development): dotnet user-secrets set "ConnectionStrings:DefaultConnection" "..."
+    /// - Environment variables (production): CONNECTION_STRING or DEEPWIKI_CONNECTION_STRING
+    /// - Azure Key Vault (recommended for cloud deployments)
+    /// 
+    /// See dependency-injection.md for complete setup instructions.
     /// </remarks>
     /// <exception cref="ArgumentNullException">If services or connectionString is null or empty.</exception>
     public static IServiceCollection AddSqlServerDataLayer(
