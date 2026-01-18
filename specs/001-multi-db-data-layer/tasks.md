@@ -170,27 +170,27 @@ This document breaks down the implementation plan into discrete, executable task
 
 ### Migrations & Extensions (US1, US2)
 
-- [ ] T063 [P] Create EF Core migration for DocumentEntity table with pgvector extension creation
-- [ ] T064 [P] Add pgvector extension installation SQL to migration
-- [ ] T065 [P] Add HNSW vector index SQL to migration script
-- [ ] T066 Write seed data script for test documents (replicate SQL Server seeds)
-- [ ] T067 Test migration applies without errors on fresh PostgreSQL 17+ database with pgvector
+- [x] T063 [P] Create EF Core migration for DocumentEntity table with pgvector extension creation
+- [x] T064 [P] Add pgvector extension installation SQL to migration
+- [x] T065 [P] Add HNSW vector index SQL to migration script
+- [x] T066 Write seed data script for test documents (replicate SQL Server seeds)
+- [x] T067 Test migration applies without errors on fresh PostgreSQL 17+ database with pgvector
 
 ### Integration Testing & Parity (US1, US2, US3)
 
 - [x] T068 [P] Create PostgresTestFixture.cs in tests/DeepWiki.Data.Postgres.Tests/Fixtures/ using Testcontainers
-- [ ] T069 [P] Run identical test suite as SQL Server (copy tests and verify 100% parity)
-- [ ] T070 [P] Write cross-database parity test: store in SQL Server, compare results with PostgreSQL
-- [ ] T071 [P] Write performance benchmark for vector queries at 10K document scale
-- [ ] T072 Run full PostgreSQL test suite: `dotnet test tests/DeepWiki.Data.Postgres.Tests/`
-- [ ] T073 Verify query performance <500ms @ 10K documents (match SQL Server results)
-- [ ] T074 Verify all integration tests pass with Testcontainers
-- [ ] T075 Confirm 100% test parity: same tests pass for both SQL Server and PostgreSQL
+- [x] T069 [P] Run identical test suite as SQL Server (copy tests and verify 100% parity)
+- [x] T070 [P] Write cross-database parity test: store in SQL Server, compare results with PostgreSQL
+- [x] T071 [P] Write performance benchmark for vector queries at 10K document scale
+- [x] T072 Run full PostgreSQL test suite: `dotnet test tests/DeepWiki.Data.Postgres.Tests/`
+- [x] T073 Verify query performance <500ms @ 10K documents (match SQL Server results)
+- [x] T074 Verify all integration tests pass with Testcontainers
+- [x] T075 Confirm 100% test parity: same tests pass for both SQL Server and PostgreSQL
 
 ### Phase 1.3 Completion
 
-- [ ] T076 Document PostgreSQL implementation in docs/postgres-setup.md
-- [ ] T077 Commit changes: `git add . && git commit -m "Phase 1.3: PostgreSQL pgvector implementation with test parity"`
+- [x] T076 Document PostgreSQL implementation in docs/postgres-setup.md
+- [x] T077 Commit changes: `git add . && git commit -m "Phase 1.3: PostgreSQL pgvector implementation with test parity"`
 
 ---
 

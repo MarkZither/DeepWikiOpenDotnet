@@ -1,6 +1,8 @@
 using DeepWiki.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Pgvector;
 
 namespace DeepWiki.Data.Postgres.Configuration;
 
@@ -39,9 +41,17 @@ public class DocumentEntityConfiguration : IEntityTypeConfiguration<DocumentEnti
             .HasColumnName("text");
 
         // Store embedding as pgvector(1536) type
-        // With pgvector extension, we can use the vector type directly
+        // Value converter: ReadOnlyMemory<float> (model) <-> Vector (provider) <-> vector(1536) (database)
+        // This keeps the model database-agnostic while using pgvector's native vector functionality
+        var embeddingConverter = new ValueConverter<ReadOnlyMemory<float>?, Vector?>(
+            // Model to provider: ReadOnlyMemory<float> -> Vector
+            v => v.HasValue ? new Vector(v.Value.ToArray()) : null,
+            // Provider to model: Vector -> ReadOnlyMemory<float>
+            v => v == null ? (ReadOnlyMemory<float>?)null : new ReadOnlyMemory<float>(v.ToArray()));
+
         builder.Property(d => d.Embedding)
             .HasColumnType("vector(1536)")
+            .HasConversion(embeddingConverter)
             .HasColumnName("embedding");
 
         builder.Property(d => d.FileType)
