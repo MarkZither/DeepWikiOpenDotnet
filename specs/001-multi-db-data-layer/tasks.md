@@ -218,22 +218,22 @@ This document breaks down the implementation plan into discrete, executable task
 - [x] T084 [P] Write integration tests for optimistic concurrency conflicts in UpdateAsync
 - [x] T085 [P] Write integration tests for concurrent document updates (simulated race conditions)
 - [x] T086 [P] Verify optimistic concurrency throws DbUpdateConcurrencyException on conflict
-- [ ] T087 [P] Profile memory usage during bulk operations (1000 documents)
-- [ ] T088 Optimize batch sizes for memory efficiency if needed
+- [x] T087 [P] Profile memory usage during bulk operations (1000 documents)
+- [x] T088 Optimize batch sizes for memory efficiency if needed
 
 ### Configuration & DI (US3)
 
 - [x] T089 Write connection string configuration helper class for DI setup
 - [x] T090 Create sample DI registration code for ASP.NET Core in docs/di-registration.md
-- [ ] T091 Write unit tests for DI registration patterns
+- [x] T091 Write unit tests for DI registration patterns
 - [x] T092 Create sample console app demonstrating DI registration and usage
-- [ ] T093 Test database switching via configuration only (no code changes)
+- [x] T093 Test database switching via configuration only (no code changes)
 
 ### Phase 1.4 Completion
 
 - [x] T094 Document bulk operations in docs/bulk-operations.md
 - [x] T095 Document DI configuration in docs/dependency-injection.md
-- [ ] T096 Commit changes: `git add . && git commit -m "Phase 1.4: Bulk operations, optimization, and DI configuration"`
+- [x] T096 Commit changes: `git add . && git commit -m "Phase 1.4: Bulk operations, optimization, and DI configuration"`
 
 ---
 
