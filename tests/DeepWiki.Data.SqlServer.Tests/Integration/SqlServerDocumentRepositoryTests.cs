@@ -329,8 +329,15 @@ public class SqlServerDocumentRepositoryTests : IAsyncLifetime
         docInContext1!.Title = "Updated in context 1";
         await _repository.UpdateAsync(docInContext1, CancellationToken.None);
 
+        // Diagnostic: verify DB reflects first update and UpdatedAt differs from the stale copy
+        var afterFirst = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        Assert.Equal("Updated in context 1", afterFirst!.Title);
+        Console.WriteLine($"[DIAG] afterFirst.UpdatedAt={afterFirst.UpdatedAt:o}");
+        Console.WriteLine($"[DIAG] docInContext2.UpdatedAt={docInContext2!.UpdatedAt:o}");
+        Assert.NotEqual(afterFirst.UpdatedAt, docInContext2.UpdatedAt);
+
         // Try to update in second context
-        docInContext2!.Title = "Updated in context 2";
+        docInContext2.Title = "Updated in context 2";
         
         // Assert: First attempt should fail
         await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException>(
