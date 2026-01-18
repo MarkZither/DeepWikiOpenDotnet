@@ -68,7 +68,8 @@ public class PostgresDocumentRepository : IDocumentRepository
         var originalUpdatedAt = document.UpdatedAt;
         // Ensure a different timestamp even on low-precision DB types by advancing original by 1ms
         var newUpdatedAt = originalUpdatedAt.AddMilliseconds(1);
-        Console.WriteLine($"[DIAG] Postgres UpdateAsync id={document.Id} original={originalUpdatedAt:o} new={newUpdatedAt:o}");
+        var logLine = $"[DIAG] Postgres UpdateAsync id={document.Id} original={originalUpdatedAt:o} new={newUpdatedAt:o}\n";
+        System.IO.File.AppendAllText("/tmp/postgres_update_debug.log", logLine);
 
         var updatedCount = await _context.Documents
             .Where(d => d.Id == document.Id && d.UpdatedAt == originalUpdatedAt)
@@ -83,7 +84,7 @@ public class PostgresDocumentRepository : IDocumentRepository
                 .SetProperty(d => d.MetadataJson, document.MetadataJson)
                 .SetProperty(d => d.UpdatedAt, newUpdatedAt), cancellationToken);
 
-        Console.WriteLine($"[DIAG] Postgres UpdateAsync updatedCount={updatedCount}");
+        System.IO.File.AppendAllText("/tmp/postgres_update_debug.log", $"[DIAG] Postgres UpdateAsync updatedCount={updatedCount}\n");
 
         if (updatedCount == 0)
         {
