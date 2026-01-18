@@ -206,33 +206,33 @@ This document breaks down the implementation plan into discrete, executable task
 
 ### Bulk Operations (US4)
 
-- [ ] T078 [P] [US4] Write integration tests for BulkUpsertAsync with 100 documents (SQL Server)
-- [ ] T079 [P] [US4] Write integration tests for BulkUpsertAsync with 100 documents (PostgreSQL)
-- [ ] T080 [P] [US4] Write integration tests for transaction rollback on bulk operation failure
-- [ ] T081 [P] [US4] Implement bulk upsert in SqlServerVectorStore with batching (1000 docs per batch)
-- [ ] T082 [P] [US4] Implement bulk upsert in PostgresVectorStore with batching
-- [ ] T083 [US4] Add transaction support to ensure all-or-nothing semantics
+- [x] T078 [P] [US4] Write integration tests for BulkUpsertAsync with 100 documents (SQL Server)
+- [x] T079 [P] [US4] Write integration tests for BulkUpsertAsync with 100 documents (PostgreSQL)
+- [x] T080 [P] [US4] Write integration tests for transaction rollback on bulk operation failure
+- [x] T081 [P] [US4] Implement bulk upsert in SqlServerVectorStore with batching (1000 docs per batch)
+- [x] T082 [P] [US4] Implement bulk upsert in PostgresVectorStore with batching
+- [x] T083 [US4] Add transaction support to ensure all-or-nothing semantics
 
 ### Concurrency & Optimization (US1, US2)
 
-- [ ] T084 [P] Write integration tests for optimistic concurrency conflicts in UpdateAsync
-- [ ] T085 [P] Write integration tests for concurrent document updates (simulated race conditions)
-- [ ] T086 [P] Verify optimistic concurrency throws DbUpdateConcurrencyException on conflict
+- [x] T084 [P] Write integration tests for optimistic concurrency conflicts in UpdateAsync
+- [x] T085 [P] Write integration tests for concurrent document updates (simulated race conditions)
+- [x] T086 [P] Verify optimistic concurrency throws DbUpdateConcurrencyException on conflict
 - [ ] T087 [P] Profile memory usage during bulk operations (1000 documents)
 - [ ] T088 Optimize batch sizes for memory efficiency if needed
 
 ### Configuration & DI (US3)
 
-- [ ] T089 Write connection string configuration helper class for DI setup
-- [ ] T090 Create sample DI registration code for ASP.NET Core in docs/di-registration.md
+- [x] T089 Write connection string configuration helper class for DI setup
+- [x] T090 Create sample DI registration code for ASP.NET Core in docs/di-registration.md
 - [ ] T091 Write unit tests for DI registration patterns
-- [ ] T092 Create sample console app demonstrating DI registration and usage
+- [x] T092 Create sample console app demonstrating DI registration and usage
 - [ ] T093 Test database switching via configuration only (no code changes)
 
 ### Phase 1.4 Completion
 
-- [ ] T094 Document bulk operations in docs/bulk-operations.md
-- [ ] T095 Document DI configuration in docs/dependency-injection.md
+- [x] T094 Document bulk operations in docs/bulk-operations.md
+- [x] T095 Document DI configuration in docs/dependency-injection.md
 - [ ] T096 Commit changes: `git add . && git commit -m "Phase 1.4: Bulk operations, optimization, and DI configuration"`
 
 ---

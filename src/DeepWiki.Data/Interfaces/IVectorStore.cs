@@ -102,4 +102,27 @@ public interface IVectorStore
     Task<int> CountAsync(
         string? repoUrlFilter = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Upserts a batch of documents in a single atomic transaction.
+    /// </summary>
+    /// <param name="documents">Collection of documents to insert or update. Must not be null or empty.</param>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>Task representing the async operation.</returns>
+    /// <exception cref="ArgumentNullException">If documents collection is null.</exception>
+    /// <exception cref="ArgumentException">If documents collection is empty or any document has invalid embedding dimensions (not 1536 when non-null).</exception>
+    /// <exception cref="DbUpdateException">If database operation fails.</exception>
+    /// <remarks>
+    /// Behavior:
+    /// - All documents in the collection are inserted or updated atomically in a single transaction
+    /// - If document with same Id exists: Update all properties including embedding
+    /// - If document does not exist: Insert new document
+    /// - Automatically sets CreatedAt and UpdatedAt timestamps
+    /// - All-or-nothing semantics: If any document fails validation or database operation, entire batch is rolled back
+    /// - Validates all embedding dimensions before any database operations
+    /// Performance: Optimized for bulk operations with batching. Expects batch sizes up to 10,000 documents.
+    /// </remarks>
+    Task BulkUpsertAsync(
+        IEnumerable<DeepWiki.Data.Entities.DocumentEntity> documents,
+        CancellationToken cancellationToken = default);
 }

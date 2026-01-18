@@ -115,6 +115,62 @@ public class SqlServerVectorStore : IVectorStore
         return await query.CountAsync(cancellationToken);
     }
 
+    public async Task BulkUpsertAsync(IEnumerable<DocumentEntity> documents, CancellationToken cancellationToken = default)
+    {
+        if (documents == null) throw new ArgumentNullException(nameof(documents));
+        
+        var docList = documents.ToList();
+        if (docList.Count == 0) throw new ArgumentException("Documents collection must not be empty", nameof(documents));
+
+        // Validate all embeddings before any database operations
+        foreach (var doc in docList)
+        {
+            if (doc.Embedding != null && doc.Embedding.Value.Length != 1536)
+                throw new ArgumentException("All embeddings must be exactly 1536 dimensions", nameof(documents));
+        }
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            
+            // Get existing document IDs
+            var existingIds = await _context.Documents
+                .Where(d => docList.Select(nd => nd.Id).Contains(d.Id))
+                .Select(d => d.Id)
+                .ToListAsync(cancellationToken);
+
+            // Separate documents into new and existing
+            var newDocuments = docList.Where(d => !existingIds.Contains(d.Id)).ToList();
+            var existingDocuments = docList.Where(d => existingIds.Contains(d.Id)).ToList();
+
+            // Process new documents
+            foreach (var doc in newDocuments)
+            {
+                doc.Id = Guid.NewGuid();
+                doc.CreatedAt = now;
+                doc.UpdatedAt = now;
+                _context.Documents.Add(doc);
+            }
+
+            // Process existing documents
+            foreach (var doc in existingDocuments)
+            {
+                doc.UpdatedAt = now;
+                _context.Documents.Update(doc);
+            }
+
+            // Save all changes in a single transaction
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Ensure any failed operation rolls back the entire transaction
+            throw new Microsoft.EntityFrameworkCore.DbUpdateException(
+                $"Bulk upsert failed after processing {docList.Count} documents. All changes have been rolled back.",
+                ex);
+        }
+    }
+
     /// <summary>
     /// Helper: Calculate cosine similarity between two embeddings.
     /// <summary>

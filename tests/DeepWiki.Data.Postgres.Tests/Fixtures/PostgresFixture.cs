@@ -38,8 +38,8 @@ public class PostgresFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        // CleanUpAsync handles both stopping and removing the container
-        await _container.CleanUpAsync();
+        // StopAsync stops and removes the container
+        await _container.StopAsync();
     }
 
     /// <summary>

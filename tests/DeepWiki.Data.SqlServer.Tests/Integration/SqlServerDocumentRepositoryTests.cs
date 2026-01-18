@@ -3,8 +3,8 @@ using DeepWiki.Data.SqlServer;
 using DeepWiki.Data.SqlServer.DbContexts;
 using DeepWiki.Data.SqlServer.Repositories;
 using DeepWiki.Data.SqlServer.Tests.Fixtures;
-
-namespace DeepWiki.Data.SqlServer.Tests.Integration;
+using Microsoft.EntityFrameworkCore;
+using Xunit;
 
 /// <summary>
 /// Integration tests for SqlServerDocumentRepository using Testcontainers.
@@ -243,5 +243,112 @@ public class SqlServerDocumentRepositoryTests : IAsyncLifetime
         // For now, we expect it to work (UpdatedAt is the concurrency token)
         var final = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
         Assert.NotNull(final);
+    }
+
+    [Fact]
+    public async Task ConcurrentUpdate_WithoutReload_ShouldFailDueToStaleToken()
+    {
+        // Arrange
+        var doc = CreateTestDocument();
+        await _repository!.AddAsync(doc, CancellationToken.None);
+        var originalUpdatedAt = doc.UpdatedAt;
+
+        // Load document twice in separate contexts
+        var context2 = _fixture.CreateDbContext();
+        var docFromContext2 = await context2.Documents.FirstOrDefaultAsync(d => d.Id == doc.Id);
+        
+        // Update in context 1
+        doc.Title = "Update from context 1";
+        await _repository.UpdateAsync(doc, CancellationToken.None);
+
+        // Verify timestamp changed
+        var reloaded = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        Assert.True(reloaded!.UpdatedAt > originalUpdatedAt);
+
+        // Act: Try to update with stale context2 document (old UpdatedAt token)
+        docFromContext2!.Title = "Update from context 2";
+        docFromContext2.UpdatedAt = originalUpdatedAt; // Simulate stale token
+        var repo2 = new SqlServerDocumentRepository(context2);
+        
+        // Assert: Should throw DbUpdateConcurrencyException due to stale concurrency token
+        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException>(
+            () => repo2.UpdateAsync(docFromContext2, CancellationToken.None));
+
+        await context2.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ConcurrentUpdates_InDifferentContexts_ShouldHandleCorrectly()
+    {
+        // Arrange
+        var doc = CreateTestDocument();
+        await _repository!.AddAsync(doc, CancellationToken.None);
+
+        // Create two separate contexts and repositories
+        var context2 = _fixture.CreateDbContext();
+        var repo2 = new SqlServerDocumentRepository(context2);
+
+        // Load same document in both contexts
+        var docInContext1 = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        var docInContext2 = await repo2.GetByIdAsync(doc.Id, CancellationToken.None);
+
+        Assert.NotNull(docInContext1);
+        Assert.NotNull(docInContext2);
+
+        // Act: Update in first context
+        docInContext1.Title = "Updated in context 1";
+        docInContext1.Text = "New text 1";
+        await _repository.UpdateAsync(docInContext1, CancellationToken.None);
+
+        // Update in second context with different property
+        docInContext2.Title = "Updated in context 2";
+        
+        // Assert: Second update should throw due to stale token
+        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException>(
+            () => repo2.UpdateAsync(docInContext2, CancellationToken.None));
+
+        await context2.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ReloadAndUpdate_AfterConflict_ShouldSucceed()
+    {
+        // Arrange
+        var doc = CreateTestDocument();
+        await _repository!.AddAsync(doc, CancellationToken.None);
+
+        // Create two separate contexts
+        var context2 = _fixture.CreateDbContext();
+        var repo2 = new SqlServerDocumentRepository(context2);
+
+        // Load same document in both contexts
+        var docInContext1 = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        var docInContext2 = await repo2.GetByIdAsync(doc.Id, CancellationToken.None);
+
+        // Act: Update in first context
+        docInContext1!.Title = "Updated in context 1";
+        await _repository.UpdateAsync(docInContext1, CancellationToken.None);
+
+        // Try to update in second context
+        docInContext2!.Title = "Updated in context 2";
+        
+        // Assert: First attempt should fail
+        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException>(
+            () => repo2.UpdateAsync(docInContext2, CancellationToken.None));
+
+        // Reload the document in context2 with latest values
+        var reloaded = await repo2.GetByIdAsync(doc.Id, CancellationToken.None);
+        Assert.NotNull(reloaded);
+        Assert.Equal("Updated in context 1", reloaded.Title);
+
+        // Now update should succeed with reloaded document
+        reloaded.Title = "Updated in context 2 after reload";
+        await repo2.UpdateAsync(reloaded, CancellationToken.None);
+
+        // Verify final state
+        var final = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        Assert.Equal("Updated in context 2 after reload", final!.Title);
+
+        await context2.DisposeAsync();
     }
 }
