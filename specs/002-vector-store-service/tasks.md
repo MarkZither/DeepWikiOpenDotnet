@@ -22,13 +22,13 @@
 
 ### Setup (not parallelizable within this phase)
 
-- [ ] T001 Create `DeepWiki.Data.Abstractions` class library with csproj and base structure
-- [ ] T002 Create `DeepWiki.Rag.Core` class library with csproj and base structure
-- [ ] T003 Create `DeepWiki.Data.Abstractions.Tests` xUnit test project
-- [ ] T004 Create `DeepWiki.Rag.Core.Tests` xUnit test project
-- [ ] T005 [P] Add NuGet dependencies to Abstractions: EF Core (9.0+) — src/DeepWiki.Data.Abstractions/DeepWiki.Data.Abstractions.csproj
-- [ ] T006 [P] Add NuGet dependencies to Rag.Core: EF Core, Azure.AI.OpenAI, OllamaSharp stub, Microsoft.Extensions.DependencyInjection — src/DeepWiki.Rag.Core/DeepWiki.Rag.Core.csproj
-- [ ] T007 [P] Update ApiService to reference both new libraries and configure DI: register IVectorStore, ITokenizationService, IEmbeddingService as singletons for dependency injection into Microsoft Agent Framework tool definitions. See T238-T242 for agent tool binding patterns — src/deepwiki-open-dotnet.ApiService/Program.cs
+- [x] T001 Create `DeepWiki.Data.Abstractions` class library with csproj and base structure
+- [x] T002 Create `DeepWiki.Rag.Core` class library with csproj and base structure
+- [x] T003 Create `DeepWiki.Data.Abstractions.Tests` xUnit test project
+- [x] T004 Create `DeepWiki.Rag.Core.Tests` xUnit test project
+- [x] T005 [P] Add NuGet dependencies to Abstractions: EF Core (10.0+) — src/DeepWiki.Data.Abstractions/DeepWiki.Data.Abstractions.csproj
+- [x] T006 [P] Add NuGet dependencies to Rag.Core: EF Core, Azure.AI.OpenAI, OllamaSharp stub, Microsoft.Extensions.DependencyInjection — src/DeepWiki.Rag.Core/DeepWiki.Rag.Core.csproj
+- [x] T007 [P] Update ApiService to reference both new libraries and configure DI: register IVectorStore, ITokenizationService, IEmbeddingService as singletons for dependency injection into Microsoft Agent Framework tool definitions. See T238-T242 for agent tool binding patterns — src/deepwiki-open-dotnet.ApiService/Program.cs
 - [ ] T008 Create fixture directory with test data — .specify/fixtures/embedding-samples/
 - [ ] T009 Create EF Core DbContext class for RAG (DbSet<DocumentEntity>) — src/DeepWiki.Rag.Core/RAGDbContext.cs
 
