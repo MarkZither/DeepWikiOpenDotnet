@@ -5,7 +5,7 @@
 
 ## Summary
 
-Implement a pluggable vector store abstraction layer for semantic document retrieval in SQL Server 2025 using k-NN queries. Support 3 embedding providers (OpenAI API compatibility, Microsoft AI Foundry with Foundry Local emphasis, Ollama) with resilient retry/fallback strategy. Create two new class libraries (`DeepWiki.Data.Abstractions` for shared interfaces, `DeepWiki.Rag.Core` for implementations) providing `IVectorStore`, `ITokenizationService`, and `IEmbeddingService`. Implement SQL LIKE metadata filtering and atomic document upserts. Prioritize Foundry Local and Ollama for production; OpenAI as baseline compatibility. MVP scope: 5 independently testable slices (vector store, tokenization, embedding factory, ingestion, integration tests + docs).
+Implement a **Microsoft Agent Framework-compatible knowledge retrieval abstraction** for semantic document access in SQL Server 2025 using k-NN queries. This Vector Store Service Layer enables Agent Framework agents to retrieve knowledge context during reasoning loops. Support 3 embedding providers (OpenAI API compatibility, Microsoft AI Foundry with Foundry Local emphasis, Ollama) with resilient retry/fallback strategy. Create two new class libraries (`DeepWiki.Data.Abstractions` for shared interfaces, `DeepWiki.Rag.Core` for implementations) providing `IVectorStore`, `ITokenizationService`, and `IEmbeddingService` as Agent Framework-compatible abstractions. Implement SQL LIKE metadata filtering and atomic document upserts. Prioritize Foundry Local and Ollama for production; OpenAI as baseline compatibility. MVP scope: 5 independently testable slices (vector store, tokenization, embedding factory, ingestion, integration tests + docs) plus Agent Framework integration examples.
 
 ## Technical Context
 
@@ -59,7 +59,15 @@ Implement a pluggable vector store abstraction layer for semantic document retri
 - Factory pattern for provider selection avoids breaking changes.
 - Out-of-scope items deferred (async queues, soft deletes, agent orchestration, streaming).
 
-**GATE VERDICT**: ✅ **APPROVED** — All core principles satisfied. Observability/cost tracking deferred to future feature.
+**Agent Framework Compatibility**: ✅ PASS
+- IVectorStore is designed as Agent Framework-compatible abstraction
+- VectorQueryResult and related types are JSON-serializable for agent context passing
+- Error handling returns clear, agent-recoverable results (not exceptions breaking agent loops)
+- Tool binding example provided (queryKnowledge tool using IVectorStore.QueryAsync)
+- Agent integration examples in quickstart.md and contracts/agent-integration.md
+- E2E agent reasoning tests with knowledge retrieval included in tasks (T238-T242)
+
+**GATE VERDICT**: ✅ **APPROVED** — All core principles satisfied including Agent Framework alignment. Observability/cost tracking deferred to future feature.
 
 ## Project Structure
 

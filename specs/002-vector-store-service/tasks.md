@@ -1,0 +1,409 @@
+# Tasks: Vector Store Service Layer for RAG Document Retrieval
+
+**Branch**: `002-vector-store-service`  
+**Spec**: [spec.md](spec.md) | **Plan**: [plan.md](plan.md)  
+**Prerequisites**: ✅ spec.md, ✅ plan.md (both complete)
+
+**Organization**: Tasks grouped by 5 independent slices (Slice 1-5), each delivering a complete vertical feature. Each slice includes foundational setup, implementation, unit tests, and integration tests.
+
+## Format: `- [ ] [TaskID] [P?] [Slice#] Description (file path)`
+
+- **[P]**: Can run in parallel (different files/slices, no blocking dependencies)
+- **[Slice#]**: Which implementation slice this task belongs to (S1-S5)
+- **[TaskID]**: Sequential task ID (T001, T002, etc.) in execution order
+
+---
+
+## Phase 0: Project Setup & Infrastructure
+
+**Purpose**: Initialize new class libraries and project structure
+
+### Setup (not parallelizable within this phase)
+
+- [ ] T001 Create `DeepWiki.Data.Abstractions` class library with csproj and base structure
+- [ ] T002 Create `DeepWiki.Rag.Core` class library with csproj and base structure
+- [ ] T003 Create `DeepWiki.Data.Abstractions.Tests` xUnit test project
+- [ ] T004 Create `DeepWiki.Rag.Core.Tests` xUnit test project
+- [ ] T005 [P] Add NuGet dependencies to Abstractions: EF Core (9.0+) — src/DeepWiki.Data.Abstractions/DeepWiki.Data.Abstractions.csproj
+- [ ] T006 [P] Add NuGet dependencies to Rag.Core: EF Core, Azure.AI.OpenAI, OllamaSharp stub, Microsoft.Extensions.DependencyInjection — src/DeepWiki.Rag.Core/DeepWiki.Rag.Core.csproj
+- [ ] T007 [P] Update ApiService to reference both new libraries and configure DI (register IVectorStore, ITokenizationService, IEmbeddingService for Microsoft Agent Framework tool usage) — src/deepwiki-open-dotnet.ApiService/Program.cs
+- [ ] T008 Create fixture directory with test data — .specify/fixtures/embedding-samples/
+- [ ] T009 Create EF Core DbContext class for RAG (DbSet<DocumentEntity>) — src/DeepWiki.Rag.Core/RAGDbContext.cs
+
+**Checkpoint**: Both libraries ready for implementation; DI wired; fixtures in place
+
+---
+
+## Slice 1: Vector Store & K-NN Query Implementation
+
+**Goal**: Implement `IVectorStore` interface and `SqlServerVectorStore` with SQL Server 2025 vector support. Enable k-NN semantic search with optional metadata filtering using SQL LIKE patterns.
+
+**Independent Test**: Store 10-20 sample documents with embeddings; query with known embedding; verify top k results are correct and ranked by similarity.
+
+**User Stories Served**: US1 (Query Similar Documents)
+
+### T010-T019: Abstractions & Interface Design
+
+- [ ] T010 [P] [S1] Create `IVectorStore.cs` interface with QueryAsync, UpsertAsync, DeleteAsync, RebuildIndexAsync signatures — src/DeepWiki.Data.Abstractions/IVectorStore.cs
+- [ ] T011 [P] [S1] Create `DocumentEntity` domain model with ID, RepoUrl, FilePath, Title, Text, Embedding (vector), MetadataJson, timestamps — src/DeepWiki.Data.Abstractions/Models/DocumentEntity.cs
+- [ ] T012 [P] [S1] Create `VectorQueryResult` model with Document + similarity score — src/DeepWiki.Data.Abstractions/Models/VectorQueryResult.cs
+- [ ] T013 [P] [S1] Create EF Core migration for Documents table with vector(1536) column, indexes (repo+path, RepoUrl, columnstore) — src/DeepWiki.Rag.Core/Migrations/[timestamp]_InitialCreate.cs
+- [ ] T014 [P] [S1] Configure EF Core DocumentEntity mapping with vector column type — src/DeepWiki.Rag.Core/RagDbContext.cs (modelBuilder)
+
+### T015-T025: Vector Store Implementation
+
+- [ ] T015 [S1] Create `SqlServerVectorStore.cs` class implementing `IVectorStore` — src/DeepWiki.Rag.Core/VectorStore/SqlServerVectorStore.cs
+- [ ] T016 [S1] Implement `QueryAsync(float[] embedding, int k, Dictionary<string,string> filters)` with `FromSqlInterpolated` k-NN query using cosine similarity (depends on T015)
+- [ ] T017 [S1] Implement SQL LIKE pattern matching for metadata filters in QueryAsync (repo_url, file_path patterns) (depends on T016)
+- [ ] T018 [S1] Implement `UpsertAsync(DocumentEntity doc)` with insert-or-update logic by (RepoUrl, FilePath) — atomic transaction (depends on T015)
+- [ ] T019 [S1] Implement `DeleteAsync(Guid id)` hard delete operation (depends on T015)
+- [ ] T020 [S1] Implement `RebuildIndexAsync()` for index maintenance (columnstore refresh) (depends on T015)
+- [ ] T021 [S1] Add validation: embedding dimensionality check (must be 1536) in UpsertAsync — throw ArgumentException if invalid (depends on T018)
+
+### T022-T035: Unit Tests for Vector Store
+
+- [ ] T022 [P] [S1] Create `SqlServerVectorStoreTests.cs` xUnit class with mocked DbContext — tests/DeepWiki.Rag.Core.Tests/VectorStore/SqlServerVectorStoreTests.cs
+- [ ] T023 [P] [S1] Test: QueryAsync returns k documents ranked by similarity (mock embedding, verify ORDER BY cosine similarity)
+- [ ] T024 [P] [S1] Test: QueryAsync with empty result returns empty enumerable (not error)
+- [ ] T025 [P] [S1] Test: QueryAsync with metadata filter (repo_url LIKE pattern) returns only matching docs
+- [ ] T026 [P] [S1] Test: QueryAsync with multiple filters (repo_url AND file_path patterns) returns intersection
+- [ ] T027 [P] [S1] Test: UpsertAsync inserts new document with embedding and metadata
+- [ ] T028 [P] [S1] Test: UpsertAsync updates existing document (same repo+path) without duplicate
+- [ ] T029 [P] [S1] Test: UpsertAsync fails atomically (rollback) if embedding is invalid dimension
+- [ ] T030 [P] [S1] Test: UpsertAsync with concurrent writes (two tasks upserting same repo+path) — first wins, second updates atomically
+- [ ] T031 [P] [S1] Test: DeleteAsync removes document by ID
+- [ ] T032 [P] [S1] Test: RebuildIndexAsync completes without error
+- [ ] T033 [P] [S1] Test: Embedding dimensionality validation rejects vectors != 1536 dimensions
+
+### T034-T040: Integration Tests for Vector Store
+
+- [ ] T034 [S1] Create `VectorStoreIntegrationTests.cs` with test SQL Server instance (or in-memory SQLite with computed similarity) — tests/DeepWiki.Rag.Core.Tests/VectorStore/VectorStoreIntegrationTests.cs
+- [ ] T035 [S1] Integration test: Upsert 20 sample documents, query with known embedding, verify top 5 are expected docs (use .specify/fixtures/similarity-ground-truth.json)
+- [ ] T036 [S1] Integration test: Query performance <500ms for 10k document corpus (load sample data, measure)
+- [ ] T037 [S1] Integration test: Metadata filters reduce result set correctly (query all, query with repo filter, verify count reduction)
+
+**Checkpoint**: Slice 1 complete. IVectorStore interface implemented and tested; SqlServerVectorStore supports k-NN queries and SQL LIKE filtering; can independently test US1 (Query Similar Documents).
+
+---
+
+## Slice 2: Tokenization Service & Text Chunking
+
+**Goal**: Implement `ITokenizationService` supporting OpenAI, Foundry, and Ollama token counting; implement `Chunker` for respecting 8192 token limits with word boundary preservation.
+
+**Independent Test**: Count tokens for 10+ representative text samples, compare to Python tiktoken reference (≤2% difference); chunk large document, verify chunks under token limit and preserve word boundaries.
+
+**User Stories Served**: US3 (Validate Document Chunks Respect Token Limits)
+
+### T041-T050: Tokenization Abstraction & Design
+
+- [ ] T041 [P] [S2] Create `ITokenizationService.cs` interface with CountTokensAsync(text, modelId) and ChunkAsync(text, maxTokens) — src/DeepWiki.Data.Abstractions/ITokenizationService.cs
+- [ ] T042 [P] [S2] Create `TokenizationConfig.cs` with mappings for OpenAI (cl100k_base), Foundry (GPT tokenizer), Ollama (cl100k_base) models and their token limits — src/DeepWiki.Rag.Core/Tokenization/TokenizationConfig.cs
+- [ ] T043 [P] [S2] Create `ITokenEncoder.cs` interface for provider-specific token encoding — src/DeepWiki.Rag.Core/Tokenization/ITokenEncoder.cs
+
+### T051-T075: Tokenization Implementation
+
+- [ ] T051 [S2] Create `TokenizationService.cs` implementing `ITokenizationService` with factory injection for provider encoders — src/DeepWiki.Rag.Core/Tokenization/TokenizationService.cs
+- [ ] T052 [S2] Implement `CountTokensAsync(text, modelId)` using provider-specific encoder (OpenAI: port tiktoken logic, Foundry: GPT approximation, Ollama: cl100k_base) (depends on T051)
+- [ ] T053 [S2] Create `TokenEncoderFactory.cs` to select encoder based on modelId (openai, foundry, ollama) — src/DeepWiki.Rag.Core/Tokenization/TokenEncoderFactory.cs
+- [ ] T054 [P] [S2] Create `OpenAITokenEncoder.cs` with token counting (port Python tiktoken cl100k_base logic or use NuGet tiktoken binding) — src/DeepWiki.Rag.Core/Tokenization/OpenAITokenEncoder.cs
+- [ ] T055 [P] [S2] Create `FoundryTokenEncoder.cs` with GPT tokenizer approximation (use cl100k_base encoding) — src/DeepWiki.Rag.Core/Tokenization/FoundryTokenEncoder.cs
+- [ ] T056 [P] [S2] Create `OllamaTokenEncoder.cs` with cl100k_base token counting — src/DeepWiki.Rag.Core/Tokenization/OllamaTokenEncoder.cs
+- [ ] T057 [S2] Implement `ChunkAsync(text, maxTokens)` with word boundary preservation (splits on whitespace, respects maxTokens per chunk) — src/DeepWiki.Rag.Core/Tokenization/TokenizationService.cs (depends on T051)
+- [ ] T058 [S2] Create `Chunker.cs` helper with logic: split text into words, accumulate tokens, start new chunk when over limit, preserve metadata (chunk_index, parent_id) — src/DeepWiki.Rag.Core/Tokenization/Chunker.cs
+- [ ] T059 [S2] Add validation: reject chunks with midword splits (only split on whitespace/punctuation boundaries)
+- [ ] T060 [S2] Add metadata tagging to chunks: {chunk_index: int, parent_id: Guid, language: string}
+
+### T061-T080: Unit Tests for Tokenization
+
+- [ ] T061 [P] [S2] Create `TokenizationServiceTests.cs` xUnit class — tests/DeepWiki.Rag.Core.Tests/Tokenization/TokenizationServiceTests.cs
+- [ ] T062 [P] [S2] Test: CountTokensAsync for OpenAI model returns integer token count
+- [ ] T063 [P] [S2] Test: CountTokensAsync for Foundry model returns integer token count
+- [ ] T064 [P] [S2] Test: CountTokensAsync for Ollama model returns integer token count
+- [ ] T065 [P] [S2] Test: CountTokensAsync with empty string returns 0
+- [ ] T066 [P] [S2] Test: CountTokensAsync with multilingual text counts tokens correctly (supports multiple languages)
+- [ ] T067 [P] [S2] Create `ChunkerTests.cs` xUnit class — tests/DeepWiki.Rag.Core.Tests/Tokenization/ChunkerTests.cs
+- [ ] T068 [P] [S2] Test: ChunkAsync splits large text into chunks under maxTokens limit
+- [ ] T069 [P] [S2] Test: ChunkAsync preserves word boundaries (no mid-word splits)
+- [ ] T070 [P] [S2] Test: ChunkAsync respects 8192 token limit for embedding models
+- [ ] T071 [P] [S2] Test: ChunkAsync with text smaller than maxTokens returns single chunk
+- [ ] T072 [P] [S2] Test: Chunks include metadata (chunk_index, parent_id)
+
+### T073-T085: Tokenization Parity Tests
+
+- [ ] T073 [P] [S2] Create `TokenizationParityTests.cs` for Python tiktoken comparison — tests/DeepWiki.Rag.Core.Tests/Tokenization/TokenizationParityTests.cs
+- [ ] T074 [P] [S2] Load reference token counts from `.specify/fixtures/embedding-samples/python-tiktoken-samples.json` (10+ samples with expected counts)
+- [ ] T075 [P] [S2] Test: CountTokensAsync (OpenAI) matches Python tiktoken within ≤2% tolerance for each sample
+- [ ] T076 [P] [S2] Test: TokenEncoderFactory instantiates correct encoder for each provider
+- [ ] T077 [P] [S2] Document token counting accuracy results in test output (% match, delta per sample)
+
+**Checkpoint**: Slice 2 complete. ITokenizationService supports 3 providers with accurate token counting (≤2% parity to Python); Chunker respects 8192 token limit with word boundaries; can independently test US3 (Token validation).
+
+---
+
+## Slice 3: Embedding Service Factory & Provider Implementations
+
+**Goal**: Implement `IEmbeddingService` with factory pattern supporting OpenAI, Microsoft AI Foundry, and Ollama. Include exponential backoff retry (3 attempts) and fallback to cached/secondary embedding on provider failure.
+
+**Independent Test**: Configure each provider via environment variables; call EmbedAsync with test string; verify correct provider client instantiated and returns 1536-dim vector; test retry logic with mock failure scenarios.
+
+**User Stories Served**: US4 (Support Multiple Embedding Providers), US2 (Ingest Documents with resilience)
+
+### T086-T105: Embedding Service Abstraction & Design
+
+- [ ] T086 [P] [S3] Create `IEmbeddingService.cs` interface with EmbedAsync(text) → float[], EmbedBatchAsync(texts) → IAsyncEnumerable<float[]>, Provider property — src/DeepWiki.Data.Abstractions/IEmbeddingService.cs
+- [ ] T087 [P] [S3] Create `EmbeddingRequest.cs` model with Text, ModelId, MetadataHint, RetryCount — src/DeepWiki.Data.Abstractions/Models/EmbeddingRequest.cs
+- [ ] T088 [P] [S3] Create `EmbeddingResponse.cs` model with Vector (float[]), Provider, Latency — src/DeepWiki.Data.Abstractions/Models/EmbeddingResponse.cs
+- [ ] T089 [P] [S3] Create `RetryPolicy.cs` with exponential backoff logic (3 retries, base delay 100ms, max 10s) and fallback strategy (cached embedding if available) — src/DeepWiki.Rag.Core/Embedding/RetryPolicy.cs
+- [ ] T090 [P] [S3] Create `IEmbeddingCache.cs` interface for cached/secondary embeddings (GetAsync, SetAsync) — src/DeepWiki.Rag.Core/Embedding/IEmbeddingCache.cs
+
+### T091-T125: Embedding Provider Implementations
+
+- [ ] T091 [S3] Create `EmbeddingServiceFactory.cs` to select provider based on configuration (appsettings: EmbeddingProvider: "openai" | "foundry" | "ollama") — src/DeepWiki.Rag.Core/Embedding/EmbeddingServiceFactory.cs
+- [ ] T092 [S3] Create `BaseEmbeddingClient.cs` abstract class with common retry/fallback logic (depends on T091) — src/DeepWiki.Rag.Core/Embedding/BaseEmbeddingClient.cs
+- [ ] T093 [P] [S3] Create `OpenAIEmbeddingClient.cs` wrapping Azure.OpenAI SDK (or OpenAI NuGet SDK); implement EmbedAsync, EmbedBatchAsync with 3-retry backoff and fallback — src/DeepWiki.Rag.Core/Embedding/Providers/OpenAIEmbeddingClient.cs
+- [ ] T094 [P] [S3] Create `FoundryEmbeddingClient.cs` wrapping Azure.AI.OpenAI SDK for Foundry endpoints; implement EmbedAsync, EmbedBatchAsync with retry — src/DeepWiki.Rag.Core/Embedding/Providers/FoundryEmbeddingClient.cs
+- [ ] T095 [P] [S3] Create `OllamaEmbeddingClient.cs` wrapping OllamaSharp or HTTP client for Ollama endpoints; implement EmbedAsync, EmbedBatchAsync — src/DeepWiki.Rag.Core/Embedding/Providers/OllamaEmbeddingClient.cs
+- [ ] T096 [P] [S3] Implement batch embedding in all providers: `EmbedBatchAsync(texts)` with configurable batch size (default 10, max 100) — all 3 provider files (T093, T094, T095)
+- [ ] T097 [P] [S3] Add structured logging to all providers: log provider name, model ID, token count, latency, retry attempts, fallback use — all 3 provider files
+- [ ] T098 [P] [S3] Implement exponential backoff in BaseEmbeddingClient: retry logic with 100ms base, 2x multiplier, max 3 attempts, jitter ±20% — src/DeepWiki.Rag.Core/Embedding/BaseEmbeddingClient.cs (depends on T092)
+- [ ] T099 [P] [S3] Implement fallback strategy in RetryPolicy: if all retries fail, attempt to fetch cached embedding by text hash; if cached exists, return it; else throw with provider context — src/DeepWiki.Rag.Core/Embedding/RetryPolicy.cs (depends on T089, T090)
+- [ ] T100 [S3] Create `EmbeddingCache.cs` in-memory implementation of IEmbeddingCache (simple Dictionary<string, float[]> with TTL) — src/DeepWiki.Rag.Core/Embedding/EmbeddingCache.cs
+- [ ] T101 [S3] Add validation: embedding dimensionality check (must return 1536-dim vectors) in all providers — throws InvalidOperationException if wrong size
+- [ ] T102 [S3] Add provider instantiation in DI: register IEmbeddingService → factory-selected provider in ApiService Program.cs — src/deepwiki-open-dotnet.ApiService/Program.cs (depends on T091)
+
+### T103-T130: Unit Tests for Embedding Service
+
+- [ ] T103 [P] [S3] Create `EmbeddingServiceFactoryTests.cs` xUnit class — tests/DeepWiki.Rag.Core.Tests/Embedding/EmbeddingServiceFactoryTests.cs
+- [ ] T104 [P] [S3] Test: Factory instantiates OpenAI client when config specifies "openai"
+- [ ] T105 [P] [S3] Test: Factory instantiates Foundry client when config specifies "foundry"
+- [ ] T106 [P] [S3] Test: Factory instantiates Ollama client when config specifies "ollama"
+- [ ] T107 [P] [S3] Test: Factory throws exception for unknown provider
+- [ ] T108 [P] [S3] Create `OpenAIEmbeddingClientTests.cs` with mocked OpenAI SDK — tests/DeepWiki.Rag.Core.Tests/Embedding/OpenAIEmbeddingClientTests.cs
+- [ ] T109 [P] [S3] Test: EmbedAsync calls OpenAI API and returns 1536-dim vector
+- [ ] T110 [P] [S3] Test: EmbedAsync with failed API call retries 3 times then falls back to cache if available
+- [ ] T111 [P] [S3] Test: EmbedAsync with no cache available throws with provider context after 3 retries
+- [ ] T112 [P] [S3] Test: EmbedBatchAsync batches requests (10 per batch by default) and returns all vectors
+- [ ] T113 [P] [S3] Create similar tests for FoundryEmbeddingClient and OllamaEmbeddingClient (T108-T112 pattern)
+- [ ] T114 [P] [S3] Create `RetryPolicyTests.cs` xUnit class — tests/DeepWiki.Rag.Core.Tests/Embedding/RetryPolicyTests.cs
+- [ ] T115 [P] [S3] Test: Retry logic executes 3 times with exponential backoff (100ms, 200ms, 400ms)
+- [ ] T116 [P] [S3] Test: Retry logic falls back to cached embedding on 3rd failure
+- [ ] T117 [P] [S3] Test: Retry logic throws after 3 failures if no cache available
+- [ ] T118 [P] [S3] Test: Jitter (±20%) applied to backoff delays (verify range)
+
+### T119-T135: Integration Tests for Embedding Service
+
+- [ ] T119 [S3] Create `EmbeddingServiceIntegrationTests.cs` with mocked providers (no live API calls in CI) — tests/DeepWiki.Rag.Core.Tests/Embedding/EmbeddingServiceIntegrationTests.cs
+- [ ] T120 [S3] Integration test: Configure OpenAI provider, call EmbedAsync with test string, verify 1536-dim output
+- [ ] T121 [S3] Integration test: Configure Foundry provider, call EmbedAsync, verify 1536-dim output
+- [ ] T122 [S3] Integration test: Configure Ollama provider, call EmbedAsync, verify 1536-dim output
+- [ ] T123 [S3] Integration test: Batch embedding (100 documents), measure throughput (target ≥50 docs/sec)
+- [ ] T124 [S3] Integration test: Provider change in config (openai → ollama), verify new provider used on reinitialization
+
+**Checkpoint**: Slice 3 complete. IEmbeddingService factory supports 3 providers; retry+fallback logic tested; batch embedding working; can independently test US4 (Providers) and handle US2 resilience requirements.
+
+---
+
+## Slice 4: Document Ingestion Service & Upsert Orchestration
+
+**Goal**: Implement `DocumentIngestionService` orchestrating document chunking, embedding, and upsert. Support batch ingestion with duplicate detection and concurrent write handling.
+
+**Independent Test**: Submit 100 documents to ingestion; verify all chunked, embedded, and stored without duplicates; verify immediate queryability; test duplicate update scenario.
+
+**User Stories Served**: US2 (Ingest and Index Documents), US1 (Query returns upserted docs), US3 (Token validation in ingestion)
+
+### T136-T150: Ingestion Service Design & Abstraction
+
+- [ ] T136 [P] [S4] Create `IDocumentIngestionService.cs` interface with IngestAsync(documents), UpsertAsync(document), ChunkAndEmbedAsync(text) — src/DeepWiki.Data.Abstractions/IDocumentIngestionService.cs
+- [ ] T137 [P] [S4] Create `IngestionRequest.cs` model with Documents list, BatchSize, RetryPolicy, MetadataDefaults — src/DeepWiki.Data.Abstractions/Models/IngestionRequest.cs
+- [ ] T138 [P] [S4] Create `IngestionResult.cs` model with SuccessCount, FailureCount, Errors list, Duration — src/DeepWiki.Data.Abstractions/Models/IngestionResult.cs
+
+### T151-T180: Ingestion Implementation
+
+- [ ] T151 [S4] Create `DocumentIngestionService.cs` implementing `IDocumentIngestionService` — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs
+- [ ] T152 [S4] Inject dependencies: IVectorStore, ITokenizationService, IEmbeddingService, ILogger — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs (depends on T151)
+- [ ] T153 [S4] Implement `IngestAsync(documents)` orchestrating chunk → embed → upsert for batch of documents (depends on T151)
+- [ ] T154 [S4] Implement `UpsertAsync(document)` with atomic transaction: start transaction, upsert, commit or rollback on error (depends on T151)
+- [ ] T155 [S4] Implement duplicate detection: check (RepoUrl, FilePath) uniqueness before upsert; if exists, update; else insert (depends on T154)
+- [ ] T156 [S4] Implement `ChunkAndEmbedAsync(text)` orchestrating: chunk text → embed each chunk → return list of (chunk_text, embedding) tuples (depends on T151)
+- [ ] T157 [S4] Batch embedding in ingestion: call IEmbeddingService.EmbedBatchAsync for efficiency (default batch size 10) (depends on T156)
+- [ ] T158 [S4] Add concurrent write handling: detect conflict on duplicate (RepoUrl, FilePath), decide: (A) update latest or (B) fail with conflict error — implement (A) first write wins with atomic update (depends on T154)
+- [ ] T159 [S4] Add error handling per-document: if one fails, log error, continue with next (batch ingestion resilience) — return IngestionResult with counts (depends on T153)
+- [ ] T160 [S4] Add structured logging: log ingestion start/end, per-document status, chunk count, embedding latency, upsert confirmation — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs
+- [ ] T161 [S4] Validate chunk token count in ingestion: enforce ≤8192 tokens per chunk before embedding (prevents API errors) — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs (depends on T156)
+- [ ] T162 [S4] Add metadata enrichment: auto-populate language, file_type from filename, chunk_index from position — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs (depends on T153)
+- [ ] T163 [S4] Register IDocumentIngestionService in DI — src/deepwiki-open-dotnet.ApiService/Program.cs
+
+### T164-T190: Unit Tests for Ingestion
+
+- [ ] T164 [P] [S4] Create `DocumentIngestionServiceTests.cs` with mocked dependencies — tests/DeepWiki.Rag.Core.Tests/Ingestion/DocumentIngestionServiceTests.cs
+- [ ] T165 [P] [S4] Test: IngestAsync with 10 documents chunks, embeds, upserts all successfully
+- [ ] T166 [P] [S4] Test: IngestAsync with duplicate (same repo+path) updates existing document
+- [ ] T167 [P] [S4] Test: IngestAsync with embedding service failure retries and falls back (tests retry policy)
+- [ ] T168 [P] [S4] Test: IngestAsync with one failing document logs error and continues (batch resilience)
+- [ ] T169 [P] [S4] Test: ChunkAndEmbedAsync chunks text, embeds all chunks, returns (chunk, embedding) pairs
+- [ ] T170 [P] [S4] Test: ChunkAndEmbedAsync respects 8192 token limit per chunk (enforces during ingestion)
+- [ ] T171 [P] [S4] Test: UpsertAsync inserts new document with all metadata
+- [ ] T172 [P] [S4] Test: UpsertAsync with concurrent writes (two tasks, same repo+path) — first write wins, second updates atomically
+- [ ] T173 [P] [S4] Test: IngestAsync returns IngestionResult with success/failure counts and errors
+- [ ] T174 [P] [S4] Test: Metadata enrichment adds language, file_type, chunk_index to documents
+
+### T175-T190: Integration Tests for Ingestion
+
+- [ ] T175 [S4] Create `DocumentIngestionIntegrationTests.cs` with in-memory SQLite and mock embedding service — tests/DeepWiki.Rag.Core.Tests/Ingestion/DocumentIngestionIntegrationTests.cs
+- [ ] T176 [S4] Integration test: Ingest 100 sample documents (from .specify/fixtures/sample-documents.json), verify all stored
+- [ ] T177 [S4] Integration test: Query after ingestion confirms documents are immediately available (immediate consistency)
+- [ ] T178 [S4] Integration test: Ingest same documents again (duplicate scenario), verify no duplicates created, metadata updated
+- [ ] T179 [S4] Integration test: Ingestion with 50k token document auto-chunks correctly
+- [ ] T180 [S4] Integration test: Batch ingestion throughput: measure time for 100 documents (target ≥50 docs/sec after embedding)
+
+**Checkpoint**: Slice 4 complete. DocumentIngestionService orchestrates full ingestion pipeline; chunking, embedding, upsert working end-to-end; duplicate handling and concurrent writes tested; can independently test US2 (Ingestion).
+
+---
+
+## Slice 5: End-to-End Integration, Testing, and Documentation
+
+**Goal**: Verify complete end-to-end flow (ingest → embed → store → query); integration tests across all slices; documentation for configuration, usage, and extension; CI/CD setup.
+
+**Independent Test**: End-to-end: submit 20 documents → verify stored → query → verify results ranked correctly and match expected docs.
+
+**User Stories Served**: All (US1-US5 integration), Success Criteria SC-001 through SC-010
+
+### T191-T205: End-to-End Integration Tests
+
+- [ ] T191 [S5] Create `RagEndToEndTests.cs` xUnit class testing complete flow — tests/DeepWiki.Rag.Core.Tests/RagEndToEndTests.cs
+- [ ] T192 [S5] E2E test: Ingest 20 sample documents → Query → Verify top 5 results match ground truth (use .specify/fixtures/similarity-ground-truth.json)
+- [ ] T193 [S5] E2E test: Document ingestion → 500ms latency verification (measure query latency for 10k doc corpus) — SC-001
+- [ ] T194 [S5] E2E test: Token counting parity verification (load samples, compare OpenAI/Foundry/Ollama counts to Python reference) — SC-002
+- [ ] T195 [S5] E2E test: Embedding throughput (embed 50 docs, measure time, verify ≥50 docs/sec) — SC-003
+- [ ] T196 [S5] E2E test: K-NN retrieval accuracy (top 5 results are semantically similar, verified against ground-truth) — SC-006
+- [ ] T197 [S5] E2E test: Metadata filtering reduces results correctly (query all, apply repo filter, verify ≥95% reduction for single-repo filter) — SC-007
+- [ ] T198 [S5] E2E test: Zero data loss on upsert (ingest documents, verify all persisted with correct embeddings and metadata) — SC-010
+- [ ] T199 [S5] E2E test: Concurrent upsert stress (10 concurrent tasks upserting to same document) — verify atomicity, no corruption
+- [ ] T200 [S5] E2E test: Retry/fallback scenario (mock embedding service failure, verify system falls back gracefully and completes)
+
+### T201-T215: Performance & Load Tests
+
+- [ ] T201 [P] [S5] Create `PerformanceTests.cs` class with benchmarking tools — tests/DeepWiki.Rag.Core.Tests/PerformanceTests.cs
+- [ ] T202 [P] [S5] Benchmark: QueryAsync latency for k=10 on 10k documents (target <500ms p95) — SC-001
+- [ ] T203 [P] [S5] Benchmark: Batch embedding throughput (100 documents, target ≥50 docs/sec) — SC-003
+- [ ] T204 [P] [S5] Benchmark: Metadata filtering performance (query with single filter, measure latency)
+- [ ] T205 [P] [S5] Benchmark: Concurrent upsert load (10 concurrent tasks, 100 documents each, measure completion time)
+
+### T206-T220: Code Coverage & Quality Gates
+
+- [ ] T206 [P] [S5] Verify unit test coverage ≥90% for IVectorStore implementation — SC-004
+- [ ] T207 [P] [S5] Verify unit test coverage ≥90% for ITokenizationService implementation — SC-004
+- [ ] T208 [P] [S5] Verify unit test coverage ≥90% for IEmbeddingService implementation — SC-004
+- [ ] T209 [P] [S5] Run all tests in CI, report coverage via coverlet/codecov
+- [ ] T210 [P] [S5] Code review checklist: architecture conformance (provider factory, DI usage, no hardcoded values)
+- [ ] T211 [P] [S5] Linting: ensure no warnings in all 3 projects (DeepWiki.Data.Abstractions, DeepWiki.Rag.Core, tests)
+- [ ] T212 [P] [S5] Documentation review: ensure all public APIs have XML docs
+
+### T213-T240: Documentation & Quickstart
+
+- [ ] T213 [S5] Create `quickstart.md` with 3 configuration examples (OpenAI, Foundry, Ollama) — specs/002-vector-store-service/quickstart.md
+- [ ] T214 [S5] Document OpenAI configuration: appsettings.json, environment variables, API key setup — specs/002-vector-store-service/quickstart.md
+- [ ] T215 [S5] Document Foundry Local configuration: endpoint URL, API key, model ID selection — specs/002-vector-store-service/quickstart.md
+- [ ] T216 [S5] Document Ollama configuration: local URL (default localhost:11434), model name, startup steps — specs/002-vector-store-service/quickstart.md
+- [ ] T217 [S5] Create code examples in quickstart: IVectorStore usage (query, upsert), ITokenizationService (count, chunk), IDocumentIngestionService (ingest batch)
+- [ ] T218 [S5] Create API contracts documentation in `contracts/` directory (IVectorStore.md, ITokenizationService.md, IEmbeddingService.md, provider-factory.md) — specs/002-vector-store-service/contracts/
+- [ ] T219 [S5] Create data model documentation (`data-model.md`): DocumentEntity schema, metadata format, EF Core mapping — specs/002-vector-store-service/data-model.md
+- [ ] T220 [S5] Create extension guide: how to add new embedding provider (implement IEmbeddingService, register in factory, document) — specs/002-vector-store-service/quickstart.md
+- [ ] T221 [S5] Create troubleshooting guide: common errors (provider unavailable, token mismatch, embedding dimension error), solutions
+- [ ] T222 [S5] Document performance characteristics and tuning (batch size, token limits, index maintenance)
+- [ ] T223 [S5] Add examples to quickstart: running tests locally (xUnit, in-memory SQLite), running with test SQL Server
+
+### T224-T240: CI/CD & Infrastructure
+
+- [ ] T224 [P] [S5] Update `.github/workflows/build.yml` to build both new libraries in CI pipeline
+- [ ] T225 [P] [S5] Add xUnit test execution step for DeepWiki.Rag.Core.Tests in CI workflow
+- [ ] T226 [P] [S5] Add code coverage reporting (coverlet, upload to codecov or similar)
+- [ ] T227 [P] [S5] Configure test SQL Server instance or in-memory SQLite for integration tests in CI
+- [ ] T228 [P] [S5] Add performance benchmark step to CI (optional: only on main branch)
+- [ ] T229 [P] [S5] Document CI/CD setup in implementation guide (how to run tests locally, in CI)
+
+### T230-T245: Final Integration & Sign-Off
+
+- [ ] T230 [S5] Create `.specify/templates/implementation.md` checklist with sign-off criteria — specs/002-vector-store-service/checklists/implementation.md
+- [ ] T231 [S5] Verify all 5 slices independently testable: each can be demo'd alone (US1-US5 scoped)
+- [ ] T232 [S5] Verify all FRs addressed: FR-001 through FR-014 mapped to tasks and tested
+- [ ] T233 [S5] Verify all success criteria measurable: SC-001 through SC-010 have tests/benchmarks
+- [ ] T234 [S5] Verify architecture extensibility: Postgres pgvector support feasible (IVectorStore abstraction clean)
+- [ ] T235 [S5] Final review: code quality, test coverage, documentation completeness, performance targets
+- [ ] T236 [S5] Create implementation sign-off document with test results, metrics, known limitations — specs/002-vector-store-service/IMPLEMENTATION_SIGN_OFF.md
+- [ ] T237 [S5] Prepare merge PR with all artifacts (spec, plan, tasks, documentation, code, tests)
+
+**Checkpoint**: Slice 5 complete. Full end-to-end integration tested; documentation complete; CI/CD wired; all success criteria validated; ready for review and merge to main.
+
+### T238-T242: Agent Framework Integration Testing (A4 Remediation)
+
+- [ ] T238 [P] [S5] Create `AgentFrameworkIntegrationTests.cs` xUnit class testing Vector Store with Agent Framework tools — tests/DeepWiki.Rag.Core.Tests/AgentFramework/AgentFrameworkIntegrationTests.cs
+- [ ] T239 [S5] Create sample Agent Framework agent with `queryKnowledge` tool using IVectorStore (tool definition, parameter binding, context integration) — examples/AgentWithKnowledgeRetrieval.cs
+- [ ] T240 [S5] Integration test: Agent calls `queryKnowledge(question)` → IVectorStore.QueryAsync() → returns documents → agent integrates into reasoning context
+- [ ] T241 [S5] Integration test: E2E agent reasoning with Vector Store (agent question → retrieve documents → reason over context → generate answer with citations)
+- [ ] T242 [S5] Performance test: Measure agent response time with Vector Store latency (target: <1s total agent response = agent reasoning <500ms + Vector Store query <500ms)
+
+**Checkpoint**: Agent Framework integration verified. Vector Store usable directly from Agent Framework tools. E2E agent reasoning with knowledge retrieval tested.
+
+---
+
+## Summary: Task Counts by Slice
+
+| Slice | Category | Task Count | Focus |
+|-------|----------|-----------|-------|
+| Setup (T001-T009) | Infrastructure | 9 | Project structure, DI, fixtures |
+| **S1** (T010-T040) | Vector Store | 31 | IVectorStore, SqlServerVectorStore, k-NN, SQL LIKE filtering |
+| **S2** (T041-T085) | Tokenization | 45 | ITokenizationService, 3 models, Chunker, parity tests |
+| **S3** (T086-T135) | Embedding Factory | 50 | IEmbeddingService, 3 providers, retry+fallback, batch |
+| **S4** (T136-T190) | Ingestion | 55 | DocumentIngestionService, chunking, embedding, upsert, concurrency |
+| **S5** (T191-T242) | Integration, Docs & Agent FW | 52 | E2E tests, performance, documentation, CI/CD, sign-off, **Agent Framework integration** |
+
+**Total Tasks**: 242 (plus 9 setup) = **251 tasks** (includes 5 new Agent Framework integration tasks T238-T242)
+
+**Effort Estimate** (from plan):
+- Slice 1: 4-5 days
+- Slice 2: 3-4 days
+- Slice 3: 4-5 days
+- Slice 4: 3-4 days
+- Slice 5: 2-3 days
+- **Total**: 16-21 days (4-5 weeks for 1-2 developers)
+
+---
+
+## Task Dependencies
+
+**Setup (T001-T009)**: No blockers — run first in sequence
+
+**Slice 1 (T010-T040)**: Depends on Setup. Can run in parallel internally (T010-T013 are interfaces/data model; T014+ implementation).
+
+**Slice 2 (T041-T085)**: Independent of S1; can start after Setup. Parallel: T054-T056 (provider encoders are independent).
+
+**Slice 3 (T086-T135)**: Depends on T041-T085 for ITokenizationService in batch embedding. Otherwise independent; can start with T086-T090 (interfaces) while S2 in progress. Parallel: T093-T095 (provider clients).
+
+**Slice 4 (T136-T190)**: Depends on S1 (IVectorStore), S2 (ITokenizationService), S3 (IEmbeddingService). All 3 must be mostly complete before T151 (integration). Otherwise parallelizable.
+
+**Slice 5 (T191-T245)**: Depends on S1-S4 complete. Can run in parallel (tests, performance, docs).
+
+---
+
+## Prioritization for MVP
+
+**Minimum Viable Product (MVP)** should deliver US1 + US2 + US3 fully functional:
+1. Complete **Setup** (T001-T009)
+2. Complete **Slice 1** (T010-T040) — enables US1 (Query)
+3. Complete **Slice 2** (T041-T085) — enables US3 (Token validation)
+4. Complete **Slice 3** core provider (T086-T102, focus on Ollama or OpenAI) — enables US2 + US4 partially
+5. Complete **Slice 4** (T136-T190) — enables US2 (Ingest) fully
+6. Run **Slice 5 core E2E** (T191-T200) — validates full MVP flow
+
+This sequence ensures semantic retrieval (US1), ingestion with tokens (US2, US3), and basic provider support (US4 partial) — roughly 2-3 weeks for 1 developer.
+
+**Post-MVP** (US4 complete + US5, Slice 5 full documentation):
+- Add remaining 2 providers (Foundry, any missing)
+- Complete documentation and CI/CD
+- Run full performance suite (S5 benchmarks)
+- Prepare for production release
+
+---
+
+**All tasks ready for implementation. Each slice independently testable. Ready for development to begin with Slice 1.**

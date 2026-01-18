@@ -9,7 +9,7 @@
 
 ## Overview
 
-The .NET application needs a pluggable abstraction layer for semantic document retrieval against SQL Server 2025's native vector type. Currently, document management relies on basic relational queries; we need the ability to store embeddings and retrieve semantically similar documents (k-nearest neighbors) to enable RAG (Retrieval Augmented Generation) flows. This layer must support multiple embedding providers (OpenAI, Azure, Bedrock, Google, Ollama) and allow future swapping of vector storage backends without changing application code.
+The .NET application needs a pluggable abstraction layer for semantic document retrieval against SQL Server 2025's native vector type, **designed as a knowledge access service for Microsoft Agent Framework agents**. Currently, document management relies on basic relational queries; we need the ability to store embeddings and retrieve semantically similar documents (k-nearest neighbors) to enable knowledge-grounded agent reasoning and RAG (Retrieval Augmented Generation) flows. This layer exposes `IVectorStore`, `ITokenizationService`, and `IEmbeddingService` as Microsoft Agent Framework-compatible abstractions, enabling agents to access semantic knowledge during decision-making. The layer must support multiple embedding providers (OpenAI, Azure Foundry, Ollama) and allow future swapping of vector storage backends without changing application code or agent tool definitions.
 
 ## Clarifications
 
@@ -199,8 +199,8 @@ Users want to limit searches to specific repositories or file types. The vector 
 
 ## Out of Scope (MVP Phase)
 
+- **Agent Orchestration** (separate feature; Vector Store is knowledge retrieval layer FOR agents, not orchestration)
 - Additional embedding providers (Bedrock, Google) - planned for follow-up feature
-- Agent orchestration layer (separate feature)
 - Streaming chat endpoints (separate feature)
 - WebSocket/SignalR implementation (separate feature)
 - Authentication/authorization (handled by existing ApiService)
