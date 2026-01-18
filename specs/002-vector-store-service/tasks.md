@@ -29,8 +29,8 @@
 - [x] T005 [P] Add NuGet dependencies to Abstractions: EF Core (10.0+) — src/DeepWiki.Data.Abstractions/DeepWiki.Data.Abstractions.csproj
 - [x] T006 [P] Add NuGet dependencies to Rag.Core: EF Core, Azure.AI.OpenAI, OllamaSharp stub, Microsoft.Extensions.DependencyInjection — src/DeepWiki.Rag.Core/DeepWiki.Rag.Core.csproj
 - [x] T007 [P] Update ApiService to reference both new libraries and configure DI: register IVectorStore, ITokenizationService, IEmbeddingService as singletons for dependency injection into Microsoft Agent Framework tool definitions. See T238-T242 for agent tool binding patterns — src/deepwiki-open-dotnet.ApiService/Program.cs
-- [ ] T008 Create fixture directory with test data — .specify/fixtures/embedding-samples/
-- [ ] T009 Create EF Core DbContext class for RAG (DbSet<DocumentEntity>) — src/DeepWiki.Rag.Core/RAGDbContext.cs
+- [x] T008 Create fixture directory with test data — `tests/DeepWiki.Rag.Core.Tests/fixtures/embedding-samples/` (placed in test project per team preference; update spec.md to reflect this)
+- [x] T009 Refactor shared DocumentEntity mapping into `DeepWiki.Data.Configuration.SharedDocumentEntityConfiguration` and apply it from provider configurations (no new RAG DbContext) — src/DeepWiki.Data/Configuration/SharedDocumentEntityConfiguration.cs
 
 **Checkpoint**: Both libraries ready for implementation; DI wired; fixtures in place
 
