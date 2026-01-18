@@ -13,12 +13,14 @@ using Xunit;
 public class SqlServerDocumentRepositoryTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _fixture;
+    private readonly Xunit.Abstractions.ITestOutputHelper _output;
     private SqlServerVectorDbContext? _context;
     private SqlServerDocumentRepository? _repository;
 
-    public SqlServerDocumentRepositoryTests()
+    public SqlServerDocumentRepositoryTests(Xunit.Abstractions.ITestOutputHelper output)
     {
         _fixture = new SqlServerFixture();
+        _output = output;
     }
 
     public async Task InitializeAsync()
@@ -332,8 +334,8 @@ public class SqlServerDocumentRepositoryTests : IAsyncLifetime
         // Diagnostic: verify DB reflects first update and UpdatedAt differs from the stale copy
         var afterFirst = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
         Assert.Equal("Updated in context 1", afterFirst!.Title);
-        Console.WriteLine($"[DIAG] afterFirst.UpdatedAt={afterFirst.UpdatedAt:o}");
-        Console.WriteLine($"[DIAG] docInContext2.UpdatedAt={docInContext2!.UpdatedAt:o}");
+        _output.WriteLine($"[DIAG] afterFirst.UpdatedAt={afterFirst.UpdatedAt:o}");
+        _output.WriteLine($"[DIAG] docInContext2.UpdatedAt={docInContext2!.UpdatedAt:o}");
         Assert.NotEqual(afterFirst.UpdatedAt, docInContext2.UpdatedAt);
 
         // Try to update in second context
