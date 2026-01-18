@@ -66,7 +66,10 @@ public class SqlServerDocumentRepository : IDocumentRepository
 
         // Atomic conditional update: update only when UpdatedAt equals caller's original (optimistic concurrency)
         var originalUpdatedAt = document.UpdatedAt;
-        var newUpdatedAt = DateTime.UtcNow;
+        // Ensure a different timestamp even on low-precision DB types
+        var newUpdatedAt = DateTime.UtcNow.AddTicks(1);
+
+        Console.WriteLine($"[DIAG] SqlServer UpdateAsync id={document.Id} original={originalUpdatedAt:o} new={newUpdatedAt:o}");
 
         var updatedCount = await _context.Documents
             .Where(d => d.Id == document.Id && d.UpdatedAt == originalUpdatedAt)
@@ -80,6 +83,8 @@ public class SqlServerDocumentRepository : IDocumentRepository
                 .SetProperty(d => d.TokenCount, document.TokenCount)
                 .SetProperty(d => d.MetadataJson, document.MetadataJson)
                 .SetProperty(d => d.UpdatedAt, newUpdatedAt), cancellationToken);
+
+        Console.WriteLine($"[DIAG] SqlServer UpdateAsync updatedCount={updatedCount}");
 
         if (updatedCount == 0)
         {
