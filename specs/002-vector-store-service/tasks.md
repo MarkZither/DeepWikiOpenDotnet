@@ -249,6 +249,8 @@
 - [ ] T173 [P] [S4] Test: IngestAsync returns IngestionResult with success/failure counts and errors
 - [ ] T174 [P] [S4] Test: Metadata enrichment adds language, file_type, chunk_index to documents
 
+> ⚠️ **Note:** Optimistic concurrency tests (document update conflict scenarios) are deferred and skipped in CI to avoid blocking progress. Implement a robust concurrency token (e.g., `RowVersion`/timestamp) and re-enable these tests before public-cloud deployment.
+
 ### T175-T190: Integration Tests for Ingestion
 
 - [ ] T175 [S4] Create `DocumentIngestionIntegrationTests.cs` with in-memory SQLite and mock embedding service — tests/DeepWiki.Rag.Core.Tests/Ingestion/DocumentIngestionIntegrationTests.cs

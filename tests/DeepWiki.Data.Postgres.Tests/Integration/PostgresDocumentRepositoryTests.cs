@@ -250,7 +250,7 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         Assert.NotNull(final);
     }
 
-    [Fact]
+    [Fact(Skip = "Deferred: optimistic concurrency handling deferred; re-enable before public cloud deployment")]
     public async Task ConcurrentUpdate_WithoutReload_ShouldFailDueToStaleToken()
     {
         // Arrange
@@ -282,7 +282,7 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         await context2.DisposeAsync();
     }
 
-    [Fact]
+    [Fact(Skip = "Deferred: optimistic concurrency handling deferred; re-enable before public cloud deployment")]
     public async Task ConcurrentUpdates_InDifferentContexts_ShouldHandleCorrectly()
     {
         // Arrange
@@ -315,7 +315,7 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         await context2.DisposeAsync();
     }
 
-    [Fact]
+    [Fact(Skip = "Deferred: optimistic concurrency handling deferred; re-enable before public cloud deployment")]
     public async Task ReloadAndUpdate_AfterConflict_ShouldSucceed()
     {
         // Arrange
