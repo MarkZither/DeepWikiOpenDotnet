@@ -13,4 +13,8 @@
     <PackageReference Include="OllamaSharp" Version="5.4.12" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DeepWiki.Data.Abstractions\DeepWiki.Data.Abstractions.csproj" />
+  </ItemGroup>
+
 </Project>
