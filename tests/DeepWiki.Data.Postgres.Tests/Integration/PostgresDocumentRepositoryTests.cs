@@ -141,14 +141,14 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         }
 
         // Act
-        var page1 = await _repository.GetByRepoAsync(repoUrl, 0, 2, CancellationToken.None);
-        var page2 = await _repository.GetByRepoAsync(repoUrl, 2, 2, CancellationToken.None);
+        var page1 = await _repository!.GetByRepoAsync(repoUrl, 0, 2, CancellationToken.None);
+        var page2 = await _repository!.GetByRepoAsync(repoUrl, 2, 2, CancellationToken.None);
 
         // Assert
-        Assert.NotNull(page1);
-        Assert.NotNull(page2);
-        Assert.Equal(2, page1.Count);
-        Assert.Equal(2, page2.Count);
+        var p1Count = page1?.Count ?? throw new Xunit.Sdk.XunitException("Expected page1 to be non-null");
+        var p2Count = page2?.Count ?? throw new Xunit.Sdk.XunitException("Expected page2 to be non-null");
+        Assert.Equal(2, p1Count);
+        Assert.Equal(2, p2Count);
     }
 
     [Fact]
@@ -166,8 +166,8 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         // Assert
         var retrieved = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
         Assert.NotNull(retrieved);
-        Assert.Equal("Updated Title", retrieved.Title);
-        Assert.Equal("Updated content", retrieved.Text);
+        Assert.Equal("Updated Title", retrieved!.Title);
+        Assert.Equal("Updated content", retrieved!.Text);
     }
 
     [Fact]
