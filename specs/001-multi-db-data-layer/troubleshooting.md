@@ -555,7 +555,7 @@ Common issues and solutions for the DeepWiki .NET Data Access Layer.
    ```csharp
    // Correct lifetimes
    services.AddScoped<IDocumentRepository>(); // Per-request
-   services.AddScoped<IVectorStore>();       // Per-request
+   services.AddScoped<IPersistenceVectorStore>();       // Per-request
    
    // NOT Singleton for DbContext-dependent services
    services.AddSingleton<IDocumentRepository>(); // ❌ Wrong
@@ -566,7 +566,7 @@ Common issues and solutions for the DeepWiki .NET Data Access Layer.
    // If IVectorStore depends on DbContext
    // Ensure DbContext is registered first
    services.AddDbContext<SqlServerVectorDbContext>();
-   services.AddScoped<IVectorStore, SqlServerVectorStore>();
+   services.AddScoped<IPersistenceVectorStore, SqlServerVectorStore>();
    ```
 
 ### Issue 17: "DbContext Already Disposed"

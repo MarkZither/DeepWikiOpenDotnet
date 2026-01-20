@@ -170,7 +170,7 @@ When you call `AddSqlServerDataLayer` or `AddPostgresDataLayer`, the following s
 ### Scoped Services
 
 ```csharp
-services.AddScoped<IVectorStore, SqlServerVectorStore>();        // or PostgresVectorStore
+services.AddScoped<IPersistenceVectorStore, SqlServerVectorStore>();        // or PostgresVectorStore
 services.AddScoped<IDocumentRepository, SqlServerDocumentRepository>(); // or PostgresDocumentRepository
 ```
 

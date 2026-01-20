@@ -9,7 +9,7 @@ SYNC IMPACT REPORT
   - `.specify/templates/spec-template.md` (⚠ pending manual review)
   - `.specify/templates/tasks-template.md` (⚠ pending manual review)
   - `.github/agents/speckit.constitution.agent.md` (⚠ review: validation & version bump logic)
-- Follow-up TODOs: create issues to (1) add `.specify/fixtures/llm-snapshots/` with examples & playback tests, (2) update templates to reflect snapshot and LLM rules, (3) add LLM cost dashboards and runbooks.
+- Follow-up TODOs: create issues to (1) add `./llm-snapshots/` with examples & playback tests, (2) update templates to reflect snapshot and LLM rules, (3) add LLM cost dashboards and runbooks.
 -->
 
 # DeepWiki .NET Constitution
@@ -78,7 +78,7 @@ This document defines non-negotiable principles, governance rules, and operation
 ## LLM Policy & Snapshotting
 - Provider precedence: Local-first (Ollama) MUST be default; OpenAI-compatible APIs are next; cloud providers are pluggable. Implementations MUST satisfy a Provider interface and be configurable.
 - Prompt versioning: Prompt templates and prompt changes MUST be versioned in the repo with changelogs and rationale. Changes that affect generation or parsing MUST include snapshot comparisons.
-- Snapshot recording: All LLM requests that impact wiki content or parsing MUST create a snapshot containing request metadata, streaming chunks with timestamps, response hash, and redaction info. Snapshots MUST be stored in `.specify/fixtures/llm-snapshots/` and referenced in tests.
+- Snapshot recording: All LLM requests that impact wiki content or parsing MUST create a snapshot containing request metadata, streaming chunks with timestamps, response hash, and redaction info. Snapshots MUST be stored in `./llm-snapshots/` and referenced in tests.
 - PII & retention: Snapshots MUST be scanned for PII and redacted before medium/long-term storage. Short-term raw captures MAY be allowed in secured environments but MUST be deleted per retention policy.
 
 ### Snapshot JSON Schema (reference)
@@ -180,7 +180,7 @@ Retention tiers: short-term (30 days raw), medium-term (365 days redacted), long
 ## Templates & Sync Checklist
 - Review and update `.specify/templates/plan-template.md` to include Constitution Check gates for snapshot, prompt changes, database migrations, and Agent Framework compatibility.
 - Audit `.specify/templates/spec-template.md` and `.specify/templates/tasks-template.md` to ensure required sections (observability, snapshots, security, database design, Agent Framework) are present.
-- Add `.specify/fixtures/llm-snapshots/README.md` describing snapshot format, redaction, and playback instructions.
+- Add `./llm-snapshots/README.md` describing snapshot format, redaction, and playback instructions.
 
 ---
 

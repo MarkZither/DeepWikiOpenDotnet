@@ -34,8 +34,8 @@ public class PostgresDependencyInjectionTests
         var dbContext = serviceProvider.GetRequiredService<PostgresVectorDbContext>();
         Assert.NotNull(dbContext);
 
-        // Assert - IVectorStore is registered as PostgresVectorStore
-        var vectorStore = serviceProvider.GetRequiredService<IVectorStore>();
+        // Assert - IPersistenceVectorStore is registered as PostgresVectorStore
+        var vectorStore = serviceProvider.GetRequiredService<IPersistenceVectorStore>();
         Assert.NotNull(vectorStore);
         Assert.IsType<PostgresVectorStore>(vectorStore);
 
@@ -100,7 +100,7 @@ public class PostgresDependencyInjectionTests
 
         // Act
         services.AddPostgresDataLayer(connectionString);
-        var descriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(IVectorStore));
+        var descriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(IPersistenceVectorStore));
 
         // Assert
         Assert.NotNull(descriptor);
@@ -230,7 +230,7 @@ public class PostgresDependencyInjectionTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var vectorStore = provider.GetRequiredService<IVectorStore>();
+        var vectorStore = provider.GetRequiredService<IPersistenceVectorStore>();
         Assert.NotNull(vectorStore);
     }
 }

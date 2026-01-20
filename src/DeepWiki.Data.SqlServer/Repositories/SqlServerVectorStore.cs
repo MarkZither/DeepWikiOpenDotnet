@@ -11,10 +11,10 @@ using Microsoft.EntityFrameworkCore;
 namespace DeepWiki.Data.SqlServer.Repositories;
 
 /// <summary>
-/// SQL Server EF Core implementation of IVectorStore.
+/// SQL Server EF Core implementation of the provider persistence vector store (IPersistenceVectorStore).
 /// Provides vector similarity search operations using SQL Server 2025 vector type.
 /// </summary>
-public class SqlServerVectorStore : IVectorStore
+public class SqlServerVectorStore : IPersistenceVectorStore
 {
     private readonly SqlServerVectorDbContext _context;
 

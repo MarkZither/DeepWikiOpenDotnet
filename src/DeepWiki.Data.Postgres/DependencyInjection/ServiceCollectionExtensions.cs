@@ -64,7 +64,7 @@ public static class ServiceCollectionExtensions
         });
 
         // Register repository and vector store implementations
-        services.AddScoped<IVectorStore, PostgresVectorStore>();
+        services.AddScoped<IPersistenceVectorStore, PostgresVectorStore>();
         services.AddScoped<IDocumentRepository, PostgresDocumentRepository>();
 
         return services;

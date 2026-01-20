@@ -9,7 +9,7 @@ namespace DeepWiki.Data.Interfaces;
 /// Provides vector similarity search operations for document embeddings.
 /// Enables semantic search across knowledge base documents with support for multiple database providers.
 /// </summary>
-public interface IVectorStore
+public interface IPersistenceVectorStore
 {
     /// <summary>
     /// Inserts a new document or updates an existing document (upsert semantics based on Id).

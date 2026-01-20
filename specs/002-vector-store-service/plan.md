@@ -148,7 +148,7 @@ tests/
 │   └── Ingestion/
 │       └── DocumentIngestionServiceTests.cs
 
-.specify/fixtures/
+./
 └── embedding-samples/               # Test data: documents, embeddings, token counts
     ├── python-tiktoken-samples.json # Reference token counts from Python
     ├── sample-documents.json        # Test corpus for retrieval

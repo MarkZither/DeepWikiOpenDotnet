@@ -454,7 +454,7 @@ public class TokenValidationResult
 var services = new ServiceCollection();
 
 // Register Vector Store services
-services.AddScoped<IVectorStore, SqlServerVectorStore>();
+services.AddScoped<IPersistenceVectorStore, SqlServerVectorStore>();
 services.AddScoped<ITokenizationService>(sp =>
     new TokenizationService(/* dependencies */));
 services.AddScoped<IEmbeddingService>(sp =>

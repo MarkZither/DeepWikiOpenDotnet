@@ -263,7 +263,7 @@ public class RetrievalResult
 
 ```csharp
 // In Program.cs or dependency injection setup
-services.AddScoped<IVectorStore, SqlServerVectorStore>();
+services.AddScoped<IPersistenceVectorStore, SqlServerVectorStore>();
 services.AddScoped<IEmbeddingService>(sp =>
     EmbeddingServiceFactory.CreateFromConfiguration(config));
 

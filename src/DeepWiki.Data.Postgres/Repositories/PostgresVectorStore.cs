@@ -11,11 +11,11 @@ using Microsoft.EntityFrameworkCore;
 namespace DeepWiki.Data.Postgres.Repositories;
 
 /// <summary>
-/// PostgreSQL EF Core implementation of IVectorStore.
+/// PostgreSQL EF Core implementation of the provider persistence vector store (IPersistenceVectorStore).
 /// Provides vector similarity search operations using pgvector extension.
 /// Uses the <=> operator for cosine distance calculations.
 /// </summary>
-public class PostgresVectorStore : IVectorStore
+public class PostgresVectorStore : IPersistenceVectorStore
 {
     private readonly PostgresVectorDbContext _context;
 

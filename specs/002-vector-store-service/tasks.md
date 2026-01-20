@@ -46,11 +46,13 @@
 
 ### T010-T019: Abstractions & Interface Design
 
-- [ ] T010 [P] [S1] Create `IVectorStore.cs` interface (Microsoft Agent Framework-compatible) with QueryAsync(embedding[], k, filters), UpsertAsync(document), DeleteAsync(id), RebuildIndexAsync() signatures. All methods async, error-safe (no exceptions breaking agent loops), result types JSON-serializable for agent context — src/DeepWiki.Data.Abstractions/IVectorStore.cs
-- [ ] T011 [P] [S1] Create `DocumentEntity` domain model with ID, RepoUrl, FilePath, Title, Text, Embedding (vector), MetadataJson, timestamps — src/DeepWiki.Data.Abstractions/Models/DocumentEntity.cs
-- [ ] T012 [P] [S1] Create `VectorQueryResult` model with Document + similarity score — src/DeepWiki.Data.Abstractions/Models/VectorQueryResult.cs
-- [ ] T013 [P] [S1] Create EF Core migration for Documents table with vector(1536) column, indexes (repo+path, RepoUrl, columnstore) — src/DeepWiki.Rag.Core/Migrations/[timestamp]_InitialCreate.cs
-- [ ] T014 [P] [S1] Configure EF Core DocumentEntity mapping with vector column type — src/DeepWiki.Rag.Core/RagDbContext.cs (modelBuilder)
+- [x] T010 [P] [S1] Create `IVectorStore.cs` interface (Microsoft Agent Framework-compatible) with QueryAsync(embedding[], k, filters), UpsertAsync(document), DeleteAsync(id), RebuildIndexAsync() signatures. All methods async, error-safe (no exceptions breaking agent loops), result types JSON-serializable for agent context — src/DeepWiki.Data.Abstractions/IVectorStore.cs ✅
+- [x] T011 [P] [S1] Create `DocumentEntity` domain model with ID, RepoUrl, FilePath, Title, Text, Embedding (vector), MetadataJson, timestamps — src/DeepWiki.Data.Abstractions/Models/DocumentEntity.cs (Implemented as `DocumentDto` in Abstractions; persistence `DocumentEntity` remains in `DeepWiki.Data.Entities`) ✅
+- [x] T012 [P] [S1] Create `VectorQueryResult` model with Document + similarity score — src/DeepWiki.Data.Abstractions/Models/VectorQueryResult.cs ✅
+- [x] T012.1 [P] [S1] Consolidation: Added provider-side adapter and registered Abstractions adapter in provider: `DeepWiki.Data.SqlServer.VectorStore.SqlServerVectorStoreAdapter` (adapter maps `DocumentDto` ↔ `DeepWiki.Data.Entities.DocumentEntity`) — tests added under `tests/DeepWiki.Data.SqlServer.Tests/VectorStore` ✅
+- [x] T012.2 [P] [S1] Provider interface rename: `DeepWiki.Data.Interfaces.IVectorStore` → `IPersistenceVectorStore` (provider-facing). Updated provider implementations, DI registrations, and docs. ✅
+- [x] T013 [P] [S1] Create EF Core migration for Documents table with vector(1536) column, indexes (repo+path, RepoUrl, columnstore) — **Implemented in provider project** `src/DeepWiki.Data.SqlServer/Migrations/20260117212713_InitialCreate.cs` (EF tool-generated). ✅
+- [x] T014 [P] [S1] Configure EF Core `DocumentEntity` mapping with vector column type — **Implemented via shared configuration** `src/DeepWiki.Data/Configuration/SharedDocumentEntityConfiguration.cs` and applied from provider DbContexts (`SqlServerVectorDbContext`, `PostgresVectorDbContext`). No separate `RagDbContext` was created; provider-specific vector DbContexts are used. ✅
 
 ### T015-T025: Vector Store Implementation
 
@@ -80,11 +82,27 @@
 ### T034-T040: Integration Tests for Vector Store
 
 - [ ] T034 [S1] Create `VectorStoreIntegrationTests.cs` with test SQL Server instance (or in-memory SQLite with computed similarity) — tests/DeepWiki.Rag.Core.Tests/VectorStore/VectorStoreIntegrationTests.cs
-- [ ] T035 [S1] Integration test: Upsert 20 sample documents, query with known embedding, verify top 5 are expected docs (use .specify/fixtures/similarity-ground-truth.json)
+- [ ] T035 [S1] Integration test: Upsert 20 sample documents, query with known embedding, verify top 5 are expected docs (use ./similarity-ground-truth.json)
 - [ ] T036 [S1] Integration test: Query performance <500ms for 10k document corpus (load sample data, measure)
 - [ ] T037 [S1] Integration test: Metadata filters reduce result set correctly (query all, query with repo filter, verify count reduction)
 
-**Checkpoint**: Slice 1 complete. IVectorStore interface implemented and tested; SqlServerVectorStore supports k-NN queries and SQL LIKE filtering; can independently test US1 (Query Similar Documents).
+**Checkpoint**: Slice 1 in-progress. Summary of current status:
+
+- **Abstractions**: `DeepWiki.Data.Abstractions.IVectorStore`, `DocumentDto`, and `VectorQueryResult` are implemented and tested in `DeepWiki.Data.Abstractions`. ✅
+- **Provider adapters & DI**: `SqlServerVectorStoreAdapter` moved into `DeepWiki.Data.SqlServer` and registered via `AddSqlServerDataLayer()`; provider tests added under `tests/DeepWiki.Data.SqlServer.Tests/VectorStore`. ✅
+- **Provider persistence interface**: `DeepWiki.Data.Interfaces.IPersistenceVectorStore` (renamed from `IVectorStore`) is implemented by `SqlServerVectorStore` and `PostgresVectorStore`. ✅
+- **Migrations & EF mapping**: EF migration `20260117212713_InitialCreate.cs` exists in `src/DeepWiki.Data.SqlServer/Migrations/` and shared `DocumentEntity` mapping is applied via `src/DeepWiki.Data/Configuration/SharedDocumentEntityConfiguration.cs` (no `RagDbContext` created). ✅
+
+Remaining work (T015–T021):
+- T015: **Implement `SqlServerVectorStore` in Rag.Core** — partially implemented (provider `SqlServerVectorStore` exists in `DeepWiki.Data.SqlServer/Repositories/SqlServerVectorStore.cs`, but the planned `DeepWiki.Rag.Core/VectorStore/SqlServerVectorStore.cs` for a cross-layer implementation remains open). ⚠️
+- T016: **QueryAsync `FromSqlInterpolated` k-NN query** — not implemented in provider yet; current provider implementation calculates similarity in-memory as a placeholder. ⏳
+- T017: **SQL LIKE metadata filtering** — provider supports exact repoUrl filtering; LIKE/partial matching requires adding translation to SQL and tests. ⏳
+- T018: **UpsertAsync by (RepoUrl, FilePath)** — provider currently upserts by Id; implement insert-or-update by (RepoUrl,FilePath) atomic transaction. ⏳
+- T019: **DeleteAsync(Guid id)** — implemented in provider. ✅
+- T020: **RebuildIndexAsync()** — no-op in adapter/providers yet; needs provider implementation for index maintenance. ⏳
+- T021: **Embedding dimensionality validation (1536)** — validation exists in provider implementations (checked); consider adding explicit unit tests for invalid dimensions. ✅
+
+Next step: commit the consolidation and refactor changes (adapter movement, DTO rename, provider interface rename, tests) so we have a clear baseline before implementing the remaining provider features.
 
 ---
 
@@ -133,7 +151,7 @@
 ### T073-T085: Tokenization Parity Tests
 
 - [ ] T073 [P] [S2] Create `TokenizationParityTests.cs` for Python tiktoken comparison — tests/DeepWiki.Rag.Core.Tests/Tokenization/TokenizationParityTests.cs
-- [ ] T074 [P] [S2] Load reference token counts from `.specify/fixtures/embedding-samples/python-tiktoken-samples.json` (10+ samples with expected counts)
+- [ ] T074 [P] [S2] Load reference token counts from `./embedding-samples/python-tiktoken-samples.json` (10+ samples with expected counts)
 - [ ] T075 [P] [S2] Test: CountTokensAsync (OpenAI) matches Python tiktoken within ≤2% tolerance for each sample
 - [ ] T076 [P] [S2] Test: TokenEncoderFactory instantiates correct encoder for each provider
 - [ ] T077 [P] [S2] Document token counting accuracy results in test output (% match, delta per sample)
@@ -254,7 +272,7 @@
 ### T175-T190: Integration Tests for Ingestion
 
 - [ ] T175 [S4] Create `DocumentIngestionIntegrationTests.cs` with in-memory SQLite and mock embedding service — tests/DeepWiki.Rag.Core.Tests/Ingestion/DocumentIngestionIntegrationTests.cs
-- [ ] T176 [S4] Integration test: Ingest 100 sample documents (from .specify/fixtures/sample-documents.json), verify all stored
+- [ ] T176 [S4] Integration test: Ingest 100 sample documents (from ./sample-documents.json), verify all stored
 - [ ] T177 [S4] Integration test: Query after ingestion confirms documents are immediately available (immediate consistency)
 - [ ] T178 [S4] Integration test: Ingest same documents again (duplicate scenario), verify no duplicates created, metadata updated
 - [ ] T179 [S4] Integration test: Ingestion with 50k token document auto-chunks correctly
@@ -275,7 +293,7 @@
 ### T191-T205: End-to-End Integration Tests
 
 - [ ] T191 [S5] Create `RagEndToEndTests.cs` xUnit class testing complete flow — tests/DeepWiki.Rag.Core.Tests/RagEndToEndTests.cs
-- [ ] T192 [S5] E2E test: Ingest 20 sample documents → Query → Verify top 5 results match ground truth (use .specify/fixtures/similarity-ground-truth.json)
+- [ ] T192 [S5] E2E test: Ingest 20 sample documents → Query → Verify top 5 results match ground truth (use ./similarity-ground-truth.json)
 - [ ] T193 [S5] E2E test: Document ingestion → 500ms latency verification (measure query latency for 10k doc corpus) — SC-001
 - [ ] T194 [S5] E2E test: Token counting parity verification (load samples, compare OpenAI/Foundry/Ollama counts to Python reference) — SC-002
 - [ ] T195 [S5] E2E test: Embedding throughput (embed 50 docs, measure time, verify ≥50 docs/sec) — SC-003

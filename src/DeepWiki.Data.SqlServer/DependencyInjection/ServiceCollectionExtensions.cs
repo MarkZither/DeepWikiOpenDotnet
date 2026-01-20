@@ -53,9 +53,12 @@ public static class ServiceCollectionExtensions
             configureOptions?.Invoke(options);
         });
 
-        // Register repository and vector store implementations
-        services.AddScoped<IVectorStore, SqlServerVectorStore>();
+        // Register repository and vector store implementations (provider / persistence interfaces)
+        services.AddScoped<IPersistenceVectorStore, SqlServerVectorStore>();
         services.AddScoped<IDocumentRepository, SqlServerDocumentRepository>();
+
+        // Register Abstractions adapter to provide DeepWiki.Data.Abstractions.IVectorStore backed by the provider implementation
+        services.AddScoped<DeepWiki.Data.Abstractions.IVectorStore, DeepWiki.Data.SqlServer.VectorStore.SqlServerVectorStoreAdapter>();
 
         return services;
     }
