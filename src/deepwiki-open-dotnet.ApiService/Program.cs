@@ -9,6 +9,11 @@ builder.Services.AddProblemDetails();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+// --- Vector store & RAG services (setup placeholders) ---
+builder.Services.AddSingleton<DeepWiki.Data.Abstractions.IVectorStore, DeepWiki.Rag.Core.VectorStore.NoOpVectorStore>();
+builder.Services.AddSingleton<DeepWiki.Data.Abstractions.ITokenizationService, DeepWiki.Rag.Core.Tokenization.NoOpTokenizationService>();
+builder.Services.AddSingleton<DeepWiki.Data.Abstractions.IEmbeddingService, DeepWiki.Rag.Core.Embedding.NoOpEmbeddingService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

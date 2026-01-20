@@ -5,6 +5,7 @@ using DeepWiki.Data.Postgres.Repositories;
 using DeepWiki.Data.Postgres.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DeepWiki.Data.Postgres.Tests.Integration;
 
@@ -19,6 +20,15 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
     private readonly Xunit.Abstractions.ITestOutputHelper _output;
     private PostgresVectorDbContext? _context;
     private PostgresDocumentRepository? _repository;
+
+    private PostgresDocumentRepository Repository
+    {
+        get
+        {
+            Assert.NotNull(_repository);
+            return _repository;
+        }
+    }
 
     public PostgresDocumentRepositoryTests(Xunit.Abstractions.ITestOutputHelper output)
     {
@@ -76,10 +86,10 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         var doc = CreateTestDocument();
 
         // Act
-        await _repository!.AddAsync(doc, CancellationToken.None);
+        await Repository.AddAsync(doc, CancellationToken.None);
 
         // Assert
-        var retrieved = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        var retrieved = await Repository.GetByIdAsync(doc.Id, CancellationToken.None);
         Assert.NotNull(retrieved);
         Assert.Equal(doc.RepoUrl, retrieved.RepoUrl);
         Assert.Equal(doc.FilePath, retrieved.FilePath);
@@ -100,10 +110,10 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
     {
         // Arrange
         var doc = CreateTestDocument();
-        await _repository!.AddAsync(doc, CancellationToken.None);
+        await Repository.AddAsync(doc, CancellationToken.None);
 
         // Act
-        var retrieved = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        var retrieved = await Repository.GetByIdAsync(doc.Id, CancellationToken.None);
 
         // Assert
         Assert.NotNull(retrieved);
@@ -118,11 +128,11 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         const string repoUrl = "https://github.com/test/repo";
         var doc1 = CreateTestDocument(repoUrl, "file1.cs");
         var doc2 = CreateTestDocument(repoUrl, "file2.cs");
-        await _repository!.AddAsync(doc1, CancellationToken.None);
-        await _repository.AddAsync(doc2, CancellationToken.None);
+        await Repository.AddAsync(doc1, CancellationToken.None);
+        await Repository.AddAsync(doc2, CancellationToken.None);
 
         // Act
-        var results = await _repository.GetByRepoAsync(repoUrl, 0, 10, CancellationToken.None);
+        var results = await Repository.GetByRepoAsync(repoUrl, 0, 10, CancellationToken.None);
 
         // Assert
         Assert.NotEmpty(results);
@@ -137,12 +147,12 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         for (int i = 0; i < 5; i++)
         {
             var doc = CreateTestDocument(repoUrl, $"file{i}.cs");
-            await _repository!.AddAsync(doc, CancellationToken.None);
+            await Repository.AddAsync(doc, CancellationToken.None);
         }
 
         // Act
-        var page1 = await _repository!.GetByRepoAsync(repoUrl, 0, 2, CancellationToken.None);
-        var page2 = await _repository!.GetByRepoAsync(repoUrl, 2, 2, CancellationToken.None);
+        var page1 = await Repository.GetByRepoAsync(repoUrl, 0, 2, CancellationToken.None);
+        var page2 = await Repository.GetByRepoAsync(repoUrl, 2, 2, CancellationToken.None);
 
         // Assert
         var p1Count = page1?.Count ?? throw new Xunit.Sdk.XunitException("Expected page1 to be non-null");
@@ -156,15 +166,15 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
     {
         // Arrange
         var doc = CreateTestDocument();
-        await _repository!.AddAsync(doc, CancellationToken.None);
+        await Repository.AddAsync(doc, CancellationToken.None);
 
         // Act
         doc.Title = "Updated Title";
         doc.Text = "Updated content";
-        await _repository.UpdateAsync(doc, CancellationToken.None);
+        await Repository.UpdateAsync(doc, CancellationToken.None);
 
         // Assert
-        var retrieved = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        var retrieved = await Repository.GetByIdAsync(doc.Id, CancellationToken.None);
         Assert.NotNull(retrieved);
         Assert.Equal("Updated Title", retrieved!.Title);
         Assert.Equal("Updated content", retrieved!.Text);
@@ -175,16 +185,16 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
     {
         // Arrange
         var doc = CreateTestDocument();
-        await _repository!.AddAsync(doc, CancellationToken.None);
+        await Repository.AddAsync(doc, CancellationToken.None);
         var originalUpdatedAt = doc.UpdatedAt;
 
         // Act
         await Task.Delay(100); // Ensure time passes
         doc.Title = "Updated";
-        await _repository.UpdateAsync(doc, CancellationToken.None);
+        await Repository.UpdateAsync(doc, CancellationToken.None);
 
         // Assert
-        var retrieved = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        var retrieved = await Repository.GetByIdAsync(doc.Id, CancellationToken.None);
         Assert.NotNull(retrieved);
         Assert.True(retrieved.UpdatedAt >= originalUpdatedAt);
     }
@@ -194,13 +204,13 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
     {
         // Arrange
         var doc = CreateTestDocument();
-        await _repository!.AddAsync(doc, CancellationToken.None);
+        await Repository.AddAsync(doc, CancellationToken.None);
 
         // Act
-        await _repository.DeleteAsync(doc.Id, CancellationToken.None);
+        await Repository.DeleteAsync(doc.Id, CancellationToken.None);
 
         // Assert
-        var retrieved = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        var retrieved = await Repository.GetByIdAsync(doc.Id, CancellationToken.None);
         Assert.Null(retrieved);
     }
 
@@ -209,10 +219,10 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
     {
         // Arrange
         var doc = CreateTestDocument();
-        await _repository!.AddAsync(doc, CancellationToken.None);
+        await Repository.AddAsync(doc, CancellationToken.None);
 
         // Act
-        var exists = await _repository.ExistsAsync(doc.Id, CancellationToken.None);
+        var exists = await Repository.ExistsAsync(doc.Id, CancellationToken.None);
 
         // Assert
         Assert.True(exists);
@@ -222,7 +232,7 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
     public async Task ExistsAsync_ShouldReturnFalseForNonExistentDocument()
     {
         // Act
-        var exists = await _repository!.ExistsAsync(Guid.NewGuid(), CancellationToken.None);
+        var exists = await Repository.ExistsAsync(Guid.NewGuid(), CancellationToken.None);
 
         // Assert
         Assert.False(exists);
@@ -236,13 +246,13 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         await _repository!.AddAsync(doc, CancellationToken.None);
 
         // Act
-        var doc1 = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
-        var doc2 = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        var doc1 = await Repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        var doc2 = await Repository.GetByIdAsync(doc.Id, CancellationToken.None);
 
         doc1!.Title = "First Update";
         doc2!.Title = "Second Update";
 
-        await _repository.UpdateAsync(doc1, CancellationToken.None);
+        await Repository.UpdateAsync(doc1, CancellationToken.None);
 
         // Assert - Second update should fail or use optimistic concurrency
         // For now, we expect it to work (UpdatedAt is the concurrency token)
@@ -255,7 +265,7 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
     {
         // Arrange
         var doc = CreateTestDocument();
-        await _repository!.AddAsync(doc, CancellationToken.None);
+        await Repository.AddAsync(doc, CancellationToken.None);
         var originalUpdatedAt = doc.UpdatedAt;
 
         // Load document twice in separate contexts
@@ -264,10 +274,10 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         
         // Update in context 1
         doc.Title = "Update from context 1";
-        await _repository.UpdateAsync(doc, CancellationToken.None);
+        await Repository.UpdateAsync(doc, CancellationToken.None);
 
         // Verify timestamp changed
-        var reloaded = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        var reloaded = await Repository.GetByIdAsync(doc.Id, CancellationToken.None);
         Assert.True(reloaded!.UpdatedAt > originalUpdatedAt);
 
         // Act: Try to update with stale context2 document (old UpdatedAt token)
@@ -287,14 +297,14 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
     {
         // Arrange
         var doc = CreateTestDocument();
-        await _repository!.AddAsync(doc, CancellationToken.None);
+        await Repository.AddAsync(doc, CancellationToken.None);
 
         // Create two separate contexts and repositories
         var context2 = _fixture.CreateDbContext();
         var repo2 = new PostgresDocumentRepository(context2);
 
         // Load same document in both contexts
-        var docInContext1 = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
+        var docInContext1 = await Repository.GetByIdAsync(doc.Id, CancellationToken.None);
         var docInContext2 = await repo2.GetByIdAsync(doc.Id, CancellationToken.None);
 
         Assert.NotNull(docInContext1);
@@ -303,7 +313,7 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         // Act: Update in first context
         docInContext1.Title = "Updated in context 1";
         docInContext1.Text = "New text 1";
-        await _repository.UpdateAsync(docInContext1, CancellationToken.None);
+        await Repository.UpdateAsync(docInContext1, CancellationToken.None);
 
         // Update in second context with different property
         docInContext2.Title = "Updated in context 2";
@@ -349,7 +359,7 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
             () => repo2.UpdateAsync(docInContext2, CancellationToken.None));
 
         // Reload the document in context2 with latest values
-        var reloaded = await repo2.GetByIdAsync(doc.Id, CancellationToken.None);
+        var reloaded = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
         Assert.NotNull(reloaded);
         Assert.Equal("Updated in context 1", reloaded.Title);
 

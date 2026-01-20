@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Treat all warnings as errors for consistent quality across all projects -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

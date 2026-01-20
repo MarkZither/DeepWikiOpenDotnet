@@ -56,7 +56,7 @@ public class PostgresDependencyInjectionTests
 
         // Act & Assert
         var ex = Assert.Throws<ArgumentException>(() =>
-            services.AddPostgresDataLayer((string)null));
+            services.AddPostgresDataLayer(null!));
         Assert.NotNull(ex);
     }
 

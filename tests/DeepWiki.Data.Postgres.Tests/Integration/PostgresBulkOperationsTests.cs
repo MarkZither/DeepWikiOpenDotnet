@@ -101,7 +101,7 @@ public class PostgresBulkOperationsTests : IAsyncLifetime
         // Assert: Last write should persist
         var final = await _fixture.CreateDbContext().Documents.FindAsync(doc.Id);
         Assert.NotNull(final);
-        Assert.Equal("Updated in context 2", final.Text);
+        Assert.Equal("Updated in context 2", final!.Text);
     }
 
     [Fact]

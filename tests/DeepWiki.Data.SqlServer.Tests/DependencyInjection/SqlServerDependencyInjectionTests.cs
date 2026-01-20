@@ -55,7 +55,7 @@ public class SqlServerDependencyInjectionTests
 
         // Act & Assert
         var ex = Assert.Throws<ArgumentException>(() => 
-            services.AddSqlServerDataLayer((string)null));
+            services.AddSqlServerDataLayer(null!));
         Assert.NotNull(ex);
     }
 
