@@ -38,7 +38,13 @@ public class SqlServerVectorStoreAdapterTests
             throw new NotImplementedException();
         }
 
-        public Task<List<DeepWiki.Data.Entities.DocumentEntity>> QueryNearestAsync(ReadOnlyMemory<float> queryEmbedding, int k = 10, string? repoUrlFilter = null, CancellationToken cancellationToken = default)
+        public Task RebuildIndexAsync(CancellationToken cancellationToken = default)
+        {
+            // Test double: no-op implementation
+            return Task.CompletedTask;
+        }
+
+        public Task<List<DeepWiki.Data.Entities.DocumentEntity>> QueryNearestAsync(ReadOnlyMemory<float> queryEmbedding, int k = 10, string? repoUrlFilter = null, string? filePathFilter = null, CancellationToken cancellationToken = default)
         {
             LastQueryEmbedding = queryEmbedding;
             var doc = new DeepWiki.Data.Entities.DocumentEntity

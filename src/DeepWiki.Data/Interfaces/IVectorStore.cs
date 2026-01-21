@@ -59,6 +59,7 @@ public interface IPersistenceVectorStore
         ReadOnlyMemory<float> queryEmbedding,
         int k = 10,
         string? repoUrlFilter = null,
+        string? filePathFilter = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -125,4 +126,10 @@ public interface IPersistenceVectorStore
     Task BulkUpsertAsync(
         IEnumerable<DeepWiki.Data.Entities.DocumentEntity> documents,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Performs provider-specific index maintenance, such as rebuilding columnstore or pgvector indexes.
+    /// Implementations MAY perform a no-op when maintenance is not required.
+    /// </summary>
+    Task RebuildIndexAsync(CancellationToken cancellationToken = default);
 }

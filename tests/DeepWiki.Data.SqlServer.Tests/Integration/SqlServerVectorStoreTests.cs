@@ -78,7 +78,7 @@ public class SqlServerVectorStoreTests : IAsyncLifetime
         await _vectorStore!.UpsertAsync(doc, CancellationToken.None);
 
         // Assert
-        var retrieved = await _vectorStore.QueryNearestAsync(doc.Embedding.GetValueOrDefault(), 1, null, CancellationToken.None);
+        var retrieved = await _vectorStore.QueryNearestAsync(doc.Embedding.GetValueOrDefault(), 1, null, null, CancellationToken.None);
         Assert.Single(retrieved);
         Assert.Equal(doc.Id, retrieved[0].Id);
     }
@@ -96,16 +96,16 @@ public class SqlServerVectorStoreTests : IAsyncLifetime
         await _vectorStore.UpsertAsync(doc, CancellationToken.None);
 
         // Assert
-        var retrieved = await _vectorStore.QueryNearestAsync(doc.Embedding.GetValueOrDefault(), 1, null, CancellationToken.None);
-        Assert.Single(retrieved);
-        Assert.Equal("Updated Title", retrieved[0].Title);
+        var retrieved = await _vectorStore!.QueryNearestAsync(doc.Embedding.GetValueOrDefault(), 1, null, null, CancellationToken.None);
+        var single = Assert.Single(retrieved);
+        Assert.Equal("Updated Title", single.Title);
     }
 
     [Fact]
     public async Task QueryNearestAsync_ShouldReturnEmptyForEmptyStore()
     {
         // Act
-        var results = await _vectorStore!.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, null, CancellationToken.None);
+        var results = await _vectorStore!.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, null, null, CancellationToken.None);
 
         // Assert
         Assert.Empty(results);
@@ -124,7 +124,7 @@ public class SqlServerVectorStoreTests : IAsyncLifetime
         await _vectorStore.UpsertAsync(doc3, CancellationToken.None);
 
         // Act - Query with embedding similar to doc1
-        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 2, null, CancellationToken.None);
+        var results = await _vectorStore!.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 2, null, null, CancellationToken.None);
 
         // Assert
         Assert.Equal(2, results.Count);
@@ -144,7 +144,7 @@ public class SqlServerVectorStoreTests : IAsyncLifetime
         await _vectorStore.UpsertAsync(doc3, CancellationToken.None);
 
         // Act
-        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 2, null, CancellationToken.None);
+        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 2, null, null, CancellationToken.None);
 
         // Assert
         Assert.True(results.Count <= 2);
@@ -164,11 +164,53 @@ public class SqlServerVectorStoreTests : IAsyncLifetime
         await _vectorStore.UpsertAsync(doc2, CancellationToken.None);
 
         // Act
-        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, repo1, CancellationToken.None);
+        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, repo1, null, CancellationToken.None);
 
         // Assert
         Assert.Single(results);
         Assert.Equal(repo1, results[0].RepoUrl);
+    }
+
+    [Fact]
+    public async Task QueryNearestAsync_ShouldFilterByFilePathPattern()
+    {
+        // Arrange
+        const string repo = "https://github.com/org/repo1";
+        var doc1 = CreateTestDocument(repo, "src/some/impl/test.cs", 0.5f);
+        var doc2 = CreateTestDocument(repo, "lib/other.cs", 0.5f);
+
+        await _vectorStore!.UpsertAsync(doc1, CancellationToken.None);
+        await _vectorStore.UpsertAsync(doc2, CancellationToken.None);
+
+        // Act: filePath LIKE '%/some/%'
+        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, repo, "%/some/%", CancellationToken.None);
+
+        // Assert
+        Assert.Single(results);
+        Assert.Contains("/some/", results[0].FilePath);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_ShouldUpsertByRepoAndFilePath()
+    {
+        // Arrange
+        const string repo = "https://github.com/upsert/repo";
+        const string path = "src/upsert.cs";
+
+        var original = CreateTestDocument(repo, path, 0.5f);
+        await _vectorStore!.UpsertAsync(original, CancellationToken.None);
+
+        // Act: new document with different Id but same repo+path should update existing
+        var incoming = CreateTestDocument(repo, path, 0.7f);
+        incoming.Title = "Updated Title";
+
+        await _vectorStore.UpsertAsync(incoming, CancellationToken.None);
+
+        // Assert: only a single document exists for repo+path and title updated
+        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.7f)), 10, repo, path, CancellationToken.None);
+        Assert.Single(results);
+        Assert.Equal("Updated Title", results[0].Title);
+        Assert.Equal(path, results[0].FilePath);
     }
 
     [Fact]
@@ -182,7 +224,7 @@ public class SqlServerVectorStoreTests : IAsyncLifetime
         await _vectorStore.DeleteAsync(doc.Id, CancellationToken.None);
 
         // Assert
-        var results = await _vectorStore.QueryNearestAsync(doc.Embedding ?? new ReadOnlyMemory<float>(), 10, null, CancellationToken.None);
+        var results = await _vectorStore!.QueryNearestAsync(doc.Embedding ?? new ReadOnlyMemory<float>(), 10, null, null, CancellationToken.None);
         Assert.Empty(results);
     }
 
@@ -201,7 +243,7 @@ public class SqlServerVectorStoreTests : IAsyncLifetime
         await _vectorStore.DeleteByRepoAsync(repoUrl, CancellationToken.None);
 
         // Assert
-        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, repoUrl, CancellationToken.None);
+        var results = await _vectorStore!.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, repoUrl, null, CancellationToken.None);
         Assert.Empty(results);
     }
 
@@ -302,7 +344,7 @@ public class SqlServerVectorStoreTests : IAsyncLifetime
         foreach (var kvp in fixedMap)
         {
             var queryEmb = new ReadOnlyMemory<float>(kvp.Value.Emb);
-            var results = await _vectorStore!.QueryNearestAsync(queryEmb, 3, null, CancellationToken.None);
+            var results = await _vectorStore!.QueryNearestAsync(queryEmb, 3, null, null, CancellationToken.None);
             if (results.Any(r => r.FilePath == kvp.Value.FilePath)) successes++;
         }
 

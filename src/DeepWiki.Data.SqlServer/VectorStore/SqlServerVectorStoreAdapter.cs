@@ -33,7 +33,10 @@ namespace DeepWiki.Data.SqlServer.VectorStore
             string? repoFilter = null;
             if (filters != null && filters.TryGetValue("repoUrl", out var r)) repoFilter = r;
 
-            var results = await _inner.QueryNearestAsync(new ReadOnlyMemory<float>(embedding), k, repoFilter, cancellationToken);
+            string? filePathFilter = null;
+            if (filters != null && filters.TryGetValue("filePath", out var f)) filePathFilter = f;
+
+            var results = await _inner.QueryNearestAsync(new ReadOnlyMemory<float>(embedding), k, repoFilter, filePathFilter, cancellationToken);
 
             var list = results.Select(d => new VectorQueryResult
             {

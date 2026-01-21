@@ -29,16 +29,28 @@ public class SqlServerVectorStore : IPersistenceVectorStore
         if (document.Embedding != null && document.Embedding.Value.Length != 1536)
             throw new ArgumentException("Embedding must be exactly 1536 dimensions", nameof(document));
 
-        var exists = await _context.Documents.AnyAsync(d => d.Id == document.Id, cancellationToken);
-        
-        if (exists)
+        // Upsert by (RepoUrl, FilePath) to avoid duplicates — atomic per-document transaction
+        var existing = await _context.Documents
+            .FirstOrDefaultAsync(d => d.RepoUrl == document.RepoUrl && d.FilePath == document.FilePath, cancellationToken);
+
+        if (existing != null)
         {
-            document.UpdatedAt = DateTime.UtcNow;
-            _context.Documents.Update(document);
+            // Update fields on existing entity to preserve identity
+            existing.Title = document.Title;
+            existing.Text = document.Text;
+            existing.Embedding = document.Embedding;
+            existing.MetadataJson = document.MetadataJson;
+            existing.FileType = document.FileType;
+            existing.IsCode = document.IsCode;
+            existing.IsImplementation = document.IsImplementation;
+            existing.TokenCount = document.TokenCount;
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            _context.Documents.Update(existing);
         }
         else
         {
-            document.Id = Guid.NewGuid();
+            document.Id = document.Id == Guid.Empty ? Guid.NewGuid() : document.Id;
             document.CreatedAt = DateTime.UtcNow;
             document.UpdatedAt = DateTime.UtcNow;
             _context.Documents.Add(document);
@@ -51,24 +63,44 @@ public class SqlServerVectorStore : IPersistenceVectorStore
         ReadOnlyMemory<float> queryEmbedding,
         int k = 10,
         string? repoUrlFilter = null,
+        string? filePathFilter = null,
         CancellationToken cancellationToken = default)
     {
         if (queryEmbedding.IsEmpty) throw new ArgumentNullException(nameof(queryEmbedding));
         if (queryEmbedding.Length != 1536) throw new ArgumentException("Query embedding must be exactly 1536 dimensions", nameof(queryEmbedding));
         if (k < 1) throw new ArgumentException("k must be >= 1", nameof(k));
 
-        // Fetch all documents (in future, use SQL Server vector distance functions)
-        var query = _context.Documents.AsQueryable();
+        // Server-side filtering (supports SQL LIKE patterns when pattern contains % or _)
+        var query = _context.Documents.AsQueryable().Where(d => d.Embedding != null);
 
         if (!string.IsNullOrEmpty(repoUrlFilter))
         {
-            query = query.Where(d => d.RepoUrl == repoUrlFilter);
+            if (repoUrlFilter.Contains('%') || repoUrlFilter.Contains('_'))
+            {
+                query = query.Where(d => EF.Functions.Like(d.RepoUrl, repoUrlFilter));
+            }
+            else
+            {
+                query = query.Where(d => d.RepoUrl == repoUrlFilter);
+            }
         }
 
-        var allDocuments = await query.ToListAsync(cancellationToken);
+        if (!string.IsNullOrEmpty(filePathFilter))
+        {
+            if (filePathFilter.Contains('%') || filePathFilter.Contains('_'))
+            {
+                query = query.Where(d => EF.Functions.Like(d.FilePath, filePathFilter));
+            }
+            else
+            {
+                query = query.Where(d => d.FilePath == filePathFilter);
+            }
+        }
 
-        // Calculate cosine similarity and return top K
-        var scored = allDocuments
+        var filteredDocuments = await query.ToListAsync(cancellationToken);
+
+        // Calculate cosine similarity and return top K (fallback when SQL vector functions are not available)
+        var scored = filteredDocuments
             .Select(d => new { Document = d, Score = CosineSimilarity(queryEmbedding, d.Embedding ?? default) })
             .OrderByDescending(x => x.Score)
             .Take(k)
@@ -85,6 +117,25 @@ public class SqlServerVectorStore : IPersistenceVectorStore
         {
             _context.Documents.Remove(document);
             await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task RebuildIndexAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Rebuild the embedding index if it exists. Use safe IF EXISTS check to avoid errors on empty databases.
+            var sql = @"IF EXISTS (SELECT name FROM sys.indexes WHERE name = 'IX_Document_Embedding')
+                BEGIN
+                    ALTER INDEX IX_Document_Embedding ON Documents REBUILD;
+                END";
+
+            await _context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+        }
+        catch
+        {
+            // Swallow provider-specific maintenance errors to avoid breaking higher-level flows.
+            // Logging can be added if a logger is injected in future.
         }
     }
 

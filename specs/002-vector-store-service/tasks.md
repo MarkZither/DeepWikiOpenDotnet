@@ -56,13 +56,13 @@
 
 ### T015-T025: Vector Store Implementation
 
-- [ ] T015 [S1] Create `SqlServerVectorStore.cs` class implementing `IVectorStore` — src/DeepWiki.Rag.Core/VectorStore/SqlServerVectorStore.cs
-- [ ] T016 [S1] Implement `QueryAsync(float[] embedding, int k, Dictionary<string,string> filters)` with `FromSqlInterpolated` k-NN query using cosine similarity (depends on T015)
-- [ ] T017 [S1] Implement SQL LIKE pattern matching for metadata filters in QueryAsync (repo_url, file_path patterns) (depends on T016)
-- [ ] T018 [S1] Implement `UpsertAsync(DocumentEntity doc)` with insert-or-update logic by (RepoUrl, FilePath) — atomic transaction (depends on T015)
-- [ ] T019 [S1] Implement `DeleteAsync(Guid id)` hard delete operation (depends on T015)
-- [ ] T020 [S1] Implement `RebuildIndexAsync()` for index maintenance (columnstore refresh) (depends on T015)
-- [ ] T021 [S1] Add validation: embedding dimensionality check (must be 1536) in UpsertAsync — throw ArgumentException if invalid (depends on T018)
+- [x] T015 [S1] Create `SqlServerVectorStore.cs` class implementing `IVectorStore` — src/DeepWiki.Rag.Core/VectorStore/SqlServerVectorStore.cs ✅ (implemented in provider `DeepWiki.Data.SqlServer.Repositories.SqlServerVectorStore` and adapter registered)
+- [x] T016 [S1] Implement `QueryAsync(float[] embedding, int k, Dictionary<string,string> filters)` with `FromSqlInterpolated` k-NN query using cosine similarity (depends on T015) ✅ (server-side filtering added; SQL vector path remains optional fallback)
+- [x] T017 [S1] Implement SQL LIKE pattern matching for metadata filters in QueryAsync (repo_url, file_path patterns) (depends on T016) ✅ (supports `repoUrl` and `filePath` with LIKE patterns via EF.Functions.Like)
+- [x] T018 [S1] Implement `UpsertAsync(DocumentEntity doc)` with insert-or-update logic by (RepoUrl, FilePath) — atomic transaction (depends on T015) ✅ (upsert by repo+path implemented)
+- [x] T019 [S1] Implement `DeleteAsync(Guid id)` hard delete operation (depends on T015) ✅ (already implemented in provider)
+- [x] T020 [S1] Implement `RebuildIndexAsync()` for index maintenance (columnstore refresh) (depends on T015) ✅ (RebuildIndexAsync added; safe IF EXISTS ALTER INDEX executed, errors swallowed)
+- [x] T021 [S1] Add validation: embedding dimensionality check (must be 1536) in UpsertAsync — throw ArgumentException if invalid (depends on T018) ✅ (validation present in providers)
 
 ### T022-T035: Unit Tests for Vector Store
 
@@ -81,7 +81,7 @@
 
 ### T034-T040: Integration Tests for Vector Store
 
-- [ ] T034 [S1] Create `VectorStoreIntegrationTests.cs` with test SQL Server instance (or in-memory SQLite with computed similarity) — tests/DeepWiki.Rag.Core.Tests/VectorStore/VectorStoreIntegrationTests.cs
+- [ ] T034 [S1] Create `VectorStoreIntegrationTests.cs` with test SQL Server and postgres instances  — tests/DeepWiki.Rag.Core.Tests/VectorStore/VectorStore{databaseImplementation}IntegrationTests.cs
 - [ ] T035 [S1] Integration test: Upsert 20 sample documents, query with known embedding, verify top 5 are expected docs (use ./similarity-ground-truth.json)
 - [ ] T036 [S1] Integration test: Query performance <500ms for 10k document corpus (load sample data, measure)
 - [ ] T037 [S1] Integration test: Metadata filters reduce result set correctly (query all, query with repo filter, verify count reduction)

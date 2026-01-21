@@ -80,7 +80,7 @@ public class PostgresVectorStoreTests : IAsyncLifetime
         await _vectorStore!.UpsertAsync(doc, CancellationToken.None);
 
         // Assert
-        var retrieved = await _vectorStore.QueryNearestAsync(doc.Embedding.GetValueOrDefault(), 1, null, CancellationToken.None);
+        var retrieved = await _vectorStore.QueryNearestAsync(doc.Embedding.GetValueOrDefault(), 1, null, null, CancellationToken.None);
         Assert.Single(retrieved);
         Assert.Equal(doc.Id, retrieved[0].Id);
     }
@@ -98,7 +98,7 @@ public class PostgresVectorStoreTests : IAsyncLifetime
         await _vectorStore.UpsertAsync(doc, CancellationToken.None);
 
         // Assert
-        var retrieved = await _vectorStore.QueryNearestAsync(doc.Embedding.GetValueOrDefault(), 1, null, CancellationToken.None);
+        var retrieved = await _vectorStore.QueryNearestAsync(doc.Embedding.GetValueOrDefault(), 1, null, null, CancellationToken.None);
         Assert.Single(retrieved);
         Assert.Equal("Updated Title", retrieved[0].Title);
     }
@@ -107,7 +107,7 @@ public class PostgresVectorStoreTests : IAsyncLifetime
     public async Task QueryNearestAsync_ShouldReturnEmptyForEmptyStore()
     {
         // Act
-        var results = await _vectorStore!.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, null, CancellationToken.None);
+        var results = await _vectorStore!.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, null, null, CancellationToken.None);
 
         // Assert
         Assert.Empty(results);
@@ -126,7 +126,7 @@ public class PostgresVectorStoreTests : IAsyncLifetime
         await _vectorStore.UpsertAsync(doc3, CancellationToken.None);
 
         // Act - Query with embedding similar to doc1
-        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 2, null, CancellationToken.None);
+        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 2, null, null, CancellationToken.None);
 
         // Assert
         Assert.Equal(2, results.Count);
@@ -146,7 +146,7 @@ public class PostgresVectorStoreTests : IAsyncLifetime
         await _vectorStore.UpsertAsync(doc3, CancellationToken.None);
 
         // Act
-        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 2, null, CancellationToken.None);
+        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 2, null, null, CancellationToken.None);
 
         // Assert
         Assert.True(results.Count <= 2);
@@ -166,7 +166,7 @@ public class PostgresVectorStoreTests : IAsyncLifetime
         await _vectorStore.UpsertAsync(doc2, CancellationToken.None);
 
         // Act
-        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, repo1, CancellationToken.None);
+        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, repo1, null, CancellationToken.None);
 
         // Assert
         Assert.Single(results);
@@ -184,7 +184,7 @@ public class PostgresVectorStoreTests : IAsyncLifetime
         await _vectorStore.DeleteAsync(doc.Id, CancellationToken.None);
 
         // Assert
-        var results = await _vectorStore.QueryNearestAsync(doc.Embedding ?? new ReadOnlyMemory<float>(), 10, null, CancellationToken.None);
+        var results = await _vectorStore.QueryNearestAsync(doc.Embedding ?? new ReadOnlyMemory<float>(), 10, null, null, CancellationToken.None);
         Assert.Empty(results);
     }
 
@@ -203,7 +203,7 @@ public class PostgresVectorStoreTests : IAsyncLifetime
         await _vectorStore.DeleteByRepoAsync(repoUrl, CancellationToken.None);
 
         // Assert
-        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, repoUrl, CancellationToken.None);
+        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, repoUrl, null, CancellationToken.None);
         Assert.Empty(results);
     }
 
@@ -302,7 +302,7 @@ public class PostgresVectorStoreTests : IAsyncLifetime
         foreach (var kvp in fixedMap)
         {
             var queryEmb = new ReadOnlyMemory<float>(kvp.Value.Emb);
-            var results = await _vectorStore!.QueryNearestAsync(queryEmb, 3, null, CancellationToken.None);
+            var results = await _vectorStore!.QueryNearestAsync(queryEmb, 3, null, null, CancellationToken.None);
             if (results.Any(r => r.FilePath == kvp.Value.FilePath)) successes++;
         }
 
