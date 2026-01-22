@@ -11,6 +11,7 @@ namespace DeepWiki.Data.SqlServer.Tests.Integration;
 /// Integration tests for bulk operations on SQL Server vector store.
 /// Tests high-volume document operations and transactional semantics.
 /// </summary>
+[Trait("Category","Integration")]
 public class SqlServerBulkOperationsTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _fixture;

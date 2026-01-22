@@ -1,4 +1,4 @@
-#if RUN_INTEGRATION_TESTS
+
 using DeepWiki.Data.Entities;
 using DeepWiki.Data.Postgres;
 using DeepWiki.Data.Postgres.DbContexts;
@@ -14,6 +14,7 @@ namespace DeepWiki.Data.Postgres.Tests.Integration;
 /// Tests high-volume document operations and transactional semantics.
 /// Mirrors SqlServerBulkOperationsTests for 100% parity.
 /// </summary>
+[Trait("Category","Integration")]
 public class PostgresBulkOperationsTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
@@ -231,4 +232,4 @@ public class PostgresBulkOperationsTests : IAsyncLifetime
         return new ReadOnlyMemory<float>(embedding);
     }
 }
-#endif
+

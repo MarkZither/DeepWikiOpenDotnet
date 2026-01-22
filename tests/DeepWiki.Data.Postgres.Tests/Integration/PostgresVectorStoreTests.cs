@@ -1,4 +1,3 @@
-#if RUN_INTEGRATION_TESTS
 using DeepWiki.Data.Entities;
 using DeepWiki.Data.Postgres;
 using DeepWiki.Data.Postgres.DbContexts;
@@ -7,6 +6,8 @@ using DeepWiki.Data.Postgres.Tests.Fixtures;
 using Xunit;
 
 namespace DeepWiki.Data.Postgres.Tests.Integration;
+
+[Trait("Category","Integration")]
 
 /// <summary>
 /// Integration tests for PostgresVectorStore using Testcontainers.
@@ -310,6 +311,8 @@ public class PostgresVectorStoreTests : IAsyncLifetime
         Assert.True(successes >= Math.Max(1, fixedMap.Count / 2), $"Expected at least {Math.Max(1, fixedMap.Count / 2)} matches, got {successes}");
     }
 
+    // Performance tests moved to `tests/DeepWiki.Data.Postgres.Tests/Performance/PostgresVectorStorePerformanceTests.cs`
+
     private record FixtureDoc(
         [property: System.Text.Json.Serialization.JsonPropertyName("id")] string Id,
         [property: System.Text.Json.Serialization.JsonPropertyName("repoUrl")] string RepoUrl,
@@ -321,4 +324,5 @@ public class PostgresVectorStoreTests : IAsyncLifetime
     private record FixtureEmb(
         [property: System.Text.Json.Serialization.JsonPropertyName("id")] string Id,
         [property: System.Text.Json.Serialization.JsonPropertyName("embedding")] List<float> Embedding);
-#endif
+}
+

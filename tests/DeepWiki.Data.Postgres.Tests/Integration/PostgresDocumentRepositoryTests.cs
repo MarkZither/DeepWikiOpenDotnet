@@ -1,4 +1,4 @@
-#if RUN_INTEGRATION_TESTS
+
 using DeepWiki.Data.Entities;
 using DeepWiki.Data.Postgres;
 using DeepWiki.Data.Postgres.DbContexts;
@@ -15,6 +15,7 @@ namespace DeepWiki.Data.Postgres.Tests.Integration;
 /// Tests actual PostgreSQL with pgvector extension.
 /// These tests are identical to SqlServerDocumentRepositoryTests to ensure 100% parity.
 /// </summary>
+[Trait("Category","Integration")]
 public class PostgresDocumentRepositoryTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
@@ -375,4 +376,4 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         await context2.DisposeAsync();
     }
 }
-#endif
+

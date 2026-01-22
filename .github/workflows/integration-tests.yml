@@ -1,0 +1,35 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  integration-tests:
+    name: Integration tests (Category=Integration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '10.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run integration tests (SQL Server + Postgres)
+        env:
+          # If tests read connection strings from specific env vars, set them here or rely on Testcontainers
+          VECTOR_STORE_TEST_CONNECTION: ${{ secrets.VECTOR_STORE_TEST_CONNECTION }}
+        run: |
+          # Run only tests marked with Category=Integration
+          dotnet test --no-build --configuration Release --filter "Category=Integration" --logger "console;verbosity=normal"

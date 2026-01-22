@@ -10,6 +10,7 @@ namespace DeepWiki.Data.SqlServer.Tests.Integration;
 /// Integration tests for SqlServerVectorStore using Testcontainers.
 /// Tests vector similarity operations against real SQL Server.
 /// </summary>
+[Trait("Category","Integration")]
 public class SqlServerVectorStoreTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _fixture;
@@ -350,6 +351,8 @@ public class SqlServerVectorStoreTests : IAsyncLifetime
 
         Assert.True(successes >= Math.Max(1, fixedMap.Count / 2), $"Expected at least {Math.Max(1, fixedMap.Count / 2)} matches, got {successes}");
     }
+
+    // Performance tests moved to `tests/DeepWiki.Data.SqlServer.Tests/Performance/SqlServerVectorStorePerformanceTests.cs`
 
     private record FixtureDoc(
         [property: System.Text.Json.Serialization.JsonPropertyName("id")] string Id,

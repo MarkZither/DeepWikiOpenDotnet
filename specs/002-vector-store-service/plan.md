@@ -12,7 +12,7 @@ Implement a **Microsoft Agent Framework-compatible knowledge retrieval abstracti
 **Language/Version**: C# / .NET 10 with EF Core 9.0+  
 **Primary Dependencies**: Entity Framework Core, SQL Server, OpenAI SDK, Azure.AI.OpenAI, OllamaSharp (or equivalent Ollama client)  
 **Storage**: SQL Server 2025 (primary with `vector(1536)` type); Postgres (pgvector) as pluggable alternative  
-**Testing**: xUnit (unit), bUnit (components), TestServer (integration), in-memory SQLite for unit tests, test SQL Server instance for integration  
+**Testing**: xUnit (unit), bUnit (components), TestServer (integration), in-memory SQLite for unit tests, test SQL Server instance for integration. Integration tests are categorized with `Trait("Category","Integration")` (instead of compile-time guards) and placed in `Integration/` directories so developers can exclude integration tests during fast local development with `dotnet test --filter "Category!=Integration"` and run integration tests explicitly with `dotnet test --filter "Category=Integration"`. CI runs integration tests in a dedicated job using Testcontainers to provision database fixtures.  
 **Target Platform**: ASP.NET Core web service (.NET 10)  
 **Project Type**: Multi-project (2 new class libraries + updates to ApiService)  
 **Performance Goals**: <500ms retrieval p95 for 10k document corpus; ≥50 docs/sec embedding throughput; token counting within 2% of Python tiktoken  

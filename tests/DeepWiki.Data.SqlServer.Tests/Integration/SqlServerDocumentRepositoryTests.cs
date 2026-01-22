@@ -12,6 +12,7 @@ using Xunit;
 /// Integration tests for SqlServerDocumentRepository using Testcontainers.
 /// Tests actual SQL Server with vector support (vector(1536) column type).
 /// </summary>
+[Trait("Category","Integration")]
 public class SqlServerDocumentRepositoryTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _fixture;

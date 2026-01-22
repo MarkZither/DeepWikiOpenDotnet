@@ -353,30 +353,28 @@ Console.WriteLine(answer);
 ### Unit Tests (Local)
 
 ```bash
-# Run unit tests with in-memory SQLite (no database required)
-dotnet test tests/DeepWiki.Rag.Core.Tests/ \
-  --filter "Category=UnitTests"
+# Run fast unit tests (exclude integration tests)
+# During local development, prefer skipping integration tests:
+dotnet test --filter "Category!=Integration"
 ```
 
 ### Integration Tests
 
 ```bash
-# Requires test SQL Server instance
-# Set connection string via environment variable:
-export VECTOR_STORE_TEST_CONNECTION=\
-  "Server=(local);Database=DeepWikiTest;Trusted_Connection=true;"
+# Requires test SQL Server / PostgreSQL instances (Docker via Testcontainers)
+# Set connection string via environment variable if required:
+export VECTOR_STORE_TEST_CONNECTION="Server=(local);Database=DeepWikiTest;Trusted_Connection=true;"
 
-dotnet test tests/DeepWiki.Rag.Core.Tests/ \
-  --filter "Category=IntegrationTests"
+# Run integration tests explicitly:
+dotnet test --filter "Category=Integration"
 ```
 
 ### Performance Tests
 
 ```bash
 # Run performance benchmarks (10k document corpus)
-dotnet test tests/DeepWiki.Rag.Core.Tests/ \
-  --filter "Category=PerformanceTests" \
-  --logger "console;verbosity=detailed"
+# Mark long-running benchmarks with Category=Performance and run separately
+dotnet test --filter "Category=Performance" --logger "console;verbosity=detailed"
 
 # Expected output:
 # Vector Store Query (10k docs): 245ms
