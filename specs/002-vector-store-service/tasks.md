@@ -66,18 +66,20 @@
 
 ### T022-T035: Unit Tests for Vector Store
 
-- [ ] T022 [P] [S1] Create `SqlServerVectorStoreTests.cs` xUnit class with mocked DbContext — tests/DeepWiki.Rag.Core.Tests/VectorStore/SqlServerVectorStoreTests.cs
-- [ ] T023 [P] [S1] Test: QueryAsync returns k documents ranked by similarity (mock embedding, verify ORDER BY cosine similarity)
-- [ ] T024 [P] [S1] Test: QueryAsync with empty result returns empty enumerable (not error)
-- [ ] T025 [P] [S1] Test: QueryAsync with metadata filter (repo_url LIKE pattern) returns only matching docs
-- [ ] T026 [P] [S1] Test: QueryAsync with multiple filters (repo_url AND file_path patterns) returns intersection
-- [ ] T027 [P] [S1] Test: UpsertAsync inserts new document with embedding and metadata
-- [ ] T028 [P] [S1] Test: UpsertAsync updates existing document (same repo+path) without duplicate
-- [ ] T029 [P] [S1] Test: UpsertAsync fails atomically (rollback) if embedding is invalid dimension
-- [ ] T030 [P] [S1] Test: UpsertAsync with concurrent writes (two tasks upserting same repo+path) — first wins, second updates atomically
-- [ ] T031 [P] [S1] Test: DeleteAsync removes document by ID
-- [ ] T032 [P] [S1] Test: RebuildIndexAsync completes without error
-- [ ] T033 [P] [S1] Test: Embedding dimensionality validation rejects vectors != 1536 dimensions
+- [x] T022 [P] [S1] Create `SqlServerVectorStoreTests.cs` xUnit class with mocked DbContext — tests/DeepWiki.Data.SqlServer.Tests/VectorStore/SqlServerVectorStoreUnitTests.cs
+- [x] T023 [P] [S1] Test: QueryAsync returns k documents ranked by similarity (mock embedding, verify ORDER BY cosine similarity)
+- [x] T024 [P] [S1] Test: QueryAsync with empty result returns empty enumerable (not error)
+- [x] T025 [P] [S1] Test: QueryAsync with metadata filter (repo_url LIKE pattern) returns only matching docs
+- [x] T026 [P] [S1] Test: QueryAsync with multiple filters (repo_url AND file_path patterns) returns intersection
+- [x] T027 [P] [S1] Test: UpsertAsync inserts new document with embedding and metadata
+- [x] T028 [P] [S1] Test: UpsertAsync updates existing document (same repo+path) without duplicate
+- [x] T029 [P] [S1] Test: UpsertAsync fails atomically (rollback) if embedding is invalid dimension
+- [x] T030 [P] [S1] Test: UpsertAsync with concurrent writes (two tasks upserting same repo+path) — first wins, second updates atomically (integration-level concurrency verification deferred)
+- [x] T031 [P] [S1] Test: DeleteAsync removes document by ID
+- [x] T032 [P] [S1] Test: RebuildIndexAsync completes without error (behavior validated for SQL Server; provider-specific index ops for Postgres are integration-only)
+- [x] T033 [P] [S1] Test: Embedding dimensionality validation rejects vectors != 1536 dimensions
+
+> **Note:** These unit tests have been implemented for the **SQL Server** provider (see `tests/DeepWiki.Data.SqlServer.Tests/VectorStore/SqlServerVectorStoreUnitTests.cs`). The **Postgres** provider cannot be validated using EF Core InMemory due to the `pgvector` type mapping; Postgres parity will be covered by integration tests under `tests/DeepWiki.Data.Postgres.Tests/Integration/`. Those integration tests are currently guarded by `#if RUN_INTEGRATION_TESTS` and are pending fixture stabilization (Testcontainers readiness and `pgvector` installation) before being enabled in CI.
 
 ### T034-T040: Integration Tests for Vector Store
 

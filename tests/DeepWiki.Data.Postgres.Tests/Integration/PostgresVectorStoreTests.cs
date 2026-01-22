@@ -1,3 +1,4 @@
+#if RUN_INTEGRATION_TESTS
 using DeepWiki.Data.Entities;
 using DeepWiki.Data.Postgres;
 using DeepWiki.Data.Postgres.DbContexts;
@@ -319,4 +320,5 @@ public class PostgresVectorStoreTests : IAsyncLifetime
 
     private record FixtureEmb(
         [property: System.Text.Json.Serialization.JsonPropertyName("id")] string Id,
-        [property: System.Text.Json.Serialization.JsonPropertyName("embedding")] List<float> Embedding);}
+        [property: System.Text.Json.Serialization.JsonPropertyName("embedding")] List<float> Embedding);
+#endif

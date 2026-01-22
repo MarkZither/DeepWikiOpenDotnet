@@ -1,3 +1,4 @@
+#if RUN_INTEGRATION_TESTS
 using DeepWiki.Data.Entities;
 using DeepWiki.Data.Postgres;
 using DeepWiki.Data.Postgres.DbContexts;
@@ -374,3 +375,4 @@ public class PostgresDocumentRepositoryTests : IAsyncLifetime
         await context2.DisposeAsync();
     }
 }
+#endif

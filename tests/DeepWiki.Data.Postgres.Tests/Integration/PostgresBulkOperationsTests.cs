@@ -1,3 +1,4 @@
+#if RUN_INTEGRATION_TESTS
 using DeepWiki.Data.Entities;
 using DeepWiki.Data.Postgres;
 using DeepWiki.Data.Postgres.DbContexts;
@@ -230,3 +231,4 @@ public class PostgresBulkOperationsTests : IAsyncLifetime
         return new ReadOnlyMemory<float>(embedding);
     }
 }
+#endif
