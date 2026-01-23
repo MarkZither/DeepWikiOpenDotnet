@@ -83,7 +83,7 @@
 
 ### T034-T040: Integration Tests for Vector Store
 
-- [ ] T034 [S1] Create integration tests for Vector Store for both SQL Server and Postgres under `tests/DeepWiki.Rag.Core.Tests/VectorStore/Integration/`. Mark integration tests with `[Trait("Category","Integration")]`, use Testcontainers fixtures (`SqlServerFixture` / `PostgresFixture`) and the deterministic fixtures in `tests/DeepWiki.Rag.Core.Tests/fixtures/embedding-samples/`. Do **not** use compile-time guards for integration tests; use categories and runtime filters instead.
+- [x] T034 [S1] Create integration tests for Vector Store for both SQL Server and Postgres under `tests/DeepWiki.Rag.Core.Tests/VectorStore/Integration/`. Mark integration tests with `[Trait("Category","Integration")]`, use Testcontainers fixtures (`SqlServerFixture` / `PostgresFixture`) and the deterministic fixtures in `tests/DeepWiki.Rag.Core.Tests/fixtures/embedding-samples/`. Do **not** use compile-time guards for integration tests; use categories and runtime filters instead. — **Done** ✅
   - [x] T034.1 [S1] Ungate Postgres integration tests and add `[Trait("Category","Integration")]` to Postgres integration test classes (files in `tests/DeepWiki.Data.Postgres.Tests/Integration/`) — **Done** ✅
   - [x] T034.2 [S1] Add `[Trait("Category","Integration")]` to SQL Server integration test classes — **Done** ✅
   - [x] T034.3 [P] [S5] Add CI job `.github/workflows/integration-tests.yml` to run integration tests filtered by `Category=Integration` — **Done** ✅
