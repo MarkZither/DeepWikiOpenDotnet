@@ -173,26 +173,26 @@
 
 ### T086-T105: Embedding Service Abstraction & Design
 
-- [ ] T086 [P] [S3] Create `IEmbeddingService.cs` interface (Microsoft Agent Framework-compatible) with EmbedAsync(text) → float[], EmbedBatchAsync(texts) → IAsyncEnumerable<float[]>, Provider property. All methods async, resilient error handling for agent tool calls, result types JSON-serializable for agent context passing. Supports agent knowledge retrieval workflows — src/DeepWiki.Data.Abstractions/IEmbeddingService.cs
-- [ ] T087 [P] [S3] Create `EmbeddingRequest.cs` model with Text, ModelId, MetadataHint, RetryCount — src/DeepWiki.Data.Abstractions/Models/EmbeddingRequest.cs
-- [ ] T088 [P] [S3] Create `EmbeddingResponse.cs` model with Vector (float[]), Provider, Latency — src/DeepWiki.Data.Abstractions/Models/EmbeddingResponse.cs
-- [ ] T089 [P] [S3] Create `RetryPolicy.cs` with exponential backoff logic (3 retries, base delay 100ms, max 10s) and fallback strategy (cached embedding if available) — src/DeepWiki.Rag.Core/Embedding/RetryPolicy.cs
-- [ ] T090 [P] [S3] Create `IEmbeddingCache.cs` interface for cached/secondary embeddings (GetAsync, SetAsync) — src/DeepWiki.Rag.Core/Embedding/IEmbeddingCache.cs
+- [x] T086 [P] [S3] Create `IEmbeddingService.cs` interface (Microsoft Agent Framework-compatible) with EmbedAsync(text) → float[], EmbedBatchAsync(texts) → IAsyncEnumerable<float[]>, Provider property. All methods async, resilient error handling for agent tool calls, result types JSON-serializable for agent context passing. Supports agent knowledge retrieval workflows — src/DeepWiki.Data.Abstractions/IEmbeddingService.cs ✅
+- [x] T087 [P] [S3] Create `EmbeddingRequest.cs` model with Text, ModelId, MetadataHint, RetryCount — src/DeepWiki.Data.Abstractions/Models/EmbeddingRequest.cs ✅
+- [x] T088 [P] [S3] Create `EmbeddingResponse.cs` model with Vector (float[]), Provider, Latency — src/DeepWiki.Data.Abstractions/Models/EmbeddingResponse.cs ✅
+- [x] T089 [P] [S3] Create `RetryPolicy.cs` with exponential backoff logic (3 retries, base delay 100ms, max 10s) and fallback strategy (cached embedding if available) — src/DeepWiki.Rag.Core/Embedding/RetryPolicy.cs ✅
+- [x] T090 [P] [S3] Create `IEmbeddingCache.cs` interface for cached/secondary embeddings (GetAsync, SetAsync) — src/DeepWiki.Rag.Core/Embedding/IEmbeddingCache.cs ✅
 
 ### T091-T125: Embedding Provider Implementations
 
-- [ ] T091 [S3] Create `EmbeddingServiceFactory.cs` to select provider based on configuration (appsettings: EmbeddingProvider: "openai" | "foundry" | "ollama") — src/DeepWiki.Rag.Core/Embedding/EmbeddingServiceFactory.cs
-- [ ] T092 [S3] Create `BaseEmbeddingClient.cs` abstract class with common retry/fallback logic (depends on T091) — src/DeepWiki.Rag.Core/Embedding/BaseEmbeddingClient.cs
-- [ ] T093 [P] [S3] Create `OpenAIEmbeddingClient.cs` wrapping Azure.OpenAI SDK (or OpenAI NuGet SDK); implement EmbedAsync, EmbedBatchAsync with 3-retry backoff and fallback — src/DeepWiki.Rag.Core/Embedding/Providers/OpenAIEmbeddingClient.cs
-- [ ] T094 [P] [S3] Create `FoundryEmbeddingClient.cs` wrapping Azure.AI.OpenAI SDK for Foundry endpoints; implement EmbedAsync, EmbedBatchAsync with retry — src/DeepWiki.Rag.Core/Embedding/Providers/FoundryEmbeddingClient.cs
-- [ ] T095 [P] [S3] Create `OllamaEmbeddingClient.cs` wrapping OllamaSharp or HTTP client for Ollama endpoints; implement EmbedAsync, EmbedBatchAsync — src/DeepWiki.Rag.Core/Embedding/Providers/OllamaEmbeddingClient.cs
-- [ ] T096 [P] [S3] Implement batch embedding in all providers: `EmbedBatchAsync(texts)` with configurable batch size (default 10, max 100) — all 3 provider files (T093, T094, T095)
-- [ ] T097 [P] [S3] Add structured logging to all providers: log provider name, model ID, token count, latency, retry attempts, fallback use — all 3 provider files
-- [ ] T098 [P] [S3] Implement exponential backoff in BaseEmbeddingClient: retry logic with 100ms base, 2x multiplier, max 3 attempts, jitter ±20% — src/DeepWiki.Rag.Core/Embedding/BaseEmbeddingClient.cs (depends on T092)
-- [ ] T099 [P] [S3] Implement fallback strategy in RetryPolicy: if all retries fail, attempt to fetch cached embedding by text hash; if cached exists, return it; else throw with provider context — src/DeepWiki.Rag.Core/Embedding/RetryPolicy.cs (depends on T089, T090)
-- [ ] T100 [S3] Create `EmbeddingCache.cs` in-memory implementation of IEmbeddingCache (simple Dictionary<string, float[]> with TTL) — src/DeepWiki.Rag.Core/Embedding/EmbeddingCache.cs
-- [ ] T101 [S3] Add validation: embedding dimensionality check (must return 1536-dim vectors) in all providers — throws InvalidOperationException if wrong size
-- [ ] T102 [S3] Add provider instantiation in DI: register IEmbeddingService → factory-selected provider in ApiService Program.cs — src/deepwiki-open-dotnet.ApiService/Program.cs (depends on T091)
+- [x] T091 [S3] Create `EmbeddingServiceFactory.cs` to select provider based on configuration (appsettings: EmbeddingProvider: "openai" | "foundry" | "ollama") — src/DeepWiki.Rag.Core/Embedding/EmbeddingServiceFactory.cs ✅
+- [x] T092 [S3] Create `BaseEmbeddingClient.cs` abstract class with common retry/fallback logic (depends on T091) — src/DeepWiki.Rag.Core/Embedding/BaseEmbeddingClient.cs ✅
+- [x] T093 [P] [S3] Create `OpenAIEmbeddingClient.cs` wrapping Azure.OpenAI SDK (or OpenAI NuGet SDK); implement EmbedAsync, EmbedBatchAsync with 3-retry backoff and fallback — src/DeepWiki.Rag.Core/Embedding/Providers/OpenAIEmbeddingClient.cs ✅
+- [x] T094 [P] [S3] Create `FoundryEmbeddingClient.cs` wrapping Azure.AI.OpenAI SDK for Foundry endpoints; implement EmbedAsync, EmbedBatchAsync with retry — src/DeepWiki.Rag.Core/Embedding/Providers/FoundryEmbeddingClient.cs ✅
+- [x] T095 [P] [S3] Create `OllamaEmbeddingClient.cs` wrapping OllamaSharp or HTTP client for Ollama endpoints; implement EmbedAsync, EmbedBatchAsync — src/DeepWiki.Rag.Core/Embedding/Providers/OllamaEmbeddingClient.cs ✅
+- [x] T096 [P] [S3] Implement batch embedding in all providers: `EmbedBatchAsync(texts)` with configurable batch size (default 10, max 100) — all 3 provider files (T093, T094, T095) ✅
+- [x] T097 [P] [S3] Add structured logging to all providers: log provider name, model ID, token count, latency, retry attempts, fallback use — all 3 provider files ✅
+- [x] T098 [P] [S3] Implement exponential backoff in BaseEmbeddingClient: retry logic with 100ms base, 2x multiplier, max 3 attempts, jitter ±20% — src/DeepWiki.Rag.Core/Embedding/RetryPolicy.cs (implements retry; BaseEmbeddingClient delegates to RetryPolicy) ✅
+- [x] T099 [P] [S3] Implement fallback strategy in RetryPolicy: if all retries fail, attempt to fetch cached embedding by text hash; if cached exists, return it; else throw with provider context — src/DeepWiki.Rag.Core/Embedding/RetryPolicy.cs ✅
+- [x] T100 [S3] Create `EmbeddingCache.cs` in-memory implementation of IEmbeddingCache (ConcurrentDictionary with TTL, max entries, and cleanup) — src/DeepWiki.Rag.Core/Embedding/EmbeddingCache.cs ✅
+- [x] T101 [S3] Add validation: embedding dimensionality check (must return 1536-dim vectors) in all providers — throws InvalidOperationException if wrong size (in BaseEmbeddingClient.ValidateDimension) ✅
+- [x] T102 [S3] Add provider instantiation in DI: register IEmbeddingService → factory-selected provider in ApiService Program.cs — src/deepwiki-open-dotnet.ApiService/Program.cs (with NoOp fallback when not configured) ✅
 
 ### T103-T130: Unit Tests for Embedding Service
 
