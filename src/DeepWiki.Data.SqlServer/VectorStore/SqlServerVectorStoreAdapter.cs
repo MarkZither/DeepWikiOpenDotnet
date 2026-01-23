@@ -62,10 +62,9 @@ namespace DeepWiki.Data.SqlServer.VectorStore
             await _inner.DeleteAsync(id, cancellationToken);
         }
 
-        public Task RebuildIndexAsync(CancellationToken cancellationToken = default)
+        public async Task RebuildIndexAsync(CancellationToken cancellationToken = default)
         {
-            _logger?.LogWarning("RebuildIndexAsync not implemented by provider adapter; no-op executed.");
-            return Task.CompletedTask;
+            await _inner.RebuildIndexAsync(cancellationToken);
         }
 
         private static DocumentDto MapToAbstraction(DeepWiki.Data.Entities.DocumentEntity e)

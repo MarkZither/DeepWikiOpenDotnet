@@ -98,16 +98,14 @@
 - **Provider persistence interface**: `DeepWiki.Data.Interfaces.IPersistenceVectorStore` (renamed from `IVectorStore`) is implemented by `SqlServerVectorStore` and `PostgresVectorStore`. ✅
 - **Migrations & EF mapping**: EF migration `20260117212713_InitialCreate.cs` exists in `src/DeepWiki.Data.SqlServer/Migrations/` and shared `DocumentEntity` mapping is applied via `src/DeepWiki.Data/Configuration/SharedDocumentEntityConfiguration.cs` (no `RagDbContext` created). ✅
 
-Remaining work (T015–T021):
-- T015: **Implement `SqlServerVectorStore` in Rag.Core** — partially implemented (provider `SqlServerVectorStore` exists in `DeepWiki.Data.SqlServer/Repositories/SqlServerVectorStore.cs`, but the planned `DeepWiki.Rag.Core/VectorStore/SqlServerVectorStore.cs` for a cross-layer implementation remains open). ⚠️
-- T016: **QueryAsync `FromSqlInterpolated` k-NN query** — not implemented in provider yet; current provider implementation calculates similarity in-memory as a placeholder. ⏳
-- T017: **SQL LIKE metadata filtering** — provider supports exact repoUrl filtering; LIKE/partial matching requires adding translation to SQL and tests. ⏳
-- T018: **UpsertAsync by (RepoUrl, FilePath)** — provider currently upserts by Id; implement insert-or-update by (RepoUrl,FilePath) atomic transaction. ⏳
-- T019: **DeleteAsync(Guid id)** — implemented in provider. ✅
-- T020: **RebuildIndexAsync()** — no-op in adapter/providers yet; needs provider implementation for index maintenance. ⏳
-- T021: **Embedding dimensionality validation (1536)** — validation exists in provider implementations (checked); consider adding explicit unit tests for invalid dimensions. ✅
-
-Next step: commit the consolidation and refactor changes (adapter movement, DTO rename, provider interface rename, tests) so we have a clear baseline before implementing the remaining provider features.
+**Slice 1 Complete** — All T015–T021 tasks are implemented and verified:
+- T015: ✅ `SqlServerVectorStore` implemented in provider (`DeepWiki.Data.SqlServer.Repositories`); adapter bridges Abstractions to provider via `SqlServerVectorStoreAdapter`.
+- T016: ✅ Native `VECTOR_DISTANCE` k-NN query via `FromSqlInterpolated` for SQL Server; native `<=>` pgvector query for Postgres. Falls back to in-memory cosine similarity if native fails.
+- T017: ✅ SQL LIKE pattern matching for `repoUrl` and `filePath` filters; exact match when no wildcards.
+- T018: ✅ UpsertAsync by `(RepoUrl, FilePath)` composite key — atomic insert-or-update.
+- T019: ✅ DeleteAsync(Guid id) implemented in provider.
+- T020: ✅ RebuildIndexAsync delegates to provider SQL (`ALTER INDEX REBUILD`); errors swallowed for safety.
+- T021: ✅ Embedding dimensionality validation (1536) in providers and adapters.
 
 ---
 

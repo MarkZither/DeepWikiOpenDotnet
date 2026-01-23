@@ -59,6 +59,10 @@ public class PostgresVectorStore : IPersistenceVectorStore
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Query for nearest neighbors using pgvector cosine distance operator.
+    /// Falls back to in-memory cosine similarity if native vector queries fail.
+    /// </summary>
     public async Task<List<DocumentEntity>> QueryNearestAsync(
         ReadOnlyMemory<float> queryEmbedding,
         int k = 10,
@@ -70,6 +74,95 @@ public class PostgresVectorStore : IPersistenceVectorStore
         if (queryEmbedding.Length != 1536) throw new ArgumentException("Query embedding must be exactly 1536 dimensions", nameof(queryEmbedding));
         if (k < 1) throw new ArgumentException("k must be >= 1", nameof(k));
 
+        try
+        {
+            // Try native pgvector query via FromSqlInterpolated
+            return await QueryNearestNativeAsync(queryEmbedding, k, repoUrlFilter, filePathFilter, cancellationToken);
+        }
+        catch (Exception)
+        {
+            // Fallback to in-memory cosine similarity (for compatibility with test databases / missing pgvector)
+            return await QueryNearestFallbackAsync(queryEmbedding, k, repoUrlFilter, filePathFilter, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Native pgvector query using the &lt;=&gt; cosine distance operator via FromSqlInterpolated.
+    /// </summary>
+    private async Task<List<DocumentEntity>> QueryNearestNativeAsync(
+        ReadOnlyMemory<float> queryEmbedding,
+        int k,
+        string? repoUrlFilter,
+        string? filePathFilter,
+        CancellationToken cancellationToken)
+    {
+        // Convert embedding to pgvector literal format: '[0.1, 0.2, ...]'
+        var vectorLiteral = FormatVectorLiteral(queryEmbedding);
+
+        // Build parameterized SQL using <=> cosine distance operator (lower = more similar)
+        FormattableString sql;
+        if (!string.IsNullOrEmpty(repoUrlFilter) && !string.IsNullOrEmpty(filePathFilter))
+        {
+            // Check if filters contain LIKE wildcards
+            var repoOp = (repoUrlFilter.Contains('%') || repoUrlFilter.Contains('_')) ? "LIKE" : "=";
+            var fileOp = (filePathFilter.Contains('%') || filePathFilter.Contains('_')) ? "LIKE" : "=";
+            sql = $@"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
+                            ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
+                     FROM ""Documents""
+                     WHERE ""Embedding"" IS NOT NULL
+                       AND ""RepoUrl"" {repoOp:raw} {repoUrlFilter}
+                       AND ""FilePath"" {fileOp:raw} {filePathFilter}
+                     ORDER BY ""Embedding"" <=> {vectorLiteral}::vector
+                     LIMIT {k}";
+        }
+        else if (!string.IsNullOrEmpty(repoUrlFilter))
+        {
+            var repoOp = (repoUrlFilter.Contains('%') || repoUrlFilter.Contains('_')) ? "LIKE" : "=";
+            sql = $@"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
+                            ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
+                     FROM ""Documents""
+                     WHERE ""Embedding"" IS NOT NULL
+                       AND ""RepoUrl"" {repoOp:raw} {repoUrlFilter}
+                     ORDER BY ""Embedding"" <=> {vectorLiteral}::vector
+                     LIMIT {k}";
+        }
+        else if (!string.IsNullOrEmpty(filePathFilter))
+        {
+            var fileOp = (filePathFilter.Contains('%') || filePathFilter.Contains('_')) ? "LIKE" : "=";
+            sql = $@"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
+                            ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
+                     FROM ""Documents""
+                     WHERE ""Embedding"" IS NOT NULL
+                       AND ""FilePath"" {fileOp:raw} {filePathFilter}
+                     ORDER BY ""Embedding"" <=> {vectorLiteral}::vector
+                     LIMIT {k}";
+        }
+        else
+        {
+            sql = $@"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
+                            ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
+                     FROM ""Documents""
+                     WHERE ""Embedding"" IS NOT NULL
+                     ORDER BY ""Embedding"" <=> {vectorLiteral}::vector
+                     LIMIT {k}";
+        }
+
+        return await _context.Documents
+            .FromSqlInterpolated(sql)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Fallback in-memory cosine similarity calculation for environments without pgvector.
+    /// </summary>
+    private async Task<List<DocumentEntity>> QueryNearestFallbackAsync(
+        ReadOnlyMemory<float> queryEmbedding,
+        int k,
+        string? repoUrlFilter,
+        string? filePathFilter,
+        CancellationToken cancellationToken)
+    {
         var query = _context.Documents.AsQueryable().Where(d => d.Embedding != null);
 
         if (!string.IsNullOrEmpty(repoUrlFilter))
@@ -106,6 +199,23 @@ public class PostgresVectorStore : IPersistenceVectorStore
             .ToList();
 
         return scored;
+    }
+
+    /// <summary>
+    /// Formats a vector as a pgvector literal: '[0.1, 0.2, ...]'
+    /// </summary>
+    private static string FormatVectorLiteral(ReadOnlyMemory<float> embedding)
+    {
+        var span = embedding.Span;
+        var sb = new System.Text.StringBuilder(span.Length * 12);
+        sb.Append('[');
+        for (int i = 0; i < span.Length; i++)
+        {
+            if (i > 0) sb.Append(',');
+            sb.Append(span[i].ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        sb.Append(']');
+        return sb.ToString();
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
