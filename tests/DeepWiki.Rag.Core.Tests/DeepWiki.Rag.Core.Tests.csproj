@@ -22,4 +22,8 @@
     <ProjectReference Include="..\..\src\DeepWiki.Rag.Core\DeepWiki.Rag.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="fixtures\embedding-samples\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="fixtures\embedding-samples" />
+  </ItemGroup>
+
 </Project>
