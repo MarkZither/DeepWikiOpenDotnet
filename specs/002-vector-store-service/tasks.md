@@ -196,31 +196,31 @@
 
 ### T103-T130: Unit Tests for Embedding Service
 
-- [ ] T103 [P] [S3] Create `EmbeddingServiceFactoryTests.cs` xUnit class — tests/DeepWiki.Rag.Core.Tests/Embedding/EmbeddingServiceFactoryTests.cs
-- [ ] T104 [P] [S3] Test: Factory instantiates OpenAI client when config specifies "openai"
-- [ ] T105 [P] [S3] Test: Factory instantiates Foundry client when config specifies "foundry"
-- [ ] T106 [P] [S3] Test: Factory instantiates Ollama client when config specifies "ollama"
-- [ ] T107 [P] [S3] Test: Factory throws exception for unknown provider
-- [ ] T108 [P] [S3] Create `OpenAIEmbeddingClientTests.cs` with mocked OpenAI SDK — tests/DeepWiki.Rag.Core.Tests/Embedding/OpenAIEmbeddingClientTests.cs
-- [ ] T109 [P] [S3] Test: EmbedAsync calls OpenAI API and returns 1536-dim vector
-- [ ] T110 [P] [S3] Test: EmbedAsync with failed API call retries 3 times then falls back to cache if available
-- [ ] T111 [P] [S3] Test: EmbedAsync with no cache available throws with provider context after 3 retries
-- [ ] T112 [P] [S3] Test: EmbedBatchAsync batches requests (10 per batch by default) and returns all vectors
-- [ ] T113 [P] [S3] Create similar tests for FoundryEmbeddingClient and OllamaEmbeddingClient (T108-T112 pattern)
-- [ ] T114 [P] [S3] Create `RetryPolicyTests.cs` xUnit class — tests/DeepWiki.Rag.Core.Tests/Embedding/RetryPolicyTests.cs
-- [ ] T115 [P] [S3] Test: Retry logic executes 3 times with exponential backoff (100ms, 200ms, 400ms)
-- [ ] T116 [P] [S3] Test: Retry logic falls back to cached embedding on 3rd failure
-- [ ] T117 [P] [S3] Test: Retry logic throws after 3 failures if no cache available
-- [ ] T118 [P] [S3] Test: Jitter (±20%) applied to backoff delays (verify range)
+- [x] T103 [P] [S3] Create `EmbeddingServiceFactoryTests.cs` xUnit class — tests/DeepWiki.Rag.Core.Tests/Embedding/EmbeddingServiceFactoryTests.cs ✅
+- [x] T104 [P] [S3] Test: Factory instantiates OpenAI client when config specifies "openai" ✅
+- [x] T105 [P] [S3] Test: Factory instantiates Foundry client when config specifies "foundry" ✅
+- [x] T106 [P] [S3] Test: Factory instantiates Ollama client when config specifies "ollama" ✅
+- [x] T107 [P] [S3] Test: Factory throws exception for unknown provider ✅
+- [x] T108 [P] [S3] Create `OpenAIEmbeddingClientTests.cs` with mocked OpenAI SDK — tests/DeepWiki.Rag.Core.Tests/Embedding/OpenAIEmbeddingClientTests.cs ✅
+- [x] T109 [P] [S3] Test: EmbedAsync calls OpenAI API and returns 1536-dim vector ✅
+- [x] T110 [P] [S3] Test: EmbedAsync with failed API call retries 3 times then falls back to cache if available ✅
+- [x] T111 [P] [S3] Test: EmbedAsync with no cache available throws with provider context after 3 retries ✅
+- [x] T112 [P] [S3] Test: EmbedBatchAsync batches requests (10 per batch by default) and returns all vectors ✅
+- [x] T113 [P] [S3] Create similar tests for FoundryEmbeddingClient and OllamaEmbeddingClient (T108-T112 pattern) ✅
+- [x] T114 [P] [S3] Create `RetryPolicyTests.cs` xUnit class — tests/DeepWiki.Rag.Core.Tests/Embedding/RetryPolicyTests.cs ✅
+- [x] T115 [P] [S3] Test: Retry logic executes 3 times with exponential backoff (100ms, 200ms, 400ms) ✅
+- [x] T116 [P] [S3] Test: Retry logic falls back to cached embedding on 3rd failure ✅
+- [x] T117 [P] [S3] Test: Retry logic throws after 3 failures if no cache available ✅
+- [x] T118 [P] [S3] Test: Jitter (±20%) applied to backoff delays (verify range) ✅
 
 ### T119-T135: Integration Tests for Embedding Service
 
-- [ ] T119 [S3] Create `EmbeddingServiceIntegrationTests.cs` with mocked providers (no live API calls in CI) — tests/DeepWiki.Rag.Core.Tests/Embedding/EmbeddingServiceIntegrationTests.cs
-- [ ] T120 [S3] Integration test: Configure OpenAI provider, call EmbedAsync with test string, verify 1536-dim output
-- [ ] T121 [S3] Integration test: Configure Foundry provider, call EmbedAsync, verify 1536-dim output
-- [ ] T122 [S3] Integration test: Configure Ollama provider, call EmbedAsync, verify 1536-dim output
-- [ ] T123 [S3] Integration test: Batch embedding (100 documents), measure throughput (target ≥50 docs/sec)
-- [ ] T124 [S3] Integration test: Provider change in config (openai → ollama), verify new provider used on reinitialization
+- [x] T119 [S3] Create `EmbeddingServiceIntegrationTests.cs` with mocked providers (no live API calls in CI) — tests/DeepWiki.Rag.Core.Tests/Embedding/EmbeddingServiceIntegrationTests.cs ✅
+- [x] T120 [S3] Integration test: Configure OpenAI provider, call EmbedAsync with test string, verify 1536-dim output ✅
+- [x] T121 [S3] Integration test: Configure Foundry provider, call EmbedAsync, verify 1536-dim output ✅
+- [x] T122 [S3] Integration test: Configure Ollama provider, call EmbedAsync, verify 1536-dim output ✅
+- [x] T123 [S3] Integration test: Batch embedding (100 documents), measure throughput (target ≥50 docs/sec) ✅
+- [x] T124 [S3] Integration test: Provider change in config (openai → ollama), verify new provider used on reinitialization ✅
 
 **Checkpoint**: Slice 3 complete. IEmbeddingService factory supports 3 providers; retry+fallback logic tested; batch embedding working; can independently test US4 (Providers) and handle US2 resilience requirements.
 
