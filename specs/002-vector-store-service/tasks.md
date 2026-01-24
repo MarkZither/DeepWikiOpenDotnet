@@ -326,17 +326,17 @@
 
 ### T213-T240: Documentation & Quickstart
 
-- [ ] T213 [S5] Create `quickstart.md` with 3 configuration examples (OpenAI, Foundry, Ollama) — specs/002-vector-store-service/quickstart.md
-- [ ] T214 [S5] Document OpenAI configuration: appsettings.json, environment variables, API key setup — specs/002-vector-store-service/quickstart.md
-- [ ] T215 [S5] Document Foundry Local configuration: endpoint URL, API key, model ID selection — specs/002-vector-store-service/quickstart.md
-- [ ] T216 [S5] Document Ollama configuration: local URL (default localhost:11434), model name, startup steps — specs/002-vector-store-service/quickstart.md
-- [ ] T217 [S5] Create code examples in quickstart: IVectorStore usage (query, upsert), ITokenizationService (count, chunk), IDocumentIngestionService (ingest batch)
-- [ ] T218 [S5] Create API contracts documentation in `contracts/` directory (IVectorStore.md, ITokenizationService.md, IEmbeddingService.md, provider-factory.md) — specs/002-vector-store-service/contracts/
-- [ ] T219 [S5] Create data model documentation (`data-model.md`): DocumentEntity schema, metadata format, EF Core mapping — specs/002-vector-store-service/data-model.md
-- [ ] T220 [S5] Create extension guide: how to add new embedding provider (implement IEmbeddingService, register in factory, document) — specs/002-vector-store-service/quickstart.md
-- [ ] T221 [S5] Create troubleshooting guide: common errors (provider unavailable, token mismatch, embedding dimension error), solutions
-- [ ] T222 [S5] Document performance characteristics and tuning (batch size, token limits, index maintenance)
-- [ ] T223 [S5] Add examples to quickstart: running tests locally (xUnit, in-memory SQLite), running with test SQL Server
+- [x] T213 [S5] Create `quickstart.md` with 3 configuration examples (OpenAI, Foundry, Ollama) — specs/002-vector-store-service/quickstart.md ✅
+- [x] T214 [S5] Document OpenAI configuration: appsettings.json, environment variables, API key setup — specs/002-vector-store-service/quickstart.md ✅
+- [x] T215 [S5] Document Foundry Local configuration: endpoint URL, API key, model ID selection — specs/002-vector-store-service/quickstart.md ✅
+- [x] T216 [S5] Document Ollama configuration: local URL (default localhost:11434), model name, startup steps — specs/002-vector-store-service/quickstart.md ✅
+- [x] T217 [S5] Create code examples in quickstart: IVectorStore usage (query, upsert), ITokenizationService (count, chunk), IDocumentIngestionService (ingest batch) ✅
+- [x] T218 [S5] Create API contracts documentation in `contracts/` directory (IVectorStore.md, ITokenizationService.md, IEmbeddingService.md, provider-factory.md, IDocumentIngestionService.md) — specs/002-vector-store-service/contracts/ ✅
+- [x] T219 [S5] Create data model documentation (`data-model.md`): DocumentEntity schema, metadata format, EF Core mapping — specs/002-vector-store-service/data-model.md ✅
+- [x] T220 [S5] Create extension guide: how to add new embedding provider (implement IEmbeddingService, register in factory, document) — specs/002-vector-store-service/quickstart.md ✅
+- [x] T221 [S5] Create troubleshooting guide: common errors (provider unavailable, token mismatch, embedding dimension error), solutions ✅
+- [x] T222 [S5] Document performance characteristics and tuning (batch size, token limits, index maintenance) ✅
+- [x] T223 [S5] Add examples to quickstart: running tests locally (xUnit, in-memory SQLite), running with test SQL Server ✅
 
 ### T224-T240: CI/CD & Infrastructure
 

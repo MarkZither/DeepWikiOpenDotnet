@@ -580,6 +580,399 @@ services.AddDbContext<VectorDbContext>(options =>
         }));
 ```
 
+### Token Limits and Chunking
+
+| Model | Max Tokens | Recommended Chunk Size |
+|-------|------------|------------------------|
+| text-embedding-3-small | 8192 | 6000-7500 |
+| text-embedding-ada-002 | 8192 | 6000-7500 |
+| nomic-embed-text | 8192 | 6000-7500 |
+
+**Why leave headroom?**: Leave 10-15% below max to account for tokenization variance and metadata.
+
+```csharp
+// Configure chunk size in ingestion
+var request = new IngestionRequest
+{
+    Documents = documents,
+    MaxTokensPerChunk = 7000,  // Leave headroom
+    BatchSize = 20  // Increase for higher throughput
+};
+```
+
+### Index Maintenance
+
+```sql
+-- Monitor index fragmentation
+SELECT 
+    i.name AS IndexName,
+    ips.avg_fragmentation_in_percent AS Fragmentation
+FROM sys.dm_db_index_physical_stats(DB_ID(), OBJECT_ID('Documents'), NULL, NULL, 'LIMITED') ips
+JOIN sys.indexes i ON ips.object_id = i.object_id AND ips.index_id = i.index_id;
+
+-- Rebuild fragmented indexes (>30% fragmentation)
+ALTER INDEX IX_Documents_Embedding ON Documents REBUILD;
+
+-- Reorganize for moderate fragmentation (10-30%)
+ALTER INDEX IX_Documents_RepoUrl ON Documents REORGANIZE;
+```
+
+---
+
+## Adding a New Embedding Provider
+
+Follow these steps to add support for a new embedding provider:
+
+### Step 1: Create Provider Client
+
+Create a new class inheriting from `BaseEmbeddingClient`:
+
+```csharp
+// src/DeepWiki.Rag.Core/Embedding/Providers/MyProviderEmbeddingClient.cs
+using DeepWiki.Data.Abstractions;
+using Microsoft.Extensions.Logging;
+
+namespace DeepWiki.Rag.Core.Embedding.Providers;
+
+public class MyProviderEmbeddingClient : BaseEmbeddingClient
+{
+    private readonly HttpClient _httpClient;
+    
+    public override string Provider => "myprovider";
+    public override string ModelId { get; }
+    public override int EmbeddingDimension => 1536;
+
+    public MyProviderEmbeddingClient(
+        string apiKey,
+        string modelId,
+        string endpoint,
+        RetryPolicy retryPolicy,
+        IEmbeddingCache? cache = null,
+        ILogger<MyProviderEmbeddingClient>? logger = null)
+        : base(retryPolicy, cache, logger)
+    {
+        ModelId = modelId;
+        _httpClient = new HttpClient
+        {
+            BaseAddress = new Uri(endpoint)
+        };
+        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+    }
+
+    protected override async Task<float[]> EmbedCoreAsync(
+        string text,
+        CancellationToken cancellationToken)
+    {
+        var request = new { input = text, model = ModelId };
+        var response = await _httpClient.PostAsJsonAsync("/embeddings", request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        
+        var result = await response.Content.ReadFromJsonAsync<EmbeddingResult>(cancellationToken);
+        return result?.Data?.FirstOrDefault()?.Embedding ?? throw new InvalidOperationException("No embedding returned");
+    }
+
+    private record EmbeddingResult(EmbeddingData[] Data);
+    private record EmbeddingData(float[] Embedding);
+}
+```
+
+### Step 2: Update EmbeddingServiceFactory
+
+Add the new provider to the factory:
+
+```csharp
+// In EmbeddingServiceFactory.CreateForProvider:
+public IEmbeddingService CreateForProvider(string provider)
+{
+    return provider.ToLowerInvariant() switch
+    {
+        "openai" => CreateOpenAIClient(section, retryPolicy),
+        "foundry" => CreateFoundryClient(section, retryPolicy),
+        "ollama" => CreateOllamaClient(section, retryPolicy),
+        "myprovider" => CreateMyProviderClient(section, retryPolicy),  // Add this
+        _ => throw new ArgumentException($"Unknown provider: {provider}")
+    };
+}
+
+private MyProviderEmbeddingClient CreateMyProviderClient(
+    IConfigurationSection section,
+    RetryPolicy retryPolicy)
+{
+    var mySection = section.GetSection("MyProvider");
+    return new MyProviderEmbeddingClient(
+        apiKey: mySection["ApiKey"] ?? throw new InvalidOperationException("API key required"),
+        modelId: mySection["ModelId"] ?? "default-model",
+        endpoint: mySection["Endpoint"] ?? "https://api.myprovider.com",
+        retryPolicy: retryPolicy,
+        cache: _cache,
+        logger: _loggerFactory?.CreateLogger<MyProviderEmbeddingClient>());
+}
+```
+
+### Step 3: Update IsProviderAvailable
+
+```csharp
+public bool IsProviderAvailable(string provider)
+{
+    var section = _configuration.GetSection(ConfigurationSection);
+    return provider.ToLowerInvariant() switch
+    {
+        // ... existing providers ...
+        "myprovider" => !string.IsNullOrEmpty(section["MyProvider:ApiKey"]),
+        _ => false
+    };
+}
+```
+
+### Step 4: Add Configuration
+
+Add to `appsettings.json`:
+
+```json
+{
+  "Embedding": {
+    "Provider": "myprovider",
+    "MyProvider": {
+      "ApiKey": "your-api-key",
+      "ModelId": "embedding-model-v1",
+      "Endpoint": "https://api.myprovider.com"
+    }
+  }
+}
+```
+
+### Step 5: Add Unit Tests
+
+```csharp
+// tests/DeepWiki.Rag.Core.Tests/Embedding/MyProviderEmbeddingClientTests.cs
+public class MyProviderEmbeddingClientTests
+{
+    [Fact]
+    public async Task EmbedAsync_ReturnsCorrectDimension()
+    {
+        // Arrange with mock HTTP handler
+        var client = CreateClientWithMockHandler();
+        
+        // Act
+        var embedding = await client.EmbedAsync("test text");
+        
+        // Assert
+        Assert.Equal(1536, embedding.Length);
+    }
+    
+    [Fact]
+    public void Factory_CreatesMyProviderClient_WhenConfigured()
+    {
+        var config = CreateConfigWithProvider("myprovider");
+        var factory = new EmbeddingServiceFactory(config);
+        
+        var service = factory.Create();
+        
+        Assert.Equal("myprovider", service.Provider);
+    }
+}
+```
+
+---
+
+## Extended Troubleshooting
+
+### "Connection refused" to Ollama
+
+**Cause**: Ollama server not running or wrong endpoint
+
+**Solutions**:
+```bash
+# Check if Ollama is running
+curl http://localhost:11434/api/tags
+
+# Start Ollama if not running
+ollama serve
+
+# If using Docker, ensure port is exposed
+docker run -p 11434:11434 ollama/ollama
+
+# If using WSL2, use host.docker.internal
+EMBEDDING_ENDPOINT=http://host.docker.internal:11434
+```
+
+### "Rate limit exceeded" (OpenAI)
+
+**Cause**: Too many API requests per minute
+
+**Solutions**:
+1. Reduce batch size: `BatchSize = 5`
+2. Add delay between batches
+3. Upgrade OpenAI tier for higher limits
+4. Use fallback to Ollama for development
+
+```csharp
+// Automatic retry handles rate limits
+var request = new IngestionRequest
+{
+    Documents = documents,
+    BatchSize = 5,  // Smaller batches
+    MaxRetries = 5  // More retries for rate limits
+};
+```
+
+### "Out of memory" during batch embedding
+
+**Cause**: Too many documents in memory at once
+
+**Solutions**:
+```csharp
+// Process in smaller batches
+var allDocuments = LoadDocuments();
+var batchSize = 100;
+
+for (int i = 0; i < allDocuments.Count; i += batchSize)
+{
+    var batch = allDocuments.Skip(i).Take(batchSize).ToList();
+    var request = IngestionRequest.Create(batch);
+    await ingestionService.IngestAsync(request);
+    
+    // Allow GC between batches
+    GC.Collect();
+}
+```
+
+### "Duplicate key violation" on upsert
+
+**Cause**: Concurrent upserts to same document
+
+**Solution**: This is handled automatically with "first write wins" semantics. If you need custom handling:
+
+```csharp
+try
+{
+    await vectorStore.UpsertAsync(document);
+}
+catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("duplicate") == true)
+{
+    // Document was updated by another process
+    // Optionally re-read and merge
+    var existing = await vectorStore.QueryAsync(...);
+}
+```
+
+### "SSL/TLS handshake failed" to Foundry
+
+**Cause**: Certificate validation issues
+
+**Solutions**:
+```csharp
+// For development only - disable certificate validation
+var handler = new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback = (msg, cert, chain, errors) => true
+};
+
+// Better: Add certificate to trusted store
+// Or use proper certificates in production
+```
+
+### Logging for Debugging
+
+Enable detailed logging to diagnose issues:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "DeepWiki.Rag.Core": "Debug",
+      "DeepWiki.Rag.Core.Embedding": "Trace"
+    }
+  }
+}
+```
+
+```csharp
+// In code, structured logging shows all context
+logger.LogDebug(
+    "Embedding request: Provider={Provider}, Model={Model}, TextLength={Length}",
+    provider, modelId, text.Length);
+```
+
+---
+
+## Running Tests
+
+### Unit Tests (Fast, No External Dependencies)
+
+```bash
+# Run all unit tests (excludes integration tests)
+dotnet test --filter "Category!=Integration"
+
+# Run specific test project
+dotnet test tests/DeepWiki.Rag.Core.Tests/ --filter "Category!=Integration"
+
+# Run with coverage
+dotnet test --collect:"XPlat Code Coverage" --settings coverlet.runsettings
+
+# Run specific test class
+dotnet test --filter "FullyQualifiedName~TokenizationServiceTests"
+```
+
+### Integration Tests (Requires Database)
+
+```bash
+# Using in-memory SQLite (no setup required)
+dotnet test --filter "Category=Integration"
+
+# Using SQL Server (set connection string)
+export VECTOR_STORE_TEST_CONNECTION="Server=localhost;Database=DeepWikiTest;Trusted_Connection=true;TrustServerCertificate=true;"
+dotnet test --filter "Category=Integration"
+
+# Using Testcontainers (automatic Docker provisioning)
+dotnet test --filter "Category=Integration" -- RunSettings.Arguments.UseTestcontainers=true
+```
+
+### Performance Tests
+
+```bash
+# Run performance benchmarks
+dotnet test --filter "Category=Performance" --logger "console;verbosity=detailed"
+
+# Run specific benchmark
+dotnet test --filter "FullyQualifiedName~PerformanceTests.QueryAsync_10kDocuments"
+
+# With timeout for long-running tests
+dotnet test --filter "Category=Performance" -- RunSettings.Arguments.TestTimeout=300000
+```
+
+### Parity Tests (Token Counting Validation)
+
+```bash
+# Validate token counting against Python tiktoken
+dotnet test --filter "FullyQualifiedName~TokenizationParityTests"
+
+# Regenerate Python reference data (requires Python environment)
+cd embedding-samples
+python generate_tiktoken_samples.py > python-tiktoken-samples.json
+```
+
+### Test with Watch Mode
+
+```bash
+# Continuous testing during development
+dotnet watch test --filter "Category!=Integration" --project tests/DeepWiki.Rag.Core.Tests/
+```
+
+### Code Coverage Report
+
+```bash
+# Generate coverage and open report
+dotnet test --collect:"XPlat Code Coverage" --settings coverlet.runsettings
+reportgenerator -reports:"TestResults/**/coverage.cobertura.xml" -targetdir:"TestResults/coverage-report" -reporttypes:Html
+
+# Open report
+open TestResults/coverage-report/index.html  # macOS
+start TestResults/coverage-report/index.html  # Windows
+xdg-open TestResults/coverage-report/index.html  # Linux
+```
+
 ---
 
 ## API Contracts
