@@ -293,18 +293,18 @@
 
 **User Stories Served**: All (US1-US5 integration), Success Criteria SC-001 through SC-010
 
-### T191-T205: End-to-End Integration Tests
+### T191-T200: End-to-End Integration Tests
 
-- [ ] T191 [S5] Create `RagEndToEndTests.cs` xUnit class testing complete flow — tests/DeepWiki.Rag.Core.Tests/RagEndToEndTests.cs
-- [ ] T192 [S5] E2E test: Ingest 20 sample documents → Query → Verify top 5 results match ground truth (use ./similarity-ground-truth.json)
-- [ ] T193 [S5] E2E test: Document ingestion → 500ms latency verification (measure query latency for 10k doc corpus) — SC-001
-- [ ] T194 [S5] E2E test: Token counting parity verification (load samples, compare OpenAI/Foundry/Ollama counts to Python reference) — SC-002
-- [ ] T195 [S5] E2E test: Embedding throughput (embed 50 docs, measure time, verify ≥50 docs/sec) — SC-003
-- [ ] T196 [S5] E2E test: K-NN retrieval accuracy (top 5 results are semantically similar, verified against ground-truth) — SC-006
-- [ ] T197 [S5] E2E test: Metadata filtering reduces results correctly (query all, apply repo filter, verify ≥95% reduction for single-repo filter) — SC-007
-- [ ] T198 [S5] E2E test: Zero data loss on upsert (ingest documents, verify all persisted with correct embeddings and metadata) — SC-010
-- [ ] T199 [S5] E2E test: Concurrent upsert stress (10 concurrent tasks upserting to same document) — verify atomicity, no corruption
-- [ ] T200 [S5] E2E test: Retry/fallback scenario (mock embedding service failure, verify system falls back gracefully and completes)
+- [x] T191 [S5] Create `RagEndToEndTests.cs` xUnit class testing complete flow — tests/DeepWiki.Rag.Core.Tests/RagEndToEndTests.cs
+- [x] T192 [S5] E2E test: Ingest 20 sample documents → Query → Verify top 5 results match ground truth (use ./similarity-ground-truth.json)
+- [x] T193 [S5] E2E test: Document ingestion → 500ms latency verification (measure query latency for 10k doc corpus) — SC-001
+- [x] T194 [S5] E2E test: Token counting parity verification (load samples, compare OpenAI/Foundry/Ollama counts to Python reference) — SC-002
+- [x] T195 [S5] E2E test: Embedding throughput (embed 50 docs, measure time, verify ≥50 docs/sec) — SC-003
+- [x] T196 [S5] E2E test: K-NN retrieval accuracy (top 5 results are semantically similar, verified against ground-truth) — SC-006
+- [x] T197 [S5] E2E test: Metadata filtering reduces results correctly (query all, apply repo filter, verify ≥95% reduction for single-repo filter) — SC-007
+- [x] T198 [S5] E2E test: Zero data loss on upsert (ingest documents, verify all persisted with correct embeddings and metadata) — SC-010
+- [x] T199 [S5] E2E test: Concurrent upsert stress (10 concurrent tasks upserting to same document) — verify atomicity, no corruption
+- [x] T200 [S5] E2E test: Retry/fallback scenario (mock embedding service failure, verify system falls back gracefully and completes)
 
 ### T201-T215: Performance & Load Tests
 

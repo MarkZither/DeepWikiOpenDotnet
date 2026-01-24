@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "description": "Ground truth for k-NN similarity search validation. Each entry contains a query embedding id and the expected top-k most similar document ids in ranked order.",
-  "version": "1.0.0",
+  "description": "Ground truth for k-NN similarity search validation. Each entry contains a query embedding id and the expected top-k most similar document ids in ranked order. Generated from actual cosine similarity calculations on sample-embeddings.json.",
+  "version": "1.1.0",
   "queries": [
     {
       "queryId": "a1111111-1111-4111-8111-111111111111",
@@ -9,23 +9,25 @@
       "expectedTopK": [
         "a1111111-1111-4111-8111-111111111111",
         "b2222222-2222-4222-8222-222222222222",
-        "d4444444-4444-4444-8444-444444444444",
         "e5555555-5555-4555-8555-555555555555",
+        "d4444444-4444-4444-8444-444444444444",
         "c3333333-3333-4333-8333-333333333333"
       ],
-      "notes": "Self-similarity should be highest; other code docs next"
+      "similarities": [1.0, 0.6599, 0.5768, 0.5621, 0.5223],
+      "notes": "Self-similarity=1.0; B is most similar (0.66), then E (0.58), D (0.56), C (0.52)"
     },
     {
       "queryId": "b2222222-2222-4222-8222-222222222222",
       "description": "Query using Beta document embedding - expects Beta as top result",
       "expectedTopK": [
         "b2222222-2222-4222-8222-222222222222",
+        "d4444444-4444-4444-8444-444444444444",
         "a1111111-1111-4111-8111-111111111111",
         "e5555555-5555-4555-8555-555555555555",
-        "d4444444-4444-4444-8444-444444444444",
         "c3333333-3333-4333-8333-333333333333"
       ],
-      "notes": "Self-similarity should be highest; code docs grouped together"
+      "similarities": [1.0, 0.6658, 0.6599, 0.6446, 0.5432],
+      "notes": "Self-similarity=1.0; D is most similar (0.67), then A (0.66), E (0.64), C (0.54)"
     },
     {
       "queryId": "c3333333-3333-4333-8333-333333333333",
@@ -33,16 +35,17 @@
       "expectedTopK": [
         "c3333333-3333-4333-8333-333333333333",
         "d4444444-4444-4444-8444-444444444444",
-        "a1111111-1111-4111-8111-111111111111",
+        "e5555555-5555-4555-8555-555555555555",
         "b2222222-2222-4222-8222-222222222222",
-        "e5555555-5555-4555-8555-555555555555"
+        "a1111111-1111-4111-8111-111111111111"
       ],
-      "notes": "Self-similarity should be highest; documentation files may cluster"
+      "similarities": [1.0, 0.6198, 0.5964, 0.5432, 0.5223],
+      "notes": "Self-similarity=1.0; D is most similar (0.62), then E (0.60), B (0.54), A (0.52)"
     }
   ],
   "validationRules": {
-    "minTopK": 3,
-    "toleranceRank": 1,
-    "description": "For each query, the top result MUST match exactly (self-similarity). Subsequent ranks may vary by +/-1 position due to floating-point rounding."
+    "minTopK": 5,
+    "toleranceRank": 0,
+    "description": "Rankings are computed from actual cosine similarity. All positions must match exactly."
   }
 }
