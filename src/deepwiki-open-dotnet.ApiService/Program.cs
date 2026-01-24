@@ -43,6 +43,9 @@ builder.Services.AddSingleton<DeepWiki.Data.Abstractions.IEmbeddingService>(sp =
     return factory.Create();
 });
 
+// Register document ingestion service (Slice 4: orchestrates chunking, embedding, upsert)
+builder.Services.AddSingleton<DeepWiki.Data.Abstractions.IDocumentIngestionService, DeepWiki.Rag.Core.Ingestion.DocumentIngestionService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

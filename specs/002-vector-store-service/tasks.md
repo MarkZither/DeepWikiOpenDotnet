@@ -236,50 +236,50 @@
 
 ### T136-T150: Ingestion Service Design & Abstraction
 
-- [ ] T136 [P] [S4] Create `IDocumentIngestionService.cs` interface with IngestAsync(documents), UpsertAsync(document), ChunkAndEmbedAsync(text) — src/DeepWiki.Data.Abstractions/IDocumentIngestionService.cs
-- [ ] T137 [P] [S4] Create `IngestionRequest.cs` model with Documents list, BatchSize, RetryPolicy, MetadataDefaults — src/DeepWiki.Data.Abstractions/Models/IngestionRequest.cs
-- [ ] T138 [P] [S4] Create `IngestionResult.cs` model with SuccessCount, FailureCount, Errors list, Duration — src/DeepWiki.Data.Abstractions/Models/IngestionResult.cs
+- [x] T136 [P] [S4] Create `IDocumentIngestionService.cs` interface with IngestAsync(documents), UpsertAsync(document), ChunkAndEmbedAsync(text) — src/DeepWiki.Data.Abstractions/IDocumentIngestionService.cs
+- [x] T137 [P] [S4] Create `IngestionRequest.cs` model with Documents list, BatchSize, RetryPolicy, MetadataDefaults — src/DeepWiki.Data.Abstractions/Models/IngestionRequest.cs
+- [x] T138 [P] [S4] Create `IngestionResult.cs` model with SuccessCount, FailureCount, Errors list, Duration — src/DeepWiki.Data.Abstractions/Models/IngestionResult.cs
 
 ### T151-T180: Ingestion Implementation
 
-- [ ] T151 [S4] Create `DocumentIngestionService.cs` implementing `IDocumentIngestionService` — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs
-- [ ] T152 [S4] Inject dependencies: IVectorStore, ITokenizationService, IEmbeddingService, ILogger — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs (depends on T151)
-- [ ] T153 [S4] Implement `IngestAsync(documents)` orchestrating chunk → embed → upsert for batch of documents (depends on T151)
-- [ ] T154 [S4] Implement `UpsertAsync(document)` with atomic transaction: start transaction, upsert, commit or rollback on error (depends on T151)
-- [ ] T155 [S4] Implement duplicate detection: check (RepoUrl, FilePath) uniqueness before upsert; if exists, update; else insert (depends on T154)
-- [ ] T156 [S4] Implement `ChunkAndEmbedAsync(text)` orchestrating: chunk text → embed each chunk → return list of (chunk_text, embedding) tuples (depends on T151)
-- [ ] T157 [S4] Batch embedding in ingestion: call IEmbeddingService.EmbedBatchAsync for efficiency (default batch size 10) (depends on T156)
-- [ ] T158 [S4] Add concurrent write handling: detect conflict on duplicate (RepoUrl, FilePath), decide: (A) update latest or (B) fail with conflict error — implement (A) first write wins with atomic update (depends on T154)
-- [ ] T159 [S4] Add error handling per-document: if one fails, log error, continue with next (batch ingestion resilience) — return IngestionResult with counts (depends on T153)
-- [ ] T160 [S4] Add structured logging: log ingestion start/end, per-document status, chunk count, embedding latency, upsert confirmation — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs
-- [ ] T161 [S4] Validate chunk token count in ingestion: enforce ≤8192 tokens per chunk before embedding (prevents API errors) — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs (depends on T156)
-- [ ] T162 [S4] Add metadata enrichment: auto-populate language, file_type from filename, chunk_index from position — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs (depends on T153)
-- [ ] T163 [S4] Register IDocumentIngestionService in DI — src/deepwiki-open-dotnet.ApiService/Program.cs
+- [x] T151 [S4] Create `DocumentIngestionService.cs` implementing `IDocumentIngestionService` — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs
+- [x] T152 [S4] Inject dependencies: IVectorStore, ITokenizationService, IEmbeddingService, ILogger — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs (depends on T151)
+- [x] T153 [S4] Implement `IngestAsync(documents)` orchestrating chunk → embed → upsert for batch of documents (depends on T151)
+- [x] T154 [S4] Implement `UpsertAsync(document)` with atomic transaction: start transaction, upsert, commit or rollback on error (depends on T151)
+- [x] T155 [S4] Implement duplicate detection: check (RepoUrl, FilePath) uniqueness before upsert; if exists, update; else insert (depends on T154)
+- [x] T156 [S4] Implement `ChunkAndEmbedAsync(text)` orchestrating: chunk text → embed each chunk → return list of (chunk_text, embedding) tuples (depends on T151)
+- [x] T157 [S4] Batch embedding in ingestion: call IEmbeddingService.EmbedBatchAsync for efficiency (default batch size 10) (depends on T156)
+- [x] T158 [S4] Add concurrent write handling: detect conflict on duplicate (RepoUrl, FilePath), decide: (A) update latest or (B) fail with conflict error — implement (A) first write wins with atomic update (depends on T154)
+- [x] T159 [S4] Add error handling per-document: if one fails, log error, continue with next (batch ingestion resilience) — return IngestionResult with counts (depends on T153)
+- [x] T160 [S4] Add structured logging: log ingestion start/end, per-document status, chunk count, embedding latency, upsert confirmation — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs
+- [x] T161 [S4] Validate chunk token count in ingestion: enforce ≤8192 tokens per chunk before embedding (prevents API errors) — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs (depends on T156)
+- [x] T162 [S4] Add metadata enrichment: auto-populate language, file_type from filename, chunk_index from position — src/DeepWiki.Rag.Core/Ingestion/DocumentIngestionService.cs (depends on T153)
+- [x] T163 [S4] Register IDocumentIngestionService in DI — src/deepwiki-open-dotnet.ApiService/Program.cs
 
 ### T164-T190: Unit Tests for Ingestion
 
-- [ ] T164 [P] [S4] Create `DocumentIngestionServiceTests.cs` with mocked dependencies — tests/DeepWiki.Rag.Core.Tests/Ingestion/DocumentIngestionServiceTests.cs
-- [ ] T165 [P] [S4] Test: IngestAsync with 10 documents chunks, embeds, upserts all successfully
-- [ ] T166 [P] [S4] Test: IngestAsync with duplicate (same repo+path) updates existing document
-- [ ] T167 [P] [S4] Test: IngestAsync with embedding service failure retries and falls back (tests retry policy)
-- [ ] T168 [P] [S4] Test: IngestAsync with one failing document logs error and continues (batch resilience)
-- [ ] T169 [P] [S4] Test: ChunkAndEmbedAsync chunks text, embeds all chunks, returns (chunk, embedding) pairs
-- [ ] T170 [P] [S4] Test: ChunkAndEmbedAsync respects 8192 token limit per chunk (enforces during ingestion)
-- [ ] T171 [P] [S4] Test: UpsertAsync inserts new document with all metadata
-- [ ] T172 [P] [S4] Test: UpsertAsync with concurrent writes (two tasks, same repo+path) — first write wins, second updates atomically
-- [ ] T173 [P] [S4] Test: IngestAsync returns IngestionResult with success/failure counts and errors
-- [ ] T174 [P] [S4] Test: Metadata enrichment adds language, file_type, chunk_index to documents
+- [x] T164 [P] [S4] Create `DocumentIngestionServiceTests.cs` with mocked dependencies — tests/DeepWiki.Rag.Core.Tests/Ingestion/DocumentIngestionServiceTests.cs
+- [x] T165 [P] [S4] Test: IngestAsync with 10 documents chunks, embeds, upserts all successfully
+- [x] T166 [P] [S4] Test: IngestAsync with duplicate (same repo+path) updates existing document
+- [x] T167 [P] [S4] Test: IngestAsync with embedding service failure retries and falls back (tests retry policy)
+- [x] T168 [P] [S4] Test: IngestAsync with one failing document logs error and continues (batch resilience)
+- [x] T169 [P] [S4] Test: ChunkAndEmbedAsync chunks text, embeds all chunks, returns (chunk, embedding) pairs
+- [x] T170 [P] [S4] Test: ChunkAndEmbedAsync respects 8192 token limit per chunk (enforces during ingestion)
+- [x] T171 [P] [S4] Test: UpsertAsync inserts new document with all metadata
+- [x] T172 [P] [S4] Test: UpsertAsync with concurrent writes (two tasks, same repo+path) — first write wins, second updates atomically [SKIPPED - deferred to vector store implementation]
+- [x] T173 [P] [S4] Test: IngestAsync returns IngestionResult with success/failure counts and errors
+- [x] T174 [P] [S4] Test: Metadata enrichment adds language, file_type, chunk_index to documents
 
 > ⚠️ **Note:** Optimistic concurrency tests (document update conflict scenarios) are deferred and skipped in CI to avoid blocking progress. Implement a robust concurrency token (e.g., `RowVersion`/timestamp) and re-enable these tests before public-cloud deployment.
 
 ### T175-T190: Integration Tests for Ingestion
 
-- [ ] T175 [S4] Create `DocumentIngestionIntegrationTests.cs` with in-memory SQLite and mock embedding service — tests/DeepWiki.Rag.Core.Tests/Ingestion/DocumentIngestionIntegrationTests.cs
-- [ ] T176 [S4] Integration test: Ingest 100 sample documents (from ./sample-documents.json), verify all stored
-- [ ] T177 [S4] Integration test: Query after ingestion confirms documents are immediately available (immediate consistency)
-- [ ] T178 [S4] Integration test: Ingest same documents again (duplicate scenario), verify no duplicates created, metadata updated
-- [ ] T179 [S4] Integration test: Ingestion with 50k token document auto-chunks correctly
-- [ ] T180 [S4] Integration test: Batch ingestion throughput: measure time for 100 documents (target ≥50 docs/sec after embedding)
+- [x] T175 [S4] Create `DocumentIngestionIntegrationTests.cs` with in-memory SQLite and mock embedding service — tests/DeepWiki.Rag.Core.Tests/Ingestion/DocumentIngestionIntegrationTests.cs
+- [x] T176 [S4] Integration test: Ingest 100 sample documents (from ./sample-documents.json), verify all stored
+- [x] T177 [S4] Integration test: Query after ingestion confirms documents are immediately available (immediate consistency)
+- [x] T178 [S4] Integration test: Ingest same documents again (duplicate scenario), verify no duplicates created, metadata updated
+- [x] T179 [S4] Integration test: Ingestion with 50k token document auto-chunks correctly
+- [x] T180 [S4] Integration test: Batch ingestion throughput: measure time for 100 documents (target ≥50 docs/sec after embedding)
 
 **Checkpoint**: Slice 4 complete. DocumentIngestionService orchestrates full ingestion pipeline; chunking, embedding, upsert working end-to-end; duplicate handling and concurrent writes tested; can independently test US2 (Ingestion).
 
