@@ -308,11 +308,11 @@
 
 ### T201-T215: Performance & Load Tests
 
-- [ ] T201 [P] [S5] Create `PerformanceTests.cs` class with benchmarking tools — tests/DeepWiki.Rag.Core.Tests/PerformanceTests.cs
-- [ ] T202 [P] [S5] Benchmark: QueryAsync latency for k=10 on 10k documents (target <500ms p95) — SC-001
-- [ ] T203 [P] [S5] Benchmark: Batch embedding throughput (100 documents, target ≥50 docs/sec) — SC-003
-- [ ] T204 [P] [S5] Benchmark: Metadata filtering performance (query with single filter, measure latency)
-- [ ] T205 [P] [S5] Benchmark: Concurrent upsert load (10 concurrent tasks, 100 documents each, measure completion time)
+- [x] T201 [P] [S5] Create `PerformanceTests.cs` class with benchmarking tools — tests/DeepWiki.Rag.Core.Tests/PerformanceTests.cs ✅
+- [x] T202 [P] [S5] Benchmark: QueryAsync latency for k=10 on 10k documents (target <500ms p95) — SC-001 ✅
+- [x] T203 [P] [S5] Benchmark: Batch embedding throughput (100 documents, target ≥50 docs/sec) — SC-003 ✅
+- [x] T204 [P] [S5] Benchmark: Metadata filtering performance (query with single filter, measure latency) ✅
+- [x] T205 [P] [S5] Benchmark: Concurrent upsert load (10 concurrent tasks, 100 documents each, measure completion time) ✅
 
 ### T206-T220: Code Coverage & Quality Gates
 
