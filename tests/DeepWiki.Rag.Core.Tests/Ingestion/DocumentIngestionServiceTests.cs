@@ -395,12 +395,86 @@ public class DocumentIngestionServiceTests
 
     #endregion
 
-    #region T172: UpsertAsync with concurrent writes (deferred - atomicity handled by vector store)
+    #region T172: UpsertAsync with concurrent writes - verify atomicity
 
-    [Fact(Skip = "Concurrent write testing deferred - atomicity handled by vector store implementation")]
-    public async Task UpsertAsync_WithConcurrentWrites_FirstWriteWinsSecondUpdates()
+    [Fact]
+    public async Task UpsertAsync_WithConcurrentWrites_AllWritesSucceedNoDuplicates()
     {
-        await Task.CompletedTask;
+        // Arrange - Use a thread-safe vector store that tracks unique documents by repo+path
+        var vectorStore = new ConcurrentVectorStore();
+        var service = CreateService(vectorStore: vectorStore);
+
+        var repoUrl = "https://github.com/test/concurrent";
+        var filePath = "src/shared.cs";
+
+        // Act - Launch 10 concurrent upserts for the same document
+        var tasks = Enumerable.Range(0, 10)
+            .Select(async i =>
+            {
+                var doc = new DocumentDto
+                {
+                    Id = Guid.NewGuid(),
+                    RepoUrl = repoUrl,
+                    FilePath = filePath,
+                    Title = $"Version {i}",
+                    Text = $"Content version {i}",
+                    Embedding = TestEmbedding,
+                    MetadataJson = "{}",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                await service.UpsertAsync(doc);
+                return i;
+            })
+            .ToList();
+
+        await Task.WhenAll(tasks);
+
+        // Assert - Only one document should exist (no duplicates by repo+path)
+        var uniqueDocs = vectorStore.GetDocumentsByKey(repoUrl, filePath);
+        Assert.Single(uniqueDocs);
+
+        // The document should have valid data
+        var finalDoc = uniqueDocs.First();
+        Assert.NotNull(finalDoc.Embedding);
+        Assert.Equal(1536, finalDoc.Embedding.Length);
+        Assert.StartsWith("Content version", finalDoc.Text);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_WithConcurrentWritesToDifferentDocuments_AllSucceed()
+    {
+        // Arrange
+        var vectorStore = new ConcurrentVectorStore();
+        var service = CreateService(vectorStore: vectorStore);
+
+        // Act - Launch 10 concurrent upserts for different documents
+        var tasks = Enumerable.Range(0, 10)
+            .Select(async i =>
+            {
+                var doc = new DocumentDto
+                {
+                    Id = Guid.NewGuid(),
+                    RepoUrl = $"https://github.com/test/repo{i}",
+                    FilePath = $"src/file{i}.cs",
+                    Title = $"File {i}",
+                    Text = $"Content {i}",
+                    Embedding = TestEmbedding,
+                    MetadataJson = "{}",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                await service.UpsertAsync(doc);
+                return i;
+            })
+            .ToList();
+
+        await Task.WhenAll(tasks);
+
+        // Assert - All 10 documents should exist
+        Assert.Equal(10, vectorStore.TotalDocumentCount);
     }
 
     #endregion
@@ -628,6 +702,52 @@ public class DocumentIngestionServiceTests
         public Task UpsertAsync(DocumentDto document, CancellationToken cancellationToken = default)
         {
             UpsertedDocuments.Add(document);
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task RebuildIndexAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Thread-safe vector store that deduplicates by RepoUrl+FilePath for concurrent write testing.
+    /// </summary>
+    private sealed class ConcurrentVectorStore : IVectorStore
+    {
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DocumentDto> _documents = new();
+        private readonly object _lock = new();
+
+        public int TotalDocumentCount => _documents.Count;
+
+        private static string GetKey(string repoUrl, string filePath) => $"{repoUrl}|{filePath}";
+
+        public List<DocumentDto> GetDocumentsByKey(string repoUrl, string filePath)
+        {
+            var key = GetKey(repoUrl, filePath);
+            return _documents.TryGetValue(key, out var doc) ? [doc] : [];
+        }
+
+        public Task<IReadOnlyList<VectorQueryResult>> QueryAsync(
+            float[] embedding,
+            int k = 10,
+            Dictionary<string, string>? filters = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<VectorQueryResult>>([]);
+        }
+
+        public Task UpsertAsync(DocumentDto document, CancellationToken cancellationToken = default)
+        {
+            var key = GetKey(document.RepoUrl, document.FilePath);
+            // AddOrUpdate handles concurrent access atomically
+            _documents.AddOrUpdate(key, document, (_, __) => document);
             return Task.CompletedTask;
         }
 
