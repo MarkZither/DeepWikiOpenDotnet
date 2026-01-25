@@ -1,0 +1,181 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, develop, 'feature/**', 'release/**' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '10.x'
+  SOLUTION_PATH: 'deepwiki-open-dotnet.slnx'
+
+jobs:
+  build:
+    name: Build & Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for coverage reporting
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+      - name: Build solution
+        run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release
+
+      - name: Run unit tests (excluding Integration)
+        run: |
+          dotnet test ${{ env.SOLUTION_PATH }} \
+            --no-build \
+            --configuration Release \
+            --filter "Category!=Integration" \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./TestResults \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: ./TestResults/**/*.trx
+          retention-days: 14
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-reports
+          path: ./TestResults/**/coverage.cobertura.xml
+          retention-days: 14
+
+      - name: Generate coverage report summary
+        if: success() || failure()
+        run: |
+          # Install ReportGenerator if not available
+          dotnet tool install -g dotnet-reportgenerator-globaltool || true
+          
+          # Find all coverage files
+          COVERAGE_FILES=$(find ./TestResults -name "coverage.cobertura.xml" | tr '\n' ';')
+          
+          if [ -n "$COVERAGE_FILES" ]; then
+            # Generate summary report
+            reportgenerator \
+              -reports:"$COVERAGE_FILES" \
+              -targetdir:./TestResults/coverage-report \
+              -reporttypes:"MarkdownSummaryGithub;Cobertura" \
+              -assemblyfilters:"+DeepWiki.*;-*.Tests" \
+              -classfilters:"-*Migrations*;-*DbContextModelSnapshot*"
+            
+            # Output summary to GitHub Actions
+            if [ -f "./TestResults/coverage-report/SummaryGithub.md" ]; then
+              echo "## Code Coverage Summary" >> $GITHUB_STEP_SUMMARY
+              cat ./TestResults/coverage-report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "No coverage files found"
+          fi
+
+      - name: Upload combined coverage report
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: coverage-report-combined
+          path: ./TestResults/coverage-report/
+          retention-days: 14
+
+  # Optional: Upload to Codecov (requires CODECOV_TOKEN secret)
+  coverage-upload:
+    name: Upload Coverage to Codecov
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    continue-on-error: true  # Don't fail if codecov is not configured
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-reports
+          path: ./TestResults
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./TestResults/**/coverage.cobertura.xml
+          fail_ci_if_error: false
+          verbose: true
+          flags: unittests
+
+  # Performance benchmarks - only on main branch
+  benchmarks:
+    name: Performance Benchmarks
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+      - name: Build solution
+        run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release
+
+      - name: Run performance tests
+        run: |
+          dotnet test tests/DeepWiki.Rag.Core.Tests/DeepWiki.Rag.Core.Tests.csproj \
+            --no-build \
+            --configuration Release \
+            --filter "FullyQualifiedName~Performance" \
+            --logger "console;verbosity=detailed" \
+            --logger "trx;LogFileName=performance-results.trx" \
+            --results-directory ./TestResults/performance
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-results
+          path: ./TestResults/performance/
+          retention-days: 30
+
+      - name: Performance summary
+        if: success()
+        run: |
+          echo "## Performance Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Performance tests completed successfully." >> $GITHUB_STEP_SUMMARY
+          echo "See artifacts for detailed results." >> $GITHUB_STEP_SUMMARY

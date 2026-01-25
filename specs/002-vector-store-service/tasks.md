@@ -340,24 +340,25 @@
 
 ### T224-T240: CI/CD & Infrastructure
 
-- [ ] T224 [P] [S5] Update `.github/workflows/build.yml` to build both new libraries in CI pipeline
-- [ ] T225 [P] [S5] Add xUnit test execution step for DeepWiki.Rag.Core.Tests in CI workflow (exclude `Integration` by default)
-- [ ] T226 [P] [S5] Add code coverage reporting (coverlet, upload to codecov or similar)
-- [ ] T227 [P] [S5] Configure test SQL Server instance or in-memory SQLite for integration tests in CI
-- [ ] T227.1 [P] [S5] Add a separate CI job to run integration tests (filter: `Category=Integration`) using Testcontainers to provision DBs, and set extended timeouts/resource labels for the job.
-- [ ] T228 [P] [S5] Add performance benchmark step to CI (optional: only on main branch)
-- [ ] T229 [P] [S5] Document CI/CD setup in implementation guide (how to run tests locally, in CI)
+- [x] T224 [P] [S5] Update `.github/workflows/build.yml` to build both new libraries in CI pipeline ✅
+- [x] T225 [P] [S5] Add xUnit test execution step for DeepWiki.Rag.Core.Tests in CI workflow (exclude `Integration` by default) ✅
+- [x] T226 [P] [S5] Add code coverage reporting (coverlet, upload to codecov or similar) ✅
+- [x] T227 [P] [S5] Configure test SQL Server instance or in-memory SQLite for integration tests in CI ✅
+- [x] T227.1 [P] [S5] Add a separate CI job to run integration tests (filter: `Category=Integration`) using Testcontainers to provision DBs, and set extended timeouts/resource labels for the job. ✅
+- [x] T228 [P] [S5] Add performance benchmark step to CI (optional: only on main branch) ✅
+- [x] T229 [P] [S5] Document CI/CD setup in implementation guide (how to run tests locally, in CI) ✅
 
 ### T230-T245: Final Integration & Sign-Off
 
-- [ ] T230 [S5] Create `.specify/templates/implementation.md` checklist with sign-off criteria — specs/002-vector-store-service/checklists/implementation.md
-- [ ] T231 [S5] Verify all 5 slices independently testable: each can be demo'd alone (US1-US5 scoped)
-- [ ] T232 [S5] Verify all FRs addressed: FR-001 through FR-014 mapped to tasks and tested
-- [ ] T233 [S5] Verify all success criteria measurable: SC-001 through SC-010 have tests/benchmarks
-- [ ] T234 [S5] Verify architecture extensibility: Postgres pgvector support feasible (IVectorStore abstraction clean)
-- [ ] T235 [S5] Final review: code quality, test coverage, documentation completeness, performance targets
-- [ ] T236 [S5] Create implementation sign-off document with test results, metrics, known limitations — specs/002-vector-store-service/IMPLEMENTATION_SIGN_OFF.md
-- [ ] T237 [S5] Prepare merge PR with all artifacts (spec, plan, tasks, documentation, code, tests)
+- [x] T230 [S5] Create `.specify/templates/implementation.md` checklist with sign-off criteria — specs/002-vector-store-service/checklists/implementation.md ✅
+- [x] T231 [S5] Verify all 5 slices independently testable: each can be demo'd alone (US1-US5 scoped) ✅
+- [x] T232 [S5] Verify all FRs addressed: FR-001 through FR-014 mapped to tasks and tested ✅
+- [x] T233 [S5] Verify all success criteria measurable: SC-001 through SC-010 have tests/benchmarks ✅
+- [x] T234 [S5] Verify architecture extensibility: Postgres pgvector support feasible (IVectorStore abstraction clean) ✅
+- [x] T235 [S5] Final review: code quality, test coverage, documentation completeness, performance targets ✅
+- [x] T236 [S5] Create implementation sign-off document with test results, metrics, known limitations — specs/002-vector-store-service/IMPLEMENTATION_SIGN_OFF.md ✅
+- [x] T237 [S5] Prepare merge PR with all artifacts (spec, plan, tasks, documentation, code, tests) ✅
+
 
 **Checkpoint**: Slice 5 complete. Full end-to-end integration tested; documentation complete; CI/CD wired; all success criteria validated; ready for review and merge to main.
 

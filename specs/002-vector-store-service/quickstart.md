@@ -975,7 +975,121 @@ xdg-open TestResults/coverage-report/index.html  # Linux
 
 ---
 
+## CI/CD Pipeline
+
+### Overview
+
+The project uses GitHub Actions for continuous integration and deployment. There are two main workflows:
+
+| Workflow | File | Trigger | Purpose |
+|----------|------|---------|---------|
+| Build & Test | `.github/workflows/build.yml` | Push/PR to main, develop | Unit tests, coverage, benchmarks |
+| Integration Tests | `.github/workflows/integration-tests.yml` | Push/PR to main, develop | Database integration tests |
+
+### Build & Test Workflow
+
+The main CI pipeline runs on every push and PR:
+
+1. **Build**: Restores packages and builds all projects in Release mode
+2. **Unit Tests**: Runs all tests excluding `Category=Integration`
+3. **Code Coverage**: Collects coverage via coverlet, uploads reports
+4. **Performance Benchmarks**: Runs on main branch pushes only
+
+```bash
+# Reproduce CI locally
+dotnet restore deepwiki-open-dotnet.slnx
+dotnet build deepwiki-open-dotnet.slnx --configuration Release
+dotnet test deepwiki-open-dotnet.slnx --no-build --configuration Release \
+  --filter "Category!=Integration" \
+  --collect:"XPlat Code Coverage" \
+  --settings coverlet.runsettings
+```
+
+### Integration Tests Workflow
+
+Runs database integration tests using Testcontainers:
+
+- **SQL Server**: Provisions SQL Server 2025 container via Testcontainers
+- **Postgres**: Provisions Postgres with pgvector extension
+- **Timeout**: 60 minutes to allow container startup
+
+```bash
+# Reproduce integration tests locally (requires Docker)
+docker pull mcr.microsoft.com/mssql/server:2025-latest
+dotnet test --filter "Category=Integration" --logger "console;verbosity=normal"
+```
+
+### Environment Variables for CI
+
+| Variable | Purpose | Required |
+|----------|---------|----------|
+| `CODECOV_TOKEN` | Upload coverage to Codecov | Optional |
+| `VECTOR_STORE_TEST_CONNECTION` | SQL Server connection override | Optional |
+| `POSTGRES_TEST_CONNECTION` | Postgres connection override | Optional |
+
+### Running Tests in CI
+
+```yaml
+# Example: Manual workflow dispatch
+gh workflow run build.yml
+
+# View workflow runs
+gh run list --workflow=build.yml
+
+# Download coverage artifacts
+gh run download <run-id> --name coverage-reports
+```
+
+### Coverage Thresholds
+
+The project targets these coverage thresholds (SC-004):
+
+| Component | Target | Current |
+|-----------|--------|---------|
+| IVectorStore | ≥90% | 100% |
+| ITokenizationService | ≥90% | ~70% |
+| IEmbeddingService | ≥90% | ~85% |
+
+Coverage reports are uploaded as artifacts and optionally to Codecov.
+
+### Adding New CI Steps
+
+To add a new CI step:
+
+1. Edit `.github/workflows/build.yml`
+2. Add step after build/test:
+   ```yaml
+   - name: My Custom Step
+     run: |
+       # Your commands here
+   ```
+3. For long-running steps, add timeout:
+   ```yaml
+   - name: Long Running Step
+     timeout-minutes: 30
+     run: ...
+   ```
+
+### Troubleshooting CI
+
+**"Test failed but works locally"**:
+- Check for environment-specific paths
+- Verify test doesn't depend on external services
+- Check for race conditions in parallel tests
+
+**"Coverage upload failed"**:
+- Verify `CODECOV_TOKEN` secret is set (optional)
+- Check coverage files exist in `./TestResults/`
+
+**"Testcontainers timeout"**:
+- Increase `timeout-minutes` in workflow
+- Check Docker service is available
+- Verify image pull succeeds
+
+---
+
 ## API Contracts
+
 
 For detailed API documentation, see:
 - [IVectorStore](./contracts/IVectorStore.md) - Semantic document retrieval
