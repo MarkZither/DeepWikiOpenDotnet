@@ -364,11 +364,11 @@
 
 ### T238-T242: Microsoft Agent Framework Integration Testing
 
-- [ ] T238 [P] [S5] Create `AgentFrameworkIntegrationTests.cs` xUnit class testing Vector Store with Microsoft Agent Framework agent tool bindings. Validate tool definitions, parameter binding, and knowledge context integration — tests/DeepWiki.Rag.Core.Tests/AgentFramework/AgentFrameworkIntegrationTests.cs
-- [ ] T239 [S5] Create sample Microsoft Agent Framework agent with `queryKnowledge` tool using IVectorStore (tool definition with @Tool attribute, parameter descriptions for agent reasoning, JSON-serializable context integration) — examples/AgentWithKnowledgeRetrieval.cs
-- [ ] T240 [S5] Integration test: Microsoft Agent Framework agent calls `queryKnowledge(question)` tool → IVectorStore.QueryAsync() → retrieves documents → agent integrates knowledge into reasoning context
-- [ ] T241 [S5] Integration test: End-to-end agent reasoning with Vector Store: agent question → retrieve documents → reason over context → generate answer with citations (validates agent framework compatibility)
-- [ ] T242 [S5] Performance test: Measure Microsoft Agent Framework agent response time with Vector Store latency (target: <1s total agent response = agent reasoning <500ms + Vector Store query <500ms)
+- [x] T238 [P] [S5] Create `AgentFrameworkIntegrationTests.cs` xUnit class testing Vector Store with Microsoft Agent Framework agent tool bindings. Validate tool definitions, parameter binding, and knowledge context integration — tests/DeepWiki.Rag.Core.Tests/AgentFramework/AgentFrameworkIntegrationTests.cs ✅
+- [x] T239 [S5] Create sample Microsoft Agent Framework agent with `queryKnowledge` tool using IVectorStore (tool definition with @Tool attribute, parameter descriptions for agent reasoning, JSON-serializable context integration) — examples/AgentWithKnowledgeRetrieval.cs ✅
+- [x] T240 [S5] Integration test: Microsoft Agent Framework agent calls `queryKnowledge(question)` tool → IVectorStore.QueryAsync() → retrieves documents → agent integrates knowledge into reasoning context ✅
+- [x] T241 [S5] Integration test: End-to-end agent reasoning with Vector Store: agent question → retrieve documents → reason over context → generate answer with citations (validates agent framework compatibility) ✅
+- [x] T242 [S5] Performance test: Measure Microsoft Agent Framework agent response time with Vector Store latency (target: <1s total agent response = agent reasoning <500ms + Vector Store query <500ms) ✅
 
 **Checkpoint**: Agent Framework integration verified. Vector Store usable directly from Agent Framework tools. E2E agent reasoning with knowledge retrieval tested.
 

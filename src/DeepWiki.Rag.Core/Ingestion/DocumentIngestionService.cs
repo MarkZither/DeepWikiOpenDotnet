@@ -17,6 +17,32 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
     private readonly IEmbeddingService _embeddingService;
     private readonly ILogger<DocumentIngestionService>? _logger;
 
+    // === SECURITY CONSTANTS ===
+    // Maximum document text size in bytes (5 MB) - prevents memory exhaustion attacks
+    private const int MaxTextBytes = 5 * 1024 * 1024;
+    
+    // Maximum token count per document (500K) - prevents excessive embedding costs
+    private const int MaxTokenCount = 500_000;
+    
+    // Suspicious patterns that may indicate prompt injection attempts
+    // These are logged/flagged but not blocked to allow legitimate use cases
+    private static readonly string[] SuspiciousPatterns = new[]
+    {
+        "ignore previous instructions",
+        "ignore all previous",
+        "disregard above",
+        "forget everything",
+        "system prompt",
+        "you are now",
+        "act as if",
+        "pretend you are",
+        "new instructions:",
+        "[INST]",
+        "<|im_start|>",
+        "### Human:",
+        "### Assistant:"
+    };
+
     // File type mappings for metadata enrichment
     private static readonly HashSet<string> CodeExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -265,6 +291,18 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
         IngestionRequest request,
         CancellationToken cancellationToken)
     {
+        // SECURITY: Detect and flag potential prompt injection attempts
+        var suspiciousContent = DetectSuspiciousContent(doc.Text);
+        if (suspiciousContent is not null)
+        {
+            _logger?.LogWarning(
+                "Potential prompt injection detected in document {RepoUrl}:{FilePath} - pattern: {Pattern}",
+                doc.RepoUrl, doc.FilePath, suspiciousContent);
+        }
+
+        // SECURITY: Sanitize metadata JSON to prevent injection via malformed JSON
+        var sanitizedMetadata = SanitizeMetadataJson(doc.MetadataJson);
+
         var fileType = doc.FileType ?? GetFileType(doc.FilePath);
         var isCode = doc.IsCode ?? IsCodeFile(fileType);
         var isImplementation = doc.IsImplementation ?? IsImplementationFile(doc.FilePath, isCode);
@@ -304,13 +342,14 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
             }
         }
 
-        // Merge metadata
-        var metadata = MergeMetadata(doc.MetadataJson, request.MetadataDefaults, new Dictionary<string, object>
+        // Merge metadata (using sanitized version)
+        var metadata = MergeMetadata(sanitizedMetadata, request.MetadataDefaults, new Dictionary<string, object>
         {
             ["file_type"] = fileType,
             ["is_code"] = isCode,
             ["is_implementation"] = isImplementation,
-            ["language"] = isCode ? DetectCodeLanguage(fileType) : "text"
+            ["language"] = isCode ? DetectCodeLanguage(fileType) : "text",
+            ["_suspicious_content_detected"] = suspiciousContent is not null
         });
 
         var tokenCountValue = await _tokenizationService.CountTokensAsync(
@@ -342,6 +381,15 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
 
         if (string.IsNullOrWhiteSpace(doc.Text))
             throw new ArgumentException("Document Text is required", nameof(doc));
+
+        // SECURITY: Enforce document size limits to prevent memory exhaustion
+        var textBytes = System.Text.Encoding.UTF8.GetByteCount(doc.Text);
+        if (textBytes > MaxTextBytes)
+        {
+            throw new ArgumentException(
+                $"Document text exceeds maximum size of {MaxTextBytes / (1024 * 1024)} MB (got {textBytes / (1024 * 1024.0):F2} MB)",
+                nameof(doc));
+        }
     }
 
     private static void ValidateDocumentDto(DocumentDto doc)
@@ -488,5 +536,56 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
             InvalidOperationException e when e.Message.Contains("embedding", StringComparison.OrdinalIgnoreCase) => IngestionStage.Embedding,
             _ => IngestionStage.Upsert
         };
+    }
+
+    /// <summary>
+    /// SECURITY: Detects potential prompt injection patterns in document content.
+    /// Returns the first matched pattern or null if no suspicious content is found.
+    /// Note: This flags but does not block - legitimate code may contain these patterns.
+    /// </summary>
+    private static string? DetectSuspiciousContent(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return null;
+
+        var lowerText = text.ToLowerInvariant();
+        foreach (var pattern in SuspiciousPatterns)
+        {
+            if (lowerText.Contains(pattern.ToLowerInvariant()))
+            {
+                return pattern;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// SECURITY: Sanitizes metadata JSON by parsing and re-serializing.
+    /// This prevents JSON injection attacks via malformed metadata.
+    /// </summary>
+    private static string SanitizeMetadataJson(string? metadataJson)
+    {
+        if (string.IsNullOrWhiteSpace(metadataJson) || metadataJson == "{}")
+        {
+            return "{}";
+        }
+
+        try
+        {
+            // Parse and re-serialize to ensure valid JSON structure
+            var parsed = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(metadataJson);
+            if (parsed is null) return "{}";
+
+            // Re-serialize with safe options
+            return JsonSerializer.Serialize(parsed, new JsonSerializerOptions
+            {
+                WriteIndented = false,
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+        }
+        catch (JsonException)
+        {
+            // Invalid JSON - return empty object
+            return "{}";
+        }
     }
 }

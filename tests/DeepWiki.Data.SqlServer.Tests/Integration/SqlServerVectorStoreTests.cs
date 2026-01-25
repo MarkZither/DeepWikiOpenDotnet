@@ -183,12 +183,27 @@ public class SqlServerVectorStoreTests : IAsyncLifetime
         await _vectorStore!.UpsertAsync(doc1, CancellationToken.None);
         await _vectorStore.UpsertAsync(doc2, CancellationToken.None);
 
-        // Act: filePath LIKE '%/some/%'
-        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, repo, "%/some/%", CancellationToken.None);
+        // Act: filePath LIKE 'src/some/%' (non-leading wildcard is allowed per security policy)
+        var results = await _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, repo, "src/some/%", CancellationToken.None);
 
         // Assert
         Assert.Single(results);
-        Assert.Contains("/some/", results[0].FilePath);
+        Assert.Contains("src/some/", results[0].FilePath);
+    }
+
+    [Fact]
+    public async Task QueryNearestAsync_ShouldRejectLeadingWildcardPattern()
+    {
+        // Arrange - SECURITY: Leading wildcards are blocked to prevent full table scans
+        const string repo = "https://github.com/org/repo1";
+        var doc = CreateTestDocument(repo, "src/file.cs", 0.5f);
+        await _vectorStore!.UpsertAsync(doc, CancellationToken.None);
+
+        // Act & Assert: Leading wildcard should throw ArgumentException
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            _vectorStore.QueryNearestAsync(new ReadOnlyMemory<float>(CreateEmbedding(0.5f)), 10, repo, "%/some/%", CancellationToken.None));
+        
+        Assert.Contains("cannot start with a wildcard", ex.Message);
     }
 
     [Fact]

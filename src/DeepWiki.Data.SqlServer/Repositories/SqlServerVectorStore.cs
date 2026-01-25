@@ -18,9 +18,48 @@ public class SqlServerVectorStore : IPersistenceVectorStore
 {
     private readonly SqlServerVectorDbContext _context;
 
+    // SECURITY: Maximum number of results to prevent resource exhaustion via unbounded queries
+    private const int MaxK = 1000;
+
+    // SECURITY: Maximum length for LIKE patterns to prevent regex-like DoS patterns
+    private const int MaxLikePatternLength = 500;
+
     public SqlServerVectorStore(SqlServerVectorDbContext context)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
+    }
+
+    /// <summary>
+    /// SECURITY: Validates LIKE patterns to prevent performance abuse.
+    /// Rejects patterns that are too long or contain excessive wildcards.
+    /// </summary>
+    private static void ValidateLikePattern(string? pattern, string parameterName)
+    {
+        if (string.IsNullOrEmpty(pattern)) return;
+
+        if (pattern.Length > MaxLikePatternLength)
+        {
+            throw new ArgumentException(
+                $"Filter pattern exceeds maximum length of {MaxLikePatternLength} characters",
+                parameterName);
+        }
+
+        // Count wildcards - excessive wildcards can cause slow queries
+        var wildcardCount = pattern.Count(c => c == '%' || c == '_');
+        if (wildcardCount > 10)
+        {
+            throw new ArgumentException(
+                "Filter pattern contains too many wildcards (maximum 10 allowed)",
+                parameterName);
+        }
+
+        // Reject leading wildcards which cause full table scans
+        if (pattern.StartsWith('%') || pattern.StartsWith('_'))
+        {
+            throw new ArgumentException(
+                "Filter pattern cannot start with a wildcard (causes full table scan)",
+                parameterName);
+        }
     }
 
     public async Task UpsertAsync(DocumentEntity document, CancellationToken cancellationToken = default)
@@ -74,6 +113,16 @@ public class SqlServerVectorStore : IPersistenceVectorStore
         if (queryEmbedding.Length != 1536) throw new ArgumentException("Query embedding must be exactly 1536 dimensions", nameof(queryEmbedding));
         if (k < 1) throw new ArgumentException("k must be >= 1", nameof(k));
 
+        // SECURITY: Enforce upper bound on k to prevent resource exhaustion
+        if (k > MaxK)
+        {
+            k = MaxK;
+        }
+
+        // SECURITY: Validate LIKE patterns to prevent slow query attacks
+        ValidateLikePattern(repoUrlFilter, nameof(repoUrlFilter));
+        ValidateLikePattern(filePathFilter, nameof(filePathFilter));
+
         try
         {
             // Try native SQL Server VECTOR_DISTANCE query via FromSqlInterpolated
@@ -88,6 +137,9 @@ public class SqlServerVectorStore : IPersistenceVectorStore
 
     /// <summary>
     /// Native SQL Server 2025 VECTOR_DISTANCE query using FromSqlInterpolated for k-NN search.
+    /// Note: We use raw SQL because EF.Functions.VectorDistance requires SqlVector&lt;T&gt; typed properties,
+    /// but our entity uses ReadOnlyMemory&lt;float&gt; for database-agnostic compatibility.
+    /// The value converter works at storage layer but not in LINQ expressions.
     /// </summary>
     private async Task<List<DocumentEntity>> QueryNearestNativeAsync(
         ReadOnlyMemory<float> queryEmbedding,
@@ -98,32 +150,6 @@ public class SqlServerVectorStore : IPersistenceVectorStore
     {
         // Convert embedding to SQL Server vector literal format: '[0.1, 0.2, ...]'
         var vectorLiteral = FormatVectorLiteral(queryEmbedding);
-
-        // Build WHERE clause fragments for LIKE pattern support
-        var whereClause = "WHERE Embedding IS NOT NULL";
-        if (!string.IsNullOrEmpty(repoUrlFilter))
-        {
-            if (repoUrlFilter.Contains('%') || repoUrlFilter.Contains('_'))
-            {
-                whereClause += $" AND RepoUrl LIKE {{0}}";
-            }
-            else
-            {
-                whereClause += $" AND RepoUrl = {{0}}";
-            }
-        }
-        if (!string.IsNullOrEmpty(filePathFilter))
-        {
-            var paramIndex = string.IsNullOrEmpty(repoUrlFilter) ? 0 : 1;
-            if (filePathFilter.Contains('%') || filePathFilter.Contains('_'))
-            {
-                whereClause += $" AND FilePath LIKE {{{paramIndex}}}";
-            }
-            else
-            {
-                whereClause += $" AND FilePath = {{{paramIndex}}}";
-            }
-        }
 
         // Build parameterized SQL using VECTOR_DISTANCE (cosine distance, lower = more similar)
         // Note: VECTOR_DISTANCE requires vector literal in query, parameters for filters

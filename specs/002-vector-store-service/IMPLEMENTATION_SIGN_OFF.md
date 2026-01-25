@@ -105,6 +105,39 @@ dotnet test --filter "FullyQualifiedName~Performance" --logger "console;verbosit
 [ConcurrentUpsert] 25,000 upserts/sec, no corruption ✅
 ```
 
+### Slice 5 (T238-T242): Microsoft Agent Framework Integration
+
+**What you'll see**: AI agent tool bindings using `Microsoft.Extensions.AI`, knowledge retrieval service integration, JSON-serializable context for agent reasoning, tool parameter validation, and performance benchmarks
+
+```bash
+dotnet test --filter "FullyQualifiedName~AgentFramework" --logger "console;verbosity=detailed"
+```
+
+**Tests included** (11 total):
+- `Tool_CreatedFromQueryKnowledge_HasCorrectMetadata` - Validates AIFunction creation from service method
+- `Tool_JsonSchema_IncludesQuestionParameter` - Ensures tool has proper parameter schema for agent binding
+- `Agent_CallsQueryKnowledgeTool_RetrievesDocuments_IntegratesKnowledge` - E2E tool invocation with document retrieval
+- `Tool_WithFilter_ReturnsFilteredResults` - Metadata filtering through agent tool
+- `KnowledgeContext_IsJsonSerializable_ForAgentReasoning` - JSON serialization for agent context
+- `Tool_InvokeAsync_Performance_Under100ms` - Latency benchmark for agent responsiveness
+- `MultipleTools_CanBeCreated_ForDifferentMethods` - Tool collection for agent tool definitions
+- `Tool_WithEmptyResults_ReturnsEmptyContext` - Graceful handling of no-match queries
+- `Tool_ReturnsRelevanceScores_ForAgentRanking` - Similarity scores for agent prioritization
+- `KnowledgeDocument_ContainsCitationInfo_ForAgentResponse` - Citation data for grounded responses
+- `Tool_Parameters_AreDescribed_ForAgentReasoning` - Parameter descriptions for agent understanding
+
+**Sample output**:
+```
+[Tool_InvokeAsync_Performance_Under100ms] Elapsed: 45ms (target: <100ms) ✅
+[Agent_CallsQueryKnowledgeTool] Retrieved 5 documents with relevance scores ✅
+[KnowledgeContext_IsJsonSerializable] Serialized context: 2.3KB ✅
+```
+
+**Example code**: See [examples/AgentWithKnowledgeRetrieval.cs](../../examples/AgentWithKnowledgeRetrieval.cs) for a complete sample demonstrating:
+- Creating `AIFunction` tools from `IVectorStore` via `AIFunctionFactory.Create()`
+- `KnowledgeRetrievalService` pattern for agent tool binding
+- JSON-serializable `KnowledgeContext` model for agent reasoning
+
 ### Quick Reference: Demo Commands
 
 | Slice | User Story | Command |
@@ -114,6 +147,7 @@ dotnet test --filter "FullyQualifiedName~Performance" --logger "console;verbosit
 | S3 | US4 (Providers) | `dotnet test --filter "Embedding"` |
 | S4 | US2 (Ingest) | `dotnet test --filter "Ingestion"` |
 | S5 | All | `dotnet test --filter "EndToEnd\|Performance"` |
+| S5 (T238-T242) | Agent Framework | `dotnet test --filter "AgentFramework"` |
 | **Full Suite** | All | `dotnet test --filter "Category!=Integration"` |
 
 ---

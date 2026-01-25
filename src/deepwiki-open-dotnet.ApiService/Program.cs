@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add service defaults & Aspire client integrations.
@@ -5,6 +7,32 @@ builder.AddServiceDefaults();
 
 // Add services to the container.
 builder.Services.AddProblemDetails();
+
+// SECURITY: Add rate limiting to prevent API abuse
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        // Rate limit by IP address (or authenticated user ID when auth is added)
+        var partitionKey = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 100,           // 100 requests per window
+            Window = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 10              // Allow 10 requests to queue
+        });
+    });
+    
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        await context.HttpContext.Response.WriteAsync(
+            "Rate limit exceeded. Please retry after 60 seconds.", token);
+    };
+});
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -50,6 +78,9 @@ var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
+
+// SECURITY: Enable rate limiting middleware
+app.UseRateLimiter();
 
 if (app.Environment.IsDevelopment())
 {

@@ -19,9 +19,48 @@ public class PostgresVectorStore : IPersistenceVectorStore
 {
     private readonly PostgresVectorDbContext _context;
 
+    // SECURITY: Maximum number of results to prevent resource exhaustion via unbounded queries
+    private const int MaxK = 1000;
+
+    // SECURITY: Maximum length for LIKE patterns to prevent regex-like DoS patterns
+    private const int MaxLikePatternLength = 500;
+
     public PostgresVectorStore(PostgresVectorDbContext context)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
+    }
+
+    /// <summary>
+    /// SECURITY: Validates LIKE patterns to prevent performance abuse.
+    /// Rejects patterns that are too long or contain excessive wildcards.
+    /// </summary>
+    private static void ValidateLikePattern(string? pattern, string parameterName)
+    {
+        if (string.IsNullOrEmpty(pattern)) return;
+
+        if (pattern.Length > MaxLikePatternLength)
+        {
+            throw new ArgumentException(
+                $"Filter pattern exceeds maximum length of {MaxLikePatternLength} characters",
+                parameterName);
+        }
+
+        // Count wildcards - excessive wildcards can cause slow queries
+        var wildcardCount = pattern.Count(c => c == '%' || c == '_');
+        if (wildcardCount > 10)
+        {
+            throw new ArgumentException(
+                "Filter pattern contains too many wildcards (maximum 10 allowed)",
+                parameterName);
+        }
+
+        // Reject leading wildcards which cause full table scans
+        if (pattern.StartsWith('%') || pattern.StartsWith('_'))
+        {
+            throw new ArgumentException(
+                "Filter pattern cannot start with a wildcard (causes full table scan)",
+                parameterName);
+        }
     }
 
     public async Task UpsertAsync(DocumentEntity document, CancellationToken cancellationToken = default)
@@ -73,6 +112,16 @@ public class PostgresVectorStore : IPersistenceVectorStore
         if (queryEmbedding.IsEmpty) throw new ArgumentNullException(nameof(queryEmbedding));
         if (queryEmbedding.Length != 1536) throw new ArgumentException("Query embedding must be exactly 1536 dimensions", nameof(queryEmbedding));
         if (k < 1) throw new ArgumentException("k must be >= 1", nameof(k));
+
+        // SECURITY: Enforce upper bound on k to prevent resource exhaustion
+        if (k > MaxK)
+        {
+            k = MaxK;
+        }
+
+        // SECURITY: Validate LIKE patterns to prevent slow query attacks
+        ValidateLikePattern(repoUrlFilter, nameof(repoUrlFilter));
+        ValidateLikePattern(filePathFilter, nameof(filePathFilter));
 
         try
         {

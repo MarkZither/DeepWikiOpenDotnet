@@ -125,13 +125,14 @@ public class SqlServerVectorStoreAdapterUnitTests
         var adapter = new DeepWiki.Data.SqlServer.VectorStore.SqlServerVectorStoreAdapter(fake, NullLogger<DeepWiki.Data.SqlServer.VectorStore.SqlServerVectorStoreAdapter>.Instance);
 
         var query = new float[1536];
-        var filters = new Dictionary<string, string> { { "repoUrl", "%/org/%" }, { "filePath", "%/some/%" } };
+        var filters = new Dictionary<string, string> { { "repoUrl", "https://github.com/org/%" }, { "filePath", "src/some/%" } };
 
         var results = await adapter.QueryAsync(query, 3, filters);
 
         Assert.NotNull(fake.LastRepoFilter);
-        Assert.Equal("%/org/%", fake.LastRepoFilter);
-        Assert.Equal("%/some/%", fake.LastFilePathFilter);
+        // Adapter passes filters through unchanged to provider
+        Assert.Equal("https://github.com/org/%", fake.LastRepoFilter);
+        Assert.Equal("src/some/%", fake.LastFilePathFilter);
     }
 
     [Fact]

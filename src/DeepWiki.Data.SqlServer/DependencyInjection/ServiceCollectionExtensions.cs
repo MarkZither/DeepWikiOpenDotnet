@@ -1,6 +1,8 @@
+using DeepWiki.Data.Abstractions.VectorData;
 using DeepWiki.Data.Interfaces;
 using DeepWiki.Data.SqlServer.DbContexts;
 using DeepWiki.Data.SqlServer.Repositories;
+using DeepWiki.Data.SqlServer.VectorStore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -58,7 +60,15 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDocumentRepository, SqlServerDocumentRepository>();
 
         // Register Abstractions adapter to provide DeepWiki.Data.Abstractions.IVectorStore backed by the provider implementation
-        services.AddScoped<DeepWiki.Data.Abstractions.IVectorStore, DeepWiki.Data.SqlServer.VectorStore.SqlServerVectorStoreAdapter>();
+        services.AddScoped<DeepWiki.Data.Abstractions.IVectorStore, SqlServerVectorStoreAdapter>();
+
+        // Register Microsoft.Extensions.VectorData implementations for modern vector store patterns
+        services.AddScoped<IDocumentVectorStore, SqlServerDocumentVectorStore>();
+        services.AddScoped<IDocumentVectorCollection>(sp =>
+        {
+            var store = sp.GetRequiredService<IDocumentVectorStore>();
+            return store.GetDocumentCollection();
+        });
 
         return services;
     }
