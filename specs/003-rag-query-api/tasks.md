@@ -17,11 +17,11 @@
 
 **Purpose**: Create project structure and install dependencies
 
-- [ ] T001 Add Microsoft.Extensions.Http.Polly package to src/deepwiki-open-dotnet.ApiService/deepwiki-open-dotnet.ApiService.csproj
-- [ ] T002 [P] Create src/deepwiki-open-dotnet.ApiService/Configuration/ directory structure
-- [ ] T003 [P] Create src/deepwiki-open-dotnet.ApiService/Models/ directory structure
-- [ ] T004 [P] Create src/deepwiki-open-dotnet.ApiService/Controllers/ directory structure
-- [ ] T005 [P] Create tests/deepwiki-open-dotnet.Tests/Api/ directory structure
+- [X] T001 Add Microsoft.Extensions.Http.Polly package to src/deepwiki-open-dotnet.ApiService/deepwiki-open-dotnet.ApiService.csproj
+- [X] T002 [P] Create src/deepwiki-open-dotnet.ApiService/Configuration/ directory structure
+- [X] T003 [P] Create src/deepwiki-open-dotnet.ApiService/Models/ directory structure
+- [X] T004 [P] Create src/deepwiki-open-dotnet.ApiService/Controllers/ directory structure
+- [X] T005 [P] Create tests/deepwiki-open-dotnet.Tests/Api/ directory structure
 
 ---
 
@@ -33,34 +33,34 @@
 
 ### Configuration & Options
 
-- [ ] T006 Create VectorStoreOptions class in src/deepwiki-open-dotnet.ApiService/Configuration/VectorStoreOptions.cs
-- [ ] T007 [P] Create SqlServerVectorStoreOptions class in src/deepwiki-open-dotnet.ApiService/Configuration/SqlServerVectorStoreOptions.cs
-- [ ] T008 [P] Create PostgresVectorStoreOptions class in src/deepwiki-open-dotnet.ApiService/Configuration/PostgresVectorStoreOptions.cs
+- [X] T006 Create VectorStoreOptions class in src/deepwiki-open-dotnet.ApiService/Configuration/VectorStoreOptions.cs
+- [X] T007 [P] Create SqlServerVectorStoreOptions class in src/deepwiki-open-dotnet.ApiService/Configuration/SqlServerVectorStoreOptions.cs
+- [X] T008 [P] Create PostgresVectorStoreOptions class in src/deepwiki-open-dotnet.ApiService/Configuration/PostgresVectorStoreOptions.cs
 
 ### VectorStore Factory (Provider Selection)
 
-- [ ] T009 Create VectorStoreFactory class in src/DeepWiki.Rag.Core/VectorStore/VectorStoreFactory.cs
-- [ ] T010 Create PostgresVectorStoreAdapter in src/DeepWiki.Data.Postgres/VectorStore/PostgresVectorStoreAdapter.cs
-- [ ] T011 Modify src/DeepWiki.Data.Postgres/DependencyInjection/ServiceCollectionExtensions.cs to register PostgresVectorStoreAdapter as IVectorStore
+- [X] T009 Create VectorStoreFactory class in src/DeepWiki.Rag.Core/VectorStore/VectorStoreFactory.cs
+- [X] T010 Create PostgresVectorStoreAdapter in src/DeepWiki.Data.Postgres/VectorStore/PostgresVectorStoreAdapter.cs
+- [X] T011 Modify src/DeepWiki.Data.Postgres/DependencyInjection/ServiceCollectionExtensions.cs to register PostgresVectorStoreAdapter as IVectorStore
 
 ### API Models (Shared DTOs)
 
-- [ ] T012 [P] Create ErrorResponse record in src/deepwiki-open-dotnet.ApiService/Models/ErrorResponse.cs
-- [ ] T013 [P] Create QueryRequest and QueryFilters records in src/deepwiki-open-dotnet.ApiService/Models/QueryRequest.cs
-- [ ] T014 [P] Create QueryResultItem record in src/deepwiki-open-dotnet.ApiService/Models/QueryResultItem.cs
-- [ ] T015 [P] Create IngestRequest and IngestDocument records in src/deepwiki-open-dotnet.ApiService/Models/IngestRequest.cs
-- [ ] T016 [P] Create IngestResponse and IngestError records in src/deepwiki-open-dotnet.ApiService/Models/IngestResponse.cs
-- [ ] T017 [P] Create DocumentListResponse and DocumentSummary records in src/deepwiki-open-dotnet.ApiService/Models/DocumentListResponse.cs
+- [X] T012 [P] Create ErrorResponse record in src/deepwiki-open-dotnet.ApiService/Models/ErrorResponse.cs
+- [X] T013 [P] Create QueryRequest and QueryFilters records in src/deepwiki-open-dotnet.ApiService/Models/QueryRequest.cs
+- [X] T014 [P] Create QueryResultItem record in src/deepwiki-open-dotnet.ApiService/Models/QueryResultItem.cs
+- [X] T015 [P] Create IngestRequest and IngestDocument records in src/deepwiki-open-dotnet.ApiService/Models/IngestRequest.cs
+- [X] T016 [P] Create IngestResponse and IngestError records in src/deepwiki-open-dotnet.ApiService/Models/IngestResponse.cs
+- [X] T017 [P] Create DocumentListResponse and DocumentSummary records in src/deepwiki-open-dotnet.ApiService/Models/DocumentListResponse.cs
 
 ### Program.cs DI Updates
 
-- [ ] T018 Register VectorStoreOptions in src/deepwiki-open-dotnet.ApiService/Program.cs using Options pattern
-- [ ] T019 Replace NoOpVectorStore registration with VectorStoreFactory-based registration in src/deepwiki-open-dotnet.ApiService/Program.cs
+- [X] T018 Register VectorStoreOptions in src/deepwiki-open-dotnet.ApiService/Program.cs using Options pattern
+- [X] T019 Replace NoOpVectorStore registration with VectorStoreFactory-based registration in src/deepwiki-open-dotnet.ApiService/Program.cs
 
 ### Test Infrastructure
 
-- [ ] T020 Create ApiTestFixture with WebApplicationFactory in tests/deepwiki-open-dotnet.Tests/Api/ApiTestFixture.cs
-- [ ] T021 Create VectorStoreFactoryTests in tests/DeepWiki.Rag.Core.Tests/VectorStore/VectorStoreFactoryTests.cs
+- [X] T020 Create ApiTestFixture with WebApplicationFactory in tests/deepwiki-open-dotnet.Tests/Api/ApiTestFixture.cs
+- [X] T021 Create VectorStoreFactoryTests in tests/DeepWiki.Rag.Core.Tests/VectorStore/VectorStoreFactoryTests.cs
 
 **Checkpoint**: Foundation ready - VectorStoreFactory working, all DTOs defined, test infrastructure in place
 
