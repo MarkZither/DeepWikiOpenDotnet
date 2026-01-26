@@ -1,10 +1,11 @@
 ﻿namespace DeepWiki.Data.Abstractions.Tests;
 
-public class UnitTest1
+public class DeepWikiDataAbstractionsSmokeTests
 {
     [Fact]
-    public void Test1()
+    public void DataAbstractionsAssemblyIsLoadable()
     {
-
+        var assembly = typeof(DeepWiki.Data.Abstractions.Tests.DeepWikiDataAbstractionsSmokeTests).Assembly;
+        Xunit.Assert.NotNull(assembly);
     }
 }
