@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DeepWiki.Data\DeepWiki.Data.csproj" />
+    <ProjectReference Include="..\DeepWiki.Data.Abstractions\DeepWiki.Data.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -9,7 +9,7 @@ namespace DeepWiki.Data.Interfaces;
 /// Provides vector similarity search operations for document embeddings.
 /// Enables semantic search across knowledge base documents with support for multiple database providers.
 /// </summary>
-public interface IVectorStore
+public interface IPersistenceVectorStore
 {
     /// <summary>
     /// Inserts a new document or updates an existing document (upsert semantics based on Id).
@@ -59,6 +59,7 @@ public interface IVectorStore
         ReadOnlyMemory<float> queryEmbedding,
         int k = 10,
         string? repoUrlFilter = null,
+        string? filePathFilter = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -125,4 +126,10 @@ public interface IVectorStore
     Task BulkUpsertAsync(
         IEnumerable<DeepWiki.Data.Entities.DocumentEntity> documents,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Performs provider-specific index maintenance, such as rebuilding columnstore or pgvector indexes.
+    /// Implementations MAY perform a no-op when maintenance is not required.
+    /// </summary>
+    Task RebuildIndexAsync(CancellationToken cancellationToken = default);
 }

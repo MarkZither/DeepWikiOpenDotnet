@@ -51,7 +51,7 @@ This document breaks down the implementation plan into discrete, executable task
 
 ### Interface Definitions (US1, US2)
 
-- [x] T013 [P] [US2] Implement IVectorStore interface in src/DeepWiki.Data/Interfaces/IVectorStore.cs
+- [x] T013 [P] [US2] Implement persistence vector store interface in src/DeepWiki.Data/Interfaces/IPersistenceVectorStore.cs
 - [x] T013a Includes methods: UpsertAsync, QueryNearestAsync, DeleteAsync, DeleteByRepoAsync, CountAsync
 - [x] T013b Add comprehensive XML documentation with performance remarks
 - [x] T014 [P] [US2] Implement IDocumentRepository interface in src/DeepWiki.Data/Interfaces/IDocumentRepository.cs

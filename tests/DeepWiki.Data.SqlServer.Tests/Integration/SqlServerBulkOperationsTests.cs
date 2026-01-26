@@ -11,6 +11,7 @@ namespace DeepWiki.Data.SqlServer.Tests.Integration;
 /// Integration tests for bulk operations on SQL Server vector store.
 /// Tests high-volume document operations and transactional semantics.
 /// </summary>
+[Trait("Category","Integration")]
 public class SqlServerBulkOperationsTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _fixture;
@@ -65,7 +66,7 @@ public class SqlServerBulkOperationsTests : IAsyncLifetime
         context2.Documents.Add(doc2);
 
         // Act & Assert - duplicate ID should fail on insert
-        var exception = await Assert.ThrowsAsync<Exception>(() => context2.SaveChangesAsync());
+        var exception = await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context2.SaveChangesAsync());
         Assert.NotNull(exception);
     }
 
@@ -99,7 +100,7 @@ public class SqlServerBulkOperationsTests : IAsyncLifetime
         // Assert: Last write should persist
         var final = await _fixture.CreateDbContext().Documents.FindAsync(doc.Id);
         Assert.NotNull(final);
-        Assert.Equal("Updated in context 2", final.Text);
+        Assert.Equal("Updated in context 2", final!.Text);
     }
 
     [Fact]

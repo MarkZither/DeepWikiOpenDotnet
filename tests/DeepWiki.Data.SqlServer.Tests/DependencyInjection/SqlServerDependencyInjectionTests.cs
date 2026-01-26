@@ -33,8 +33,8 @@ public class SqlServerDependencyInjectionTests
         var dbContext = serviceProvider.GetRequiredService<SqlServerVectorDbContext>();
         Assert.NotNull(dbContext);
 
-        // Assert - IVectorStore is registered as SqlServerVectorStore
-        var vectorStore = serviceProvider.GetRequiredService<IVectorStore>();
+        // Assert - IPersistenceVectorStore is registered as SqlServerVectorStore
+        var vectorStore = serviceProvider.GetRequiredService<IPersistenceVectorStore>();
         Assert.NotNull(vectorStore);
         Assert.IsType<SqlServerVectorStore>(vectorStore);
 
@@ -55,7 +55,7 @@ public class SqlServerDependencyInjectionTests
 
         // Act & Assert
         var ex = Assert.Throws<ArgumentException>(() => 
-            services.AddSqlServerDataLayer((string)null));
+            services.AddSqlServerDataLayer(null!));
         Assert.NotNull(ex);
     }
 
@@ -99,7 +99,7 @@ public class SqlServerDependencyInjectionTests
 
         // Act
         services.AddSqlServerDataLayer(connectionString);
-        var descriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(IVectorStore));
+        var descriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(IPersistenceVectorStore));
 
         // Assert
         Assert.NotNull(descriptor);
@@ -230,7 +230,7 @@ public class SqlServerDependencyInjectionTests
         var provider = services.BuildServiceProvider();
 
         // Assert
-        var vectorStore = provider.GetRequiredService<IVectorStore>();
+        var vectorStore = provider.GetRequiredService<IPersistenceVectorStore>();
         Assert.NotNull(vectorStore);
     }
 }

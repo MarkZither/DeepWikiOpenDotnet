@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\deepwiki-open-dotnet.ServiceDefaults\deepwiki-open-dotnet.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\DeepWiki.Data.Abstractions\DeepWiki.Data.Abstractions.csproj" />
+    <ProjectReference Include="..\DeepWiki.Rag.Core\DeepWiki.Rag.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

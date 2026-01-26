@@ -4,14 +4,22 @@
     <Project Path="src/deepwiki-open-dotnet.AppHost/deepwiki-open-dotnet.AppHost.csproj" />
     <Project Path="src/deepwiki-open-dotnet.ServiceDefaults/deepwiki-open-dotnet.ServiceDefaults.csproj" />
     <Project Path="src/deepwiki-open-dotnet.Web/deepwiki-open-dotnet.Web.csproj" />
+    <Project Path="src/DeepWiki.Data.Abstractions/DeepWiki.Data.Abstractions.csproj" />
     <Project Path="src/DeepWiki.Data.Postgres/DeepWiki.Data.Postgres.csproj" />
     <Project Path="src/DeepWiki.Data.SqlServer/DeepWiki.Data.SqlServer.csproj" />
     <Project Path="src/DeepWiki.Data/DeepWiki.Data.csproj" />
+    <Project Path="src/DeepWiki.Rag.Core/DeepWiki.Rag.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/deepwiki-open-dotnet.Tests/deepwiki-open-dotnet.Tests.csproj" />
+    <Project Path="tests/DeepWiki.Data.Abstractions.Tests/DeepWiki.Data.Abstractions.Tests.csproj" />
     <Project Path="tests/DeepWiki.Data.Postgres.Tests/DeepWiki.Data.Postgres.Tests.csproj" />
     <Project Path="tests/DeepWiki.Data.SqlServer.Tests/DeepWiki.Data.SqlServer.Tests.csproj" />
     <Project Path="tests/DeepWiki.Data.Tests/DeepWiki.Data.Tests.csproj" />
+    <Project Path="tests/DeepWiki.Rag.Core.Tests/DeepWiki.Rag.Core.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/EmbeddingFixtureGenerator/EmbeddingFixtureGenerator.csproj" />
+  </Folder>
+
 </Solution>

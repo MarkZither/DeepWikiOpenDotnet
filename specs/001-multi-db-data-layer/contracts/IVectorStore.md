@@ -1,8 +1,8 @@
-# IVectorStore Interface Specification
+# IPersistenceVectorStore Interface Specification
 
 **Version**: 1.0.0  
 **Date**: 2026-01-16  
-**Location**: `src/DeepWiki.Data/Interfaces/IVectorStore.cs`
+**Location**: `src/DeepWiki.Data/Interfaces/IPersistenceVectorStore.cs`
 
 ---
 
@@ -20,7 +20,7 @@ namespace DeepWiki.Data.Interfaces;
 /// <summary>
 /// Provides vector similarity search operations for document embeddings.
 /// </summary>
-public interface IVectorStore
+public interface IPersistenceVectorStore
 {
     /// <summary>
     /// Inserts a new document or updates an existing document based on Id.

@@ -64,9 +64,32 @@ public class SqlServerDocumentRepository : IDocumentRepository
         if (document == null) throw new ArgumentNullException(nameof(document));
         if (document.Id == Guid.Empty) throw new ArgumentException("Document must have a valid ID", nameof(document));
 
-        document.UpdatedAt = DateTime.UtcNow;
-        _context.Documents.Update(document);
-        await _context.SaveChangesAsync(cancellationToken);
+        // Atomic conditional update: update only when UpdatedAt equals caller's original (optimistic concurrency)
+        var originalUpdatedAt = document.UpdatedAt;
+        // Ensure a different timestamp even on low-precision DB types by advancing original by 1ms
+        var newUpdatedAt = originalUpdatedAt.AddMilliseconds(1);
+        Console.WriteLine($"[DIAG] SqlServer UpdateAsync id={document.Id} original={originalUpdatedAt:o} new={newUpdatedAt:o}");
+
+        var updatedCount = await _context.Documents
+            .Where(d => d.Id == document.Id && d.UpdatedAt == originalUpdatedAt)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(d => d.Title, document.Title)
+                .SetProperty(d => d.Text, document.Text)
+                .SetProperty(d => d.Embedding, document.Embedding)
+                .SetProperty(d => d.FileType, document.FileType)
+                .SetProperty(d => d.IsCode, document.IsCode)
+                .SetProperty(d => d.IsImplementation, document.IsImplementation)
+                .SetProperty(d => d.TokenCount, document.TokenCount)
+                .SetProperty(d => d.MetadataJson, document.MetadataJson)
+                .SetProperty(d => d.UpdatedAt, newUpdatedAt), cancellationToken);
+
+        Console.WriteLine($"[DIAG] SqlServer UpdateAsync updatedCount={updatedCount}");
+
+        if (updatedCount == 0)
+        {
+            // No rows updated -> concurrency conflict
+            throw new Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException("Document update conflict");
+        }
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)

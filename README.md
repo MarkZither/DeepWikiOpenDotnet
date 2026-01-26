@@ -237,14 +237,25 @@ dotnet test tests/DeepWiki.Data.Tests
 ```
 
 ### Integration Tests
-```bash
-# SQL Server integration tests (requires Docker)
-dotnet test tests/DeepWiki.Data.SqlServer.Tests
+Integration tests are marked with the xUnit trait `Category=Integration` and are kept in `Integration/` directories. They require Docker (Testcontainers) to provision databases.
 
-# PostgreSQL integration tests (requires Docker)
-dotnet test tests/DeepWiki.Data.Postgres.Tests
+```bash
+# Run all integration tests (SQL Server + Postgres)
+dotnet test --filter "Category=Integration"
+
+# Run SQL Server integration tests only (project-local)
+dotnet test tests/DeepWiki.Data.SqlServer.Tests --filter "Category=Integration"
+
+# Run Postgres integration tests only (project-local)
+dotnet test tests/DeepWiki.Data.Postgres.Tests --filter "Category=Integration"
 ```
 
+Tip: During fast local development, exclude integration tests to iterate on unit tests quickly:
+
+```bash
+# Run all tests but skip integration tests
+dotnet test --filter "Category!=Integration"
+```
 ### Test Coverage
 
 - **Total Test Count**: 150+

@@ -19,8 +19,7 @@ public class BulkOperationMemoryProfileTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        _container = new MsSqlBuilder()
-            .WithImage("mcr.microsoft.com/mssql/server:2025-latest")
+        _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2025-latest")
             .WithEnvironment("ACCEPT_EULA", "Y")
             .WithEnvironment("MSSQL_SA_PASSWORD", "Strong@Password123")
             .Build();

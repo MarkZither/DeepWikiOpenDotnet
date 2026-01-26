@@ -269,7 +269,7 @@ if (provider == "SqlServer")
                 maxRetryDelay: TimeSpan.FromSeconds(30),
                 errorNumbersToAdd: null)));
 
-    builder.Services.AddScoped<IVectorStore, SqlServerVectorStore>();
+    builder.Services.AddScoped<IPersistenceVectorStore, SqlServerVectorStore>();
     builder.Services.AddScoped<IDocumentRepository, SqlServerDocumentRepository>();
 }
 else if (provider == "Postgres")
@@ -279,7 +279,7 @@ else if (provider == "Postgres")
             builder.Configuration.GetConnectionString("VectorDatabase"),
             npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3)));
 
-    builder.Services.AddScoped<IVectorStore, PostgresVectorStore>();
+    builder.Services.AddScoped<IPersistenceVectorStore, PostgresVectorStore>();
     builder.Services.AddScoped<IDocumentRepository, PostgresDocumentRepository>();
 }
 

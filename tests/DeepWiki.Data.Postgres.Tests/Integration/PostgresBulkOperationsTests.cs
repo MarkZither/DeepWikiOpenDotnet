@@ -1,3 +1,4 @@
+
 using DeepWiki.Data.Entities;
 using DeepWiki.Data.Postgres;
 using DeepWiki.Data.Postgres.DbContexts;
@@ -13,6 +14,7 @@ namespace DeepWiki.Data.Postgres.Tests.Integration;
 /// Tests high-volume document operations and transactional semantics.
 /// Mirrors SqlServerBulkOperationsTests for 100% parity.
 /// </summary>
+[Trait("Category","Integration")]
 public class PostgresBulkOperationsTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
@@ -101,7 +103,7 @@ public class PostgresBulkOperationsTests : IAsyncLifetime
         // Assert: Last write should persist
         var final = await _fixture.CreateDbContext().Documents.FindAsync(doc.Id);
         Assert.NotNull(final);
-        Assert.Equal("Updated in context 2", final.Text);
+        Assert.Equal("Updated in context 2", final!.Text);
     }
 
     [Fact]
@@ -230,3 +232,4 @@ public class PostgresBulkOperationsTests : IAsyncLifetime
         return new ReadOnlyMemory<float>(embedding);
     }
 }
+

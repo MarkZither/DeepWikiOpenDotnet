@@ -11,17 +11,56 @@ using Microsoft.EntityFrameworkCore;
 namespace DeepWiki.Data.Postgres.Repositories;
 
 /// <summary>
-/// PostgreSQL EF Core implementation of IVectorStore.
+/// PostgreSQL EF Core implementation of the provider persistence vector store (IPersistenceVectorStore).
 /// Provides vector similarity search operations using pgvector extension.
 /// Uses the <=> operator for cosine distance calculations.
 /// </summary>
-public class PostgresVectorStore : IVectorStore
+public class PostgresVectorStore : IPersistenceVectorStore
 {
     private readonly PostgresVectorDbContext _context;
+
+    // SECURITY: Maximum number of results to prevent resource exhaustion via unbounded queries
+    private const int MaxK = 1000;
+
+    // SECURITY: Maximum length for LIKE patterns to prevent regex-like DoS patterns
+    private const int MaxLikePatternLength = 500;
 
     public PostgresVectorStore(PostgresVectorDbContext context)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
+    }
+
+    /// <summary>
+    /// SECURITY: Validates LIKE patterns to prevent performance abuse.
+    /// Rejects patterns that are too long or contain excessive wildcards.
+    /// </summary>
+    private static void ValidateLikePattern(string? pattern, string parameterName)
+    {
+        if (string.IsNullOrEmpty(pattern)) return;
+
+        if (pattern.Length > MaxLikePatternLength)
+        {
+            throw new ArgumentException(
+                $"Filter pattern exceeds maximum length of {MaxLikePatternLength} characters",
+                parameterName);
+        }
+
+        // Count wildcards - excessive wildcards can cause slow queries
+        var wildcardCount = pattern.Count(c => c == '%' || c == '_');
+        if (wildcardCount > 10)
+        {
+            throw new ArgumentException(
+                "Filter pattern contains too many wildcards (maximum 10 allowed)",
+                parameterName);
+        }
+
+        // Reject leading wildcards which cause full table scans
+        if (pattern.StartsWith('%') || pattern.StartsWith('_'))
+        {
+            throw new ArgumentException(
+                "Filter pattern cannot start with a wildcard (causes full table scan)",
+                parameterName);
+        }
     }
 
     public async Task UpsertAsync(DocumentEntity document, CancellationToken cancellationToken = default)
@@ -30,16 +69,27 @@ public class PostgresVectorStore : IVectorStore
         if (document.Embedding != null && document.Embedding.Value.Length != 1536)
             throw new ArgumentException("Embedding must be exactly 1536 dimensions", nameof(document));
 
-        var exists = await _context.Documents.AnyAsync(d => d.Id == document.Id, cancellationToken);
-        
-        if (exists)
+        // Upsert by (RepoUrl, FilePath) to avoid duplicates — atomic per-document transaction
+        var existing = await _context.Documents
+            .FirstOrDefaultAsync(d => d.RepoUrl == document.RepoUrl && d.FilePath == document.FilePath, cancellationToken);
+
+        if (existing != null)
         {
-            document.UpdatedAt = DateTime.UtcNow;
-            _context.Documents.Update(document);
+            existing.Title = document.Title;
+            existing.Text = document.Text;
+            existing.Embedding = document.Embedding;
+            existing.MetadataJson = document.MetadataJson;
+            existing.FileType = document.FileType;
+            existing.IsCode = document.IsCode;
+            existing.IsImplementation = document.IsImplementation;
+            existing.TokenCount = document.TokenCount;
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            _context.Documents.Update(existing);
         }
         else
         {
-            document.Id = Guid.NewGuid();
+            document.Id = document.Id == Guid.Empty ? Guid.NewGuid() : document.Id;
             document.CreatedAt = DateTime.UtcNow;
             document.UpdatedAt = DateTime.UtcNow;
             _context.Documents.Add(document);
@@ -48,29 +98,149 @@ public class PostgresVectorStore : IVectorStore
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Query for nearest neighbors using pgvector cosine distance operator.
+    /// Falls back to in-memory cosine similarity if native vector queries fail.
+    /// </summary>
     public async Task<List<DocumentEntity>> QueryNearestAsync(
         ReadOnlyMemory<float> queryEmbedding,
         int k = 10,
         string? repoUrlFilter = null,
+        string? filePathFilter = null,
         CancellationToken cancellationToken = default)
     {
         if (queryEmbedding.IsEmpty) throw new ArgumentNullException(nameof(queryEmbedding));
         if (queryEmbedding.Length != 1536) throw new ArgumentException("Query embedding must be exactly 1536 dimensions", nameof(queryEmbedding));
         if (k < 1) throw new ArgumentException("k must be >= 1", nameof(k));
 
-        // Fetch all documents (in future, use pgvector <=> operator directly in SQL)
-        var query = _context.Documents.AsQueryable();
+        // SECURITY: Enforce upper bound on k to prevent resource exhaustion
+        if (k > MaxK)
+        {
+            k = MaxK;
+        }
+
+        // SECURITY: Validate LIKE patterns to prevent slow query attacks
+        ValidateLikePattern(repoUrlFilter, nameof(repoUrlFilter));
+        ValidateLikePattern(filePathFilter, nameof(filePathFilter));
+
+        try
+        {
+            // Try native pgvector query via FromSqlInterpolated
+            return await QueryNearestNativeAsync(queryEmbedding, k, repoUrlFilter, filePathFilter, cancellationToken);
+        }
+        catch (Exception)
+        {
+            // Fallback to in-memory cosine similarity (for compatibility with test databases / missing pgvector)
+            return await QueryNearestFallbackAsync(queryEmbedding, k, repoUrlFilter, filePathFilter, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Native pgvector query using the &lt;=&gt; cosine distance operator via FromSqlInterpolated.
+    /// </summary>
+    private async Task<List<DocumentEntity>> QueryNearestNativeAsync(
+        ReadOnlyMemory<float> queryEmbedding,
+        int k,
+        string? repoUrlFilter,
+        string? filePathFilter,
+        CancellationToken cancellationToken)
+    {
+        // Convert embedding to pgvector literal format: '[0.1, 0.2, ...]'
+        var vectorLiteral = FormatVectorLiteral(queryEmbedding);
+
+        // Build parameterized SQL using <=> cosine distance operator (lower = more similar)
+        FormattableString sql;
+        if (!string.IsNullOrEmpty(repoUrlFilter) && !string.IsNullOrEmpty(filePathFilter))
+        {
+            // Check if filters contain LIKE wildcards
+            var repoOp = (repoUrlFilter.Contains('%') || repoUrlFilter.Contains('_')) ? "LIKE" : "=";
+            var fileOp = (filePathFilter.Contains('%') || filePathFilter.Contains('_')) ? "LIKE" : "=";
+            sql = $@"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
+                            ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
+                     FROM ""Documents""
+                     WHERE ""Embedding"" IS NOT NULL
+                       AND ""RepoUrl"" {repoOp:raw} {repoUrlFilter}
+                       AND ""FilePath"" {fileOp:raw} {filePathFilter}
+                     ORDER BY ""Embedding"" <=> {vectorLiteral}::vector
+                     LIMIT {k}";
+        }
+        else if (!string.IsNullOrEmpty(repoUrlFilter))
+        {
+            var repoOp = (repoUrlFilter.Contains('%') || repoUrlFilter.Contains('_')) ? "LIKE" : "=";
+            sql = $@"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
+                            ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
+                     FROM ""Documents""
+                     WHERE ""Embedding"" IS NOT NULL
+                       AND ""RepoUrl"" {repoOp:raw} {repoUrlFilter}
+                     ORDER BY ""Embedding"" <=> {vectorLiteral}::vector
+                     LIMIT {k}";
+        }
+        else if (!string.IsNullOrEmpty(filePathFilter))
+        {
+            var fileOp = (filePathFilter.Contains('%') || filePathFilter.Contains('_')) ? "LIKE" : "=";
+            sql = $@"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
+                            ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
+                     FROM ""Documents""
+                     WHERE ""Embedding"" IS NOT NULL
+                       AND ""FilePath"" {fileOp:raw} {filePathFilter}
+                     ORDER BY ""Embedding"" <=> {vectorLiteral}::vector
+                     LIMIT {k}";
+        }
+        else
+        {
+            sql = $@"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
+                            ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
+                     FROM ""Documents""
+                     WHERE ""Embedding"" IS NOT NULL
+                     ORDER BY ""Embedding"" <=> {vectorLiteral}::vector
+                     LIMIT {k}";
+        }
+
+        return await _context.Documents
+            .FromSqlInterpolated(sql)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Fallback in-memory cosine similarity calculation for environments without pgvector.
+    /// </summary>
+    private async Task<List<DocumentEntity>> QueryNearestFallbackAsync(
+        ReadOnlyMemory<float> queryEmbedding,
+        int k,
+        string? repoUrlFilter,
+        string? filePathFilter,
+        CancellationToken cancellationToken)
+    {
+        var query = _context.Documents.AsQueryable().Where(d => d.Embedding != null);
 
         if (!string.IsNullOrEmpty(repoUrlFilter))
         {
-            query = query.Where(d => d.RepoUrl == repoUrlFilter);
+            if (repoUrlFilter.Contains('%') || repoUrlFilter.Contains('_'))
+            {
+                query = query.Where(d => EF.Functions.Like(d.RepoUrl, repoUrlFilter));
+            }
+            else
+            {
+                query = query.Where(d => d.RepoUrl == repoUrlFilter);
+            }
         }
 
-        var allDocuments = await query.ToListAsync(cancellationToken);
+        if (!string.IsNullOrEmpty(filePathFilter))
+        {
+            if (filePathFilter.Contains('%') || filePathFilter.Contains('_'))
+            {
+                query = query.Where(d => EF.Functions.Like(d.FilePath, filePathFilter));
+            }
+            else
+            {
+                query = query.Where(d => d.FilePath == filePathFilter);
+            }
+        }
 
-        // Calculate cosine similarity and return top K
-        // Using the same algorithm as SQL Server for test parity
-        var scored = allDocuments
+        var filteredDocuments = await query.ToListAsync(cancellationToken);
+
+        var scored = filteredDocuments
             .Select(d => new { Document = d, Score = CosineSimilarity(queryEmbedding, d.Embedding ?? default) })
             .OrderByDescending(x => x.Score)
             .Take(k)
@@ -78,6 +248,23 @@ public class PostgresVectorStore : IVectorStore
             .ToList();
 
         return scored;
+    }
+
+    /// <summary>
+    /// Formats a vector as a pgvector literal: '[0.1, 0.2, ...]'
+    /// </summary>
+    private static string FormatVectorLiteral(ReadOnlyMemory<float> embedding)
+    {
+        var span = embedding.Span;
+        var sb = new System.Text.StringBuilder(span.Length * 12);
+        sb.Append('[');
+        for (int i = 0; i < span.Length; i++)
+        {
+            if (i > 0) sb.Append(',');
+            sb.Append(span[i].ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        sb.Append(']');
+        return sb.ToString();
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
@@ -171,6 +358,12 @@ public class PostgresVectorStore : IVectorStore
                 $"Bulk upsert failed after processing {docList.Count} documents. All changes have been rolled back.",
                 ex);
         }
+    }
+
+    public Task RebuildIndexAsync(CancellationToken cancellationToken = default)
+    {
+        // Postgres pgvector index maintenance may be a no-op for many installations; expose method for completeness
+        return Task.CompletedTask;
     }
 
     /// <summary>

@@ -2,11 +2,20 @@ using Microsoft.Extensions.Logging;
 
 namespace deepwiki_open_dotnet.Tests;
 
+/// <summary>
+/// Integration tests for the Aspire-hosted web application.
+/// These tests spin up the full app host and require significant resources/time.
+/// </summary>
+[Trait("Category", "Integration")]
 public class WebTests
 {
-    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(120);
 
-    [Fact]
+    /// <summary>
+    /// Verifies that the web frontend returns OK status when accessed at root.
+    /// This is an integration test that starts the full Aspire app host.
+    /// </summary>
+    [Fact(Skip = "Integration test - requires full app host, excluded from default CI run")]
     public async Task GetWebResourceRootReturnsOkStatusCode()
     {
         // Arrange

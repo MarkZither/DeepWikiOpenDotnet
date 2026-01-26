@@ -14,6 +14,9 @@ public class DocumentEntityConfiguration : IEntityTypeConfiguration<DocumentEnti
 {
     public void Configure(EntityTypeBuilder<DocumentEntity> builder)
     {
+        // Apply shared provider-agnostic configuration
+        new DeepWiki.Data.Configuration.SharedDocumentEntityConfiguration().Configure(builder);
+
         builder.HasKey(d => d.Id);
 
         builder.Property(d => d.Id)

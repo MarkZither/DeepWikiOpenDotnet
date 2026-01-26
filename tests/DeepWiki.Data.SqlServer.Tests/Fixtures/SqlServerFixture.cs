@@ -12,8 +12,7 @@ namespace DeepWiki.Data.SqlServer.Tests.Fixtures;
 /// </summary>
 public class SqlServerFixture : IAsyncLifetime
 {
-    private readonly MsSqlContainer _container = new MsSqlBuilder()
-        .WithImage("mcr.microsoft.com/mssql/server:2025-latest")
+    private readonly MsSqlContainer _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2025-latest")
         .WithPassword("Strong@Password123")
         .WithEnvironment("MSSQL_SA_PASSWORD", "Strong@Password123")
         .WithEnvironment("ACCEPT_EULA", "Y")
@@ -24,7 +23,30 @@ public class SqlServerFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await _container.StartAsync();
-        
+
+        // Wait for SQL Server to accept connections and be ready (retry with backoff)
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var maxWait = TimeSpan.FromSeconds(180);
+        while (true)
+        {
+            try
+            {
+                using (var connection = new SqlConnection(ConnectionString))
+                {
+                    await connection.OpenAsync();
+                }
+
+                break; // success
+            }
+            catch (Exception)
+            {
+                if (sw.Elapsed > maxWait)
+                    throw;
+
+                await Task.Delay(1000);
+            }
+        }
+
         // Create database and enable vector extensions
         using (var connection = new SqlConnection(ConnectionString))
         {
@@ -36,6 +58,30 @@ public class SqlServerFixture : IAsyncLifetime
                     ALTER DATABASE DeepWikiTest SET TRUSTWORTHY ON;
                 ";
                 await command.ExecuteNonQueryAsync();
+            }
+        }
+
+        // Wait for the new database to accept connections (DeepWikiTest) before proceeding
+        var testDbConnectionString = ConnectionString.Replace("master", "DeepWikiTest");
+        var dbReadySw = System.Diagnostics.Stopwatch.StartNew();
+        var dbMaxWait = TimeSpan.FromSeconds(180);
+        while (true)
+        {
+            try
+            {
+                using (var c = new SqlConnection(testDbConnectionString))
+                {
+                    await c.OpenAsync();
+                }
+
+                break; // success
+            }
+            catch (Exception)
+            {
+                if (dbReadySw.Elapsed > dbMaxWait)
+                    throw;
+
+                await Task.Delay(1000);
             }
         }
     }
@@ -53,7 +99,7 @@ public class SqlServerFixture : IAsyncLifetime
     {
         var testConnectionString = ConnectionString.Replace("master", "DeepWikiTest");
         var options = new DbContextOptionsBuilder<SqlServerVectorDbContext>()
-            .UseSqlServer(testConnectionString)
+            .UseSqlServer(testConnectionString, o => o.CommandTimeout(180))
             .Options;
 
         var context = new SqlServerVectorDbContext(options);

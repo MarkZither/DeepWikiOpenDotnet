@@ -1,0 +1,129 @@
+{
+  "description": "Reference token counts from Python tiktoken for parity testing",
+  "encoding": "cl100k_base",
+  "samples": [
+    {
+      "id": "sample_001",
+      "text": "Hello, World!",
+      "expected_tokens": 4,
+      "note": "Simple greeting with punctuation"
+    },
+    {
+      "id": "sample_002",
+      "text": "The quick brown fox jumps over the lazy dog.",
+      "expected_tokens": 10,
+      "note": "Classic pangram sentence"
+    },
+    {
+      "id": "sample_003",
+      "text": "This is a test of the emergency broadcast system.",
+      "expected_tokens": 10,
+      "note": "Standard test sentence"
+    },
+    {
+      "id": "sample_004",
+      "text": "",
+      "expected_tokens": 0,
+      "note": "Empty string"
+    },
+    {
+      "id": "sample_005",
+      "text": "   ",
+      "expected_tokens": 1,
+      "note": "Whitespace only"
+    },
+    {
+      "id": "sample_006",
+      "text": "🚀 Emoji test: 🎉🎊🎁",
+      "expected_tokens": 12,
+      "note": "Text with emojis"
+    },
+    {
+      "id": "sample_007",
+      "text": "def hello_world():\n    print(\"Hello, World!\")\n    return True",
+      "expected_tokens": 18,
+      "note": "Python code snippet"
+    },
+    {
+      "id": "sample_008",
+      "text": "public class HelloWorld {\n    public static void main(String[] args) {\n        System.out.println(\"Hello, World!\");\n    }\n}",
+      "expected_tokens": 36,
+      "note": "Java code snippet"
+    },
+    {
+      "id": "sample_009",
+      "text": "日本語テスト：こんにちは世界",
+      "expected_tokens": 14,
+      "note": "Japanese text"
+    },
+    {
+      "id": "sample_010",
+      "text": "Тест на русском языке: Привет мир!",
+      "expected_tokens": 19,
+      "note": "Russian text"
+    },
+    {
+      "id": "sample_011",
+      "text": "Mixed: Hello 世界 Привет 🌍",
+      "expected_tokens": 13,
+      "note": "Mixed language with emoji"
+    },
+    {
+      "id": "sample_012",
+      "text": "Numbers: 1234567890 and floats: 3.14159265359",
+      "expected_tokens": 14,
+      "note": "Numeric content"
+    },
+    {
+      "id": "sample_013",
+      "text": "Special chars: @#$%^&*()_+-=[]{}|;':\",./<>?",
+      "expected_tokens": 27,
+      "note": "Special characters and punctuation"
+    },
+    {
+      "id": "sample_014",
+      "text": "Line 1\nLine 2\nLine 3\n",
+      "expected_tokens": 8,
+      "note": "Multi-line text with newlines"
+    },
+    {
+      "id": "sample_015",
+      "text": "Tabs\tand\tspaces   mixed    content",
+      "expected_tokens": 7,
+      "note": "Mixed whitespace"
+    },
+    {
+      "id": "sample_016",
+      "text": "The Gettysburg Address begins: Four score and seven years ago our fathers brought forth on this continent, a new nation, conceived in Liberty, and dedicated to the proposition that all men are created equal.",
+      "expected_tokens": 45,
+      "note": "Classic literary text"
+    },
+    {
+      "id": "sample_017",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+      "expected_tokens": 58,
+      "note": "Lorem ipsum placeholder text"
+    },
+    {
+      "id": "sample_018",
+      "text": "API endpoint: https://api.example.com/v1/users?id=123&token=abc123xyz",
+      "expected_tokens": 22,
+      "note": "URL with query parameters"
+    },
+    {
+      "id": "sample_019",
+      "text": "Email format: user.name+tag@subdomain.example.co.uk",
+      "expected_tokens": 15,
+      "note": "Complex email address"
+    },
+    {
+      "id": "sample_020",
+      "text": "Markdown: # Header\n\n**bold** and *italic* with `code` and [link](url)",
+      "expected_tokens": 22,
+      "note": "Markdown formatting"
+    }
+  ],
+  "tolerance_percent": 2,
+  "generated_by": "Python tiktoken reference implementation",
+  "tiktoken_version": "0.7.0"
+}
