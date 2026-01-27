@@ -74,14 +74,14 @@
 
 ### Implementation for User Story 1
 
-- [ ] T022 [US1] Create QueryController with POST /api/query endpoint in src/deepwiki-open-dotnet.ApiService/Controllers/QueryController.cs
-- [ ] T023 [US1] Implement query embedding via IEmbeddingService in QueryController
-- [ ] T024 [US1] Implement vector similarity search via IVectorStore.QueryAsync in QueryController
-- [ ] T025 [US1] Add Polly retry/circuit breaker policy for embedding service calls in QueryController
-- [ ] T026 [US1] Implement includeFullText parameter handling in QueryController
-- [ ] T027 [US1] Implement repoUrl and filePath filter passthrough in QueryController
-- [ ] T028 [US1] Add error handling returning ErrorResponse with {"detail": "..."} format in QueryController
-- [ ] T029 [US1] Create QueryControllerTests integration tests in tests/deepwiki-open-dotnet.Tests/Api/QueryControllerTests.cs
+- [X] T022 [US1] Create QueryController with POST /api/query endpoint in src/deepwiki-open-dotnet.ApiService/Controllers/QueryController.cs
+- [X] T023 [US1] Implement query embedding via IEmbeddingService in QueryController
+- [X] T024 [US1] Implement vector similarity search via IVectorStore.QueryAsync in QueryController
+- [X] T025 [US1] Add Polly retry/circuit breaker policy for embedding service calls in QueryController
+- [X] T026 [US1] Implement includeFullText parameter handling in QueryController
+- [X] T027 [US1] Implement repoUrl and filePath filter passthrough in QueryController
+- [X] T028 [US1] Add error handling returning ErrorResponse with {"detail": "..."} format in QueryController
+- [X] T029 [US1] Create QueryControllerTests integration tests in tests/deepwiki-open-dotnet.Tests/Api/QueryControllerTests.cs
 
 **Checkpoint**: User Story 1 complete - semantic search working end-to-end
 

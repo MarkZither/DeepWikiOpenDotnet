@@ -27,15 +27,6 @@ public sealed class TokenizationService : ITokenizationService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Creates a new tokenization service with default encoder factory.
-    /// </summary>
-    /// <param name="loggerFactory">Optional logger factory.</param>
-    public TokenizationService(ILoggerFactory? loggerFactory = null)
-        : this(new TokenEncoderFactory(loggerFactory), loggerFactory?.CreateLogger<TokenizationService>())
-    {
-    }
-
     /// <inheritdoc />
     public Task<int> CountTokensAsync(string text, string modelId, CancellationToken cancellationToken = default)
     {

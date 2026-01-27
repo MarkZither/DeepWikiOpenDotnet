@@ -19,6 +19,21 @@
                 "reveal": "silent"
             },
             "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "open-scalar-instructions",
+            "type": "shell",
+            "command": "echo",
+            "args": [
+                "\n🚀 Aspire Dashboard: http://localhost:18888\n📘 To access Scalar API docs:\n   1. Open the Aspire Dashboard above\n   2. Find 'apiservice' in the Resources list\n   3. Click the HTTP endpoint link\n   4. Add /scalar/v1 to the URL\n"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": false,
+                "clear": true
+            },
+            "problemMatcher": []
         }
     ]
 }

@@ -1,0 +1,109 @@
+### DeepWiki RAG Query API - Manual Testing
+### Run the API first: dotnet run --project src/deepwiki-open-dotnet.AppHost
+### Or: cd src/deepwiki-open-dotnet.ApiService && dotnet run
+
+@baseUrl = http://localhost:5000
+# @baseUrl = https://localhost:5001
+
+### Health check
+GET {{baseUrl}}/health
+
+### Scalar API Reference UI (interactive documentation)
+# Open in browser: {{baseUrl}}/scalar/v1
+
+### OpenAPI specification (for Scalar/Swagger UI)
+GET {{baseUrl}}/openapi/v1.json
+
+###############################################################################
+# Query Endpoint Tests
+###############################################################################
+
+### 1. Basic semantic query (returns empty with NoOpVectorStore)
+POST {{baseUrl}}/api/query
+Content-Type: application/json
+
+{
+  "query": "How do I implement authentication in ASP.NET Core?",
+  "k": 5
+}
+
+### 2. Query with filters
+POST {{baseUrl}}/api/query
+Content-Type: application/json
+
+{
+  "query": "dependency injection",
+  "k": 10,
+  "filters": {
+    "repoUrl": "https://github.com/dotnet/aspnetcore",
+    "filePath": "src/%.cs"
+  }
+}
+
+### 3. Query without full text (only metadata)
+POST {{baseUrl}}/api/query
+Content-Type: application/json
+
+{
+  "query": "what is entity framework core",
+  "k": 3,
+  "includeFullText": false
+}
+
+### 4. Query with default K (should use 10)
+POST {{baseUrl}}/api/query
+Content-Type: application/json
+
+{
+  "query": "vector search examples"
+}
+
+### 5. Invalid query - empty string (should return 400)
+POST {{baseUrl}}/api/query
+Content-Type: application/json
+
+{
+  "query": "",
+  "k": 5
+}
+
+### 6. Invalid query - K out of range (should return 400)
+POST {{baseUrl}}/api/query
+Content-Type: application/json
+
+{
+  "query": "test query",
+  "k": 150
+}
+
+### 7. Invalid query - K negative (should return 400)
+POST {{baseUrl}}/api/query
+Content-Type: application/json
+
+{
+  "query": "test query",
+  "k": -5
+}
+
+### 8. Invalid query - missing required field (should return 400)
+POST {{baseUrl}}/api/query
+Content-Type: application/json
+
+{
+  "k": 10
+}
+
+###############################################################################
+# Notes
+###############################################################################
+
+# Expected behavior with NoOpVectorStore (default when no DB configured):
+# - All valid queries return 200 OK with empty array: []
+# - Invalid queries return 400 Bad Request with validation errors
+#
+# To test with real data:
+# 1. Configure VectorStore in appsettings.json (see appsettings.Development.json)
+# 2. Set up SQL Server or PostgreSQL with vector extension
+# 3. Ingest some documents first (POST /api/ingest - not yet implemented)
+# 4. Run queries to get actual search results
+

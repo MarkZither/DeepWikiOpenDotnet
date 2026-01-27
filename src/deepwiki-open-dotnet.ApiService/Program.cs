@@ -1,4 +1,5 @@
 using DeepWiki.ApiService.Configuration;
+using Scalar.AspNetCore;
 using System.Threading.RateLimiting;
 
 namespace DeepWiki.ApiService;
@@ -14,6 +15,7 @@ public class Program
 
         // Add services to the container.
         builder.Services.AddProblemDetails();
+        builder.Services.AddControllers();
 
         // SECURITY: Add rate limiting to prevent API abuse
         builder.Services.AddRateLimiter(options =>
@@ -104,7 +106,7 @@ public class Program
         });
 
         // Register document ingestion service (Slice 4: orchestrates chunking, embedding, upsert)
-        builder.Services.AddSingleton<DeepWiki.Data.Abstractions.IDocumentIngestionService, DeepWiki.Rag.Core.Ingestion.DocumentIngestionService>();
+        builder.Services.AddScoped<DeepWiki.Data.Abstractions.IDocumentIngestionService, DeepWiki.Rag.Core.Ingestion.DocumentIngestionService>();
 
         var app = builder.Build();
 
@@ -117,6 +119,7 @@ public class Program
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();
+            app.MapScalarApiReference();
         }
 
         string[] summaries = ["Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"];
@@ -136,6 +139,9 @@ public class Program
             return forecast;
         })
         .WithName("GetWeatherForecast");
+
+        // Map API controllers
+        app.MapControllers();
 
         app.MapDefaultEndpoints();
 
