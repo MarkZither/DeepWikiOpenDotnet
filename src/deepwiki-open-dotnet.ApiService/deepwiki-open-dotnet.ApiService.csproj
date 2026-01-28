@@ -9,10 +9,12 @@
   <ItemGroup>
     <ProjectReference Include="..\deepwiki-open-dotnet.ServiceDefaults\deepwiki-open-dotnet.ServiceDefaults.csproj" />
     <ProjectReference Include="..\DeepWiki.Data.Abstractions\DeepWiki.Data.Abstractions.csproj" />
+    <ProjectReference Include="..\DeepWiki.Data.Postgres\DeepWiki.Data.Postgres.csproj" />
     <ProjectReference Include="..\DeepWiki.Rag.Core\DeepWiki.Rag.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.1.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.12.19" />

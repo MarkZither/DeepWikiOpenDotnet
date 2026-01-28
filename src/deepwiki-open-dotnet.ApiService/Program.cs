@@ -1,4 +1,7 @@
 using DeepWiki.ApiService.Configuration;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using Pgvector.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using System.Threading.RateLimiting;
 
@@ -46,10 +49,33 @@ public class Program
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
         builder.Services.AddOpenApi();
 
+        // --- Database context ---
+        // Register PostgreSQL DbContext with pgvector support
+        // Aspire provides the connection string via configuration, we configure pgvector at EF Core level
+        builder.Services.AddDbContext<DeepWiki.Data.Postgres.DbContexts.PostgresVectorDbContext>((sp, options) =>
+        {
+            var connectionString = builder.Configuration.GetConnectionString("deepwikidb");
+            if (!string.IsNullOrEmpty(connectionString))
+            {
+                options.UseNpgsql(connectionString, npgsqlOptions => npgsqlOptions.UseVector());
+            }
+        });
+        
+        // Add health check for PostgreSQL
+        builder.Services.AddHealthChecks()
+            .AddDbContextCheck<DeepWiki.Data.Postgres.DbContexts.PostgresVectorDbContext>("PostgresVectorDbContext");
+
         // --- Vector store & RAG services ---
         // Register VectorStore configuration options
         builder.Services.Configure<VectorStoreOptions>(
             builder.Configuration.GetSection(VectorStoreOptions.SectionName));
+
+        // Register PostgreSQL services (repository and vector store)
+        // Note: The connection string is already configured by Aspire via AddNpgsqlDbContext above
+        // We only need to register the repositories and adapters
+        builder.Services.AddScoped<DeepWiki.Data.Interfaces.IDocumentRepository, DeepWiki.Data.Postgres.Repositories.PostgresDocumentRepository>();
+        builder.Services.AddScoped<DeepWiki.Data.Interfaces.IPersistenceVectorStore, DeepWiki.Data.Postgres.Repositories.PostgresVectorStore>();
+        builder.Services.AddScoped<DeepWiki.Data.Postgres.VectorStore.PostgresVectorStoreAdapter>();
 
         // Register vector store via factory pattern
         // Configuration: Set "VectorStore:Provider" to "sqlserver" or "postgres" in appsettings.json
@@ -59,7 +85,7 @@ public class Program
         builder.Services.AddScoped<DeepWiki.Data.Abstractions.IVectorStore>(sp =>
         {
             var factory = sp.GetRequiredService<DeepWiki.Rag.Core.VectorStore.VectorStoreFactory>();
-            var provider = builder.Configuration.GetValue<string>("VectorStore:Provider") ?? "sqlserver";
+            var provider = builder.Configuration.GetValue<string>("VectorStore:Provider") ?? "postgres";
             
             // If configured provider is not available, log warning and use NoOp
             if (!factory.IsProviderAvailable(provider))

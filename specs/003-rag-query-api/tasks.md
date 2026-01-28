@@ -95,13 +95,13 @@
 
 ### Implementation for User Story 2
 
-- [ ] T030 [US2] Create DocumentsController skeleton in src/deepwiki-open-dotnet.ApiService/Controllers/DocumentsController.cs
-- [ ] T031 [US2] Implement POST /api/documents/ingest endpoint in DocumentsController
-- [ ] T032 [US2] Map IngestRequest to IngestionRequest for IDocumentIngestionService in DocumentsController
-- [ ] T033 [US2] Map IngestionResult to IngestResponse in DocumentsController
-- [ ] T034 [US2] Add request validation for IngestRequest (required fields, max document count) in DocumentsController
-- [ ] T035 [US2] Add Polly resilience for embedding calls during ingestion in DocumentsController
-- [ ] T036 [US2] Create DocumentsControllerIngestTests in tests/deepwiki-open-dotnet.Tests/Api/DocumentsControllerIngestTests.cs
+- [X] T030 [US2] Create DocumentsController skeleton in src/deepwiki-open-dotnet.ApiService/Controllers/DocumentsController.cs
+- [X] T031 [US2] Implement POST /api/documents/ingest endpoint in DocumentsController
+- [X] T032 [US2] Map IngestRequest to IngestionRequest for IDocumentIngestionService in DocumentsController
+- [X] T033 [US2] Map IngestionResult to IngestResponse in DocumentsController
+- [X] T034 [US2] Add request validation for IngestRequest (required fields, max document count) in DocumentsController
+- [X] T035 [US2] Add Polly resilience for embedding calls during ingestion in DocumentsController
+- [X] T036 [US2] Create DocumentsControllerIngestTests in tests/deepwiki-open-dotnet.Tests/Api/DocumentsControllerIngestTests.cs
 
 **Checkpoint**: User Story 2 complete - can ingest documents and verify via US1 query
 

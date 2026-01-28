@@ -1,0 +1,166 @@
+### RAG API Testing
+### Base URL for local development
+@baseUrl = http://localhost:5114/api
+
+### === Document Ingestion Tests ===
+
+### 1. Ingest a single simple document
+POST {{baseUrl}}/documents/ingest
+Content-Type: application/json
+
+{
+  "documents": [
+    {
+      "repoUrl": "https://github.com/example/test-repo",
+      "filePath": "docs/getting-started.md",
+      "title": "Getting Started Guide",
+      "text": "Welcome to our application! This guide will help you get started quickly. First, install the dependencies using npm install. Then, configure your environment variables in the .env file. Finally, run the application with npm start. You can access the dashboard at http://localhost:3000."
+    }
+  ],
+  "continueOnError": true,
+  "batchSize": 10
+}
+
+### 2. Ingest multiple documents (batch)
+POST {{baseUrl}}/documents/ingest
+Content-Type: application/json
+
+{
+  "documents": [
+    {
+      "repoUrl": "https://github.com/example/test-repo",
+      "filePath": "docs/authentication.md",
+      "title": "Authentication Guide",
+      "text": "Our application uses JWT tokens for authentication. To authenticate, send a POST request to /api/auth/login with your credentials. The response will include an access token that you should include in the Authorization header for subsequent requests. Tokens expire after 24 hours."
+    },
+    {
+      "repoUrl": "https://github.com/example/test-repo",
+      "filePath": "docs/api-reference.md",
+      "title": "API Reference",
+      "text": "The API provides REST endpoints for managing users, documents, and settings. All endpoints require authentication except for /api/health. Use the POST /api/documents endpoint to create new documents. The GET /api/documents endpoint lists all documents with pagination support."
+    },
+    {
+      "repoUrl": "https://github.com/example/test-repo",
+      "filePath": "src/utils/helpers.ts",
+      "title": "Helper Utilities",
+      "text": "export function formatDate(date: Date): string { return date.toISOString(); } export function validateEmail(email: string): boolean { return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email); } export async function fetchWithRetry(url: string, retries = 3): Promise<Response> { /* retry logic */ }"
+    }
+  ],
+  "continueOnError": true,
+  "batchSize": 2
+}
+
+### 3. Ingest with metadata
+POST {{baseUrl}}/documents/ingest
+Content-Type: application/json
+
+{
+  "documents": [
+    {
+      "repoUrl": "https://github.com/example/test-repo",
+      "filePath": "docs/deployment.md",
+      "title": "Deployment Guide",
+      "text": "Deploy the application using Docker. Build the image with 'docker build -t myapp .'. Run with 'docker run -p 3000:3000 myapp'. For production, use Kubernetes with the provided manifests in the k8s/ directory. Configure secrets for API keys and database credentials.",
+      "metadata": {
+        "author": "DevOps Team",
+        "version": "2.0",
+        "lastUpdated": "2026-01-28"
+      }
+    }
+  ]
+}
+
+### === Query/Search Tests ===
+
+### 4. Simple semantic search
+POST {{baseUrl}}/query
+Content-Type: application/json
+
+{
+  "query": "How do I start the application?",
+  "k": 5,
+  "includeFullText": true
+}
+
+### 5. Search with specific topic
+POST {{baseUrl}}/query
+Content-Type: application/json
+
+{
+  "query": "authentication and JWT tokens",
+  "k": 3,
+  "includeFullText": true
+}
+
+### 6. Search with filters (repository)
+POST {{baseUrl}}/query
+Content-Type: application/json
+
+{
+  "query": "API endpoints documentation",
+  "k": 5,
+  "filters": {
+    "repoUrl": "https://github.com/example/test-repo"
+  },
+  "includeFullText": false
+}
+
+### 7. Search with file path filter
+POST {{baseUrl}}/query
+Content-Type: application/json
+
+{
+  "query": "helper functions",
+  "k": 5,
+  "filters": {
+    "filePath": "src/%"
+  },
+  "includeFullText": true
+}
+
+### 8. Search for deployment information
+POST {{baseUrl}}/query
+Content-Type: application/json
+
+{
+  "query": "How to deploy with Docker?",
+  "k": 3,
+  "includeFullText": true
+}
+
+### === Validation Tests ===
+
+### 9. Test empty documents (should fail)
+POST {{baseUrl}}/documents/ingest
+Content-Type: application/json
+
+{
+  "documents": []
+}
+
+### 10. Test missing required field (should fail)
+POST {{baseUrl}}/documents/ingest
+Content-Type: application/json
+
+{
+  "documents": [
+    {
+      "repoUrl": "https://github.com/example/test-repo",
+      "filePath": "test.md",
+      "title": "",
+      "text": "Some content"
+    }
+  ]
+}
+
+### 11. Test query with invalid K (should fail)
+POST {{baseUrl}}/query
+Content-Type: application/json
+
+{
+  "query": "test",
+  "k": 150
+}
+
+### === Health Check ===
+GET {{baseUrl}}/../

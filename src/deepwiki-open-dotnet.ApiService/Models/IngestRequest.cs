@@ -11,9 +11,6 @@ public sealed record IngestRequest
     /// <summary>
     /// Documents to ingest into the vector store.
     /// </summary>
-    [Required]
-    [MinLength(1)]
-    [MaxLength(1000)]
     public required IReadOnlyList<IngestDocument> Documents { get; init; }
 
     /// <summary>
@@ -36,26 +33,21 @@ public sealed record IngestDocument
     /// <summary>
     /// Source repository URL.
     /// </summary>
-    [Required]
     public required string RepoUrl { get; init; }
 
     /// <summary>
     /// File path within repository.
     /// </summary>
-    [Required]
     public required string FilePath { get; init; }
 
     /// <summary>
     /// Document title.
     /// </summary>
-    [Required]
     public required string Title { get; init; }
 
     /// <summary>
     /// Full document text content.
     /// </summary>
-    [Required]
-    [StringLength(5_000_000)] // 5MB text limit per constitution
     public required string Text { get; init; }
 
     /// <summary>
