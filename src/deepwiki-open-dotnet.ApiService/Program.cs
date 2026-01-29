@@ -143,6 +143,33 @@ public class Program
 
         var app = builder.Build();
 
+// Optional: Auto-run EF Core migrations for Postgres vector DB when requested
+// Configuration: VectorStore:AutoMigrate (bool). Default: false.
+using (var scope = app.Services.CreateScope())
+{
+    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+    var logger = scope.ServiceProvider.GetService<ILogger<Program>>();
+    var provider = config.GetValue<string>("VectorStore:Provider") ?? "postgres";
+    var autoMigrate = config.GetValue<bool?>("VectorStore:AutoMigrate") ?? false;
+
+    if (autoMigrate && provider.Equals("postgres", StringComparison.OrdinalIgnoreCase))
+    {
+        try
+        {
+            logger?.LogInformation("VectorStore:AutoMigrate enabled. Applying Postgres migrations...");
+            var db = scope.ServiceProvider.GetRequiredService<DeepWiki.Data.Postgres.DbContexts.PostgresVectorDbContext>();
+            db.Database.Migrate();
+            logger?.LogInformation("Postgres migrations applied successfully.");
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Failed to apply Postgres migrations during startup.");
+            // Fail fast so startup does not continue in a misconfigured state
+            throw;
+        }
+    }
+}
+
         // Configure the HTTP request pipeline.
         app.UseExceptionHandler();
 

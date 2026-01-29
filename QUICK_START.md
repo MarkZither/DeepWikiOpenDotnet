@@ -93,6 +93,8 @@ warn: Using NoOpEmbeddingService
 - `Embedding__Ollama__ModelId=nomic-embed-text`
 
 ⚠️ Note: The vector store provider is now strict by default. If `VectorStore:Provider` is set but unavailable, the API will throw an exception to fail fast. To allow the old NoOp fallback behavior set `VectorStore:AllowNoOpFallback=true` in the environment or `appsettings`.
+
+You can optionally enable automatic EF Core migrations at startup with `VectorStore:AutoMigrate=true` (useful for local dev). When enabled, the API will attempt to apply Postgres migrations during startup and will fail fast if migrations cannot be applied.
 - Connection string from Aspire
 
 ## Troubleshooting

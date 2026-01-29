@@ -1,4 +1,6 @@
 using DeepWiki.Data.Abstractions;
+using System;
+using System.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -86,14 +88,43 @@ public sealed class VectorStoreFactory
     {
         var section = _configuration.GetSection(ConfigurationSection);
 
-        return provider.ToLowerInvariant() switch
+        // Basic checks for explicit configured connection strings
+        var providerLower = provider.ToLowerInvariant();
+        if (providerLower == "sqlserver")
         {
-            "sqlserver" => !string.IsNullOrEmpty(section["SqlServer:ConnectionString"]) ||
-                          !string.IsNullOrEmpty(_configuration.GetConnectionString("SqlServer")),
-            "postgres" or "postgresql" => !string.IsNullOrEmpty(section["Postgres:ConnectionString"]) ||
-                                         !string.IsNullOrEmpty(_configuration.GetConnectionString("Postgres")),
-            _ => false
-        };
+            return !string.IsNullOrEmpty(section["SqlServer:ConnectionString"]) ||
+                   !string.IsNullOrEmpty(_configuration.GetConnectionString("SqlServer"));
+        }
+
+        if (providerLower == "postgres" || providerLower == "postgresql")
+        {
+            if (!string.IsNullOrEmpty(section["Postgres:ConnectionString"]) ||
+                !string.IsNullOrEmpty(_configuration.GetConnectionString("Postgres")))
+            {
+                return true;
+            }
+
+            // Also accept common connection string names provided by hosting/orchestration (e.g., Aspire sets 'deepwikidb')
+            var connSection = _configuration.GetSection("ConnectionStrings");
+            if (connSection.Exists())
+            {
+                var candidates = connSection.GetChildren().Where(c => !string.IsNullOrEmpty(c.Value));
+                foreach (var c in candidates)
+                {
+                    var key = c.Key ?? string.Empty;
+                    if (key.Equals("deepwikidb", StringComparison.OrdinalIgnoreCase) ||
+                        key.IndexOf("postgres", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        key.IndexOf("deepwiki", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        return false;
     }
 
     private IVectorStore CreateSqlServerStore(ILogger<VectorStoreFactory>? logger)
