@@ -150,7 +150,7 @@ using (var scope = app.Services.CreateScope())
     var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
     var logger = scope.ServiceProvider.GetService<ILogger<Program>>();
     var provider = config.GetValue<string>("VectorStore:Provider") ?? "postgres";
-    var autoMigrate = config.GetValue<bool?>("VectorStore:AutoMigrate") ?? false;
+    var autoMigrate = config.GetValue<bool?>("VectorStore:AutoMigrate") ?? true;
 
     if (autoMigrate && provider.Equals("postgres", StringComparison.OrdinalIgnoreCase))
     {
