@@ -152,18 +152,32 @@ using (var scope = app.Services.CreateScope())
     var provider = config.GetValue<string>("VectorStore:Provider") ?? "postgres";
     var autoMigrate = config.GetValue<bool?>("VectorStore:AutoMigrate") ?? true;
 
-    if (autoMigrate && provider.Equals("postgres", StringComparison.OrdinalIgnoreCase))
+    if (autoMigrate)
     {
         try
         {
-            logger?.LogInformation("VectorStore:AutoMigrate enabled. Applying Postgres migrations...");
-            var db = scope.ServiceProvider.GetRequiredService<DeepWiki.Data.Postgres.DbContexts.PostgresVectorDbContext>();
-            db.Database.Migrate();
-            logger?.LogInformation("Postgres migrations applied successfully.");
+            if (provider.Equals("postgres", StringComparison.OrdinalIgnoreCase))
+            {
+                logger?.LogInformation("VectorStore:AutoMigrate enabled. Applying Postgres migrations...");
+                var db = scope.ServiceProvider.GetRequiredService<DeepWiki.Data.Postgres.DbContexts.PostgresVectorDbContext>();
+                db.Database.Migrate();
+                logger?.LogInformation("Postgres migrations applied successfully.");
+            }
+            else if (provider.Equals("sqlserver", StringComparison.OrdinalIgnoreCase) || provider.Equals("mssql", StringComparison.OrdinalIgnoreCase))
+            {
+                logger?.LogInformation("VectorStore:AutoMigrate enabled. Applying SQL Server migrations...");
+                var db = scope.ServiceProvider.GetRequiredService<DeepWiki.Data.SqlServer.DbContexts.SqlServerVectorDbContext>();
+                db.Database.Migrate();
+                logger?.LogInformation("SQL Server migrations applied successfully.");
+            }
+            else
+            {
+                logger?.LogInformation("VectorStore:AutoMigrate enabled but provider '{Provider}' is not managed by AutoMigrate.", provider);
+            }
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Failed to apply Postgres migrations during startup.");
+            logger?.LogError(ex, "Failed to apply vector store migrations during startup.");
             // Fail fast so startup does not continue in a misconfigured state
             throw;
         }

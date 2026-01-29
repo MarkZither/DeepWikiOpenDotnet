@@ -10,6 +10,7 @@
     <ProjectReference Include="..\deepwiki-open-dotnet.ServiceDefaults\deepwiki-open-dotnet.ServiceDefaults.csproj" />
     <ProjectReference Include="..\DeepWiki.Data.Abstractions\DeepWiki.Data.Abstractions.csproj" />
     <ProjectReference Include="..\DeepWiki.Data.Postgres\DeepWiki.Data.Postgres.csproj" />
+    <ProjectReference Include="..\DeepWiki.Data.SqlServer\DeepWiki.Data.SqlServer.csproj" />
     <ProjectReference Include="..\DeepWiki.Rag.Core\DeepWiki.Rag.Core.csproj" />
   </ItemGroup>
 
