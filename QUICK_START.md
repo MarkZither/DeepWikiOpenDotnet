@@ -91,6 +91,8 @@ warn: Using NoOpEmbeddingService
 - `Embedding__Provider=ollama`
 - `Embedding__Ollama__Endpoint=http://localhost:11434`
 - `Embedding__Ollama__ModelId=nomic-embed-text`
+
+⚠️ Note: The vector store provider is now strict by default. If `VectorStore:Provider` is set but unavailable, the API will throw an exception to fail fast. To allow the old NoOp fallback behavior set `VectorStore:AllowNoOpFallback=true` in the environment or `appsettings`.
 - Connection string from Aspire
 
 ## Troubleshooting

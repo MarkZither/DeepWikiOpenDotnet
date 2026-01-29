@@ -87,17 +87,24 @@ public class Program
             var factory = sp.GetRequiredService<DeepWiki.Rag.Core.VectorStore.VectorStoreFactory>();
             var provider = builder.Configuration.GetValue<string>("VectorStore:Provider") ?? "postgres";
             
-            // If configured provider is not available, log warning and use NoOp
+            // If configured provider is not available, either throw or optionally fall back to NoOp
+            // New config: VectorStore:AllowNoOpFallback (bool). Default: false (throw) to fail fast when misconfigured.
             if (!factory.IsProviderAvailable(provider))
             {
+                var allowFallback = builder.Configuration.GetValue<bool?>("VectorStore:AllowNoOpFallback") ?? false;
                 var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<DeepWiki.Rag.Core.VectorStore.NoOpVectorStore>>();
-                logger?.LogWarning(
-                    "Vector store provider '{Provider}' not configured or not available. Using NoOpVectorStore. " +
-                    "Configure VectorStore:Provider and required connection strings to enable vector storage.",
-                    provider);
+                var msg = $"Vector store provider '{provider}' not configured or not available. ";
+
+                if (!allowFallback)
+                {
+                    logger?.LogError(msg + "Failing fast because VectorStore:AllowNoOpFallback is false. Configure the provider or set VectorStore:AllowNoOpFallback=true to allow NoOp fallback.");
+                    throw new InvalidOperationException(msg + "Configure VectorStore:Provider and required connection strings to enable vector storage, or set VectorStore:AllowNoOpFallback=true to permit NoOp fallback.");
+                }
+
+                logger?.LogWarning(msg + "Using NoOpVectorStore because VectorStore:AllowNoOpFallback=true.");
                 return new DeepWiki.Rag.Core.VectorStore.NoOpVectorStore();
             }
-            
+
             return factory.Create();
         });
 

@@ -1,6 +1,6 @@
 ### RAG API Testing
 ### Base URL for local development
-@baseUrl = http://localhost:5114/api
+@baseUrl = http://localhost:5484/api
 
 ### === Document Ingestion Tests ===
 
