@@ -108,6 +108,66 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 ## Option 3: Local Ollama (No API Key Required)
 
+## Option 3: Local Databases with Podman / Docker Compose (recommended)
+
+For reliable development and migrations you should run persistent DB containers for Postgres (pgvector) and SQL Server. This repository includes `docker-compose.yml` (persistent) and `docker-compose.test.yml` (ephemeral test DBs).
+
+Quick setup (recommended):
+
+1. Copy `.env.example` to `.env` and fill in secure passwords (do NOT commit `.env`).
+
+2. Start the debug (persistent) databases:
+
+   - podman-compose:
+     ```bash
+     cp .env.example .env
+     # edit .env and set strong passwords
+     podman-compose -f docker-compose.yml up -d
+     ```
+
+   - docker compose:
+     ```bash
+     docker compose -f docker-compose.yml up -d
+     ```
+
+3. Use the helper script to wait for readiness and run EF migrations (applies Postgres & SQL Server migrations):
+
+   ```bash
+   chmod +x scripts/up-db.sh
+   ./scripts/up-db.sh
+   ```
+
+   The script sets `DEEPWIKI_POSTGRES_CONNECTION` and `DEEPWIKI_SQLSERVER_CONNECTION` environment variables for design-time EF and applies migrations using the API startup project.
+
+4. Verify:
+
+   - Health: `curl http://localhost:5484/health`
+   - Postgres data: `docker exec -it <pg-container> psql -U postgres -d deepwikidb -c "SELECT count(*) FROM documents;"`
+
+Notes:
+- For ephemeral test runs, use `docker-compose.test.yml` which does not mount persistent volumes and maps ports to non-default ports to avoid collisions.
+- Store production/CI secrets in a secure store (Azure Key Vault, GitHub Secrets, etc.). For local dev, prefer dotnet user-secrets or .env files that are not committed.
+- If you use Podman: `podman-compose` is recommended for `docker-compose` compatibility. The compose files are intentionally simple and should work with either runtime.
+
+Security reminder: Do not commit `.env` with passwords. Use `dotnet user-secrets` for per-developer secrets when running the API locally (see below).
+
+---
+
+### Setting design-time secrets for EF (local)
+
+Inside the API project folder:
+
+```bash
+cd src/deepwiki-open-dotnet.ApiService
+# initialize user-secrets once per developer
+dotnet user-secrets init
+dotnet user-secrets set "ConnectionStrings:Postgres" "Host=localhost;Port=5432;Database=deepwikidb;Username=postgres;Password=YOUR_PG_PASS"
+# or set env var for design-time EF tooling
+export DEEPWIKI_POSTGRES_CONNECTION="Host=localhost;Port=5432;Database=deepwikidb;Username=postgres;Password=YOUR_PG_PASS"
+```
+
+When running CI, set equivalent variables in the pipeline secrets.
+
 ### Prerequisites
 - Ollama installed and running locally
 - Model with embeddings support (e.g., `nomic-embed-text`)
