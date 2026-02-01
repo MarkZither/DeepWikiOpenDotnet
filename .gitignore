@@ -419,4 +419,5 @@ FodyWeavers.xsd
 migrate/*
 
 # ignore accidental Windows-style dir names containing backslashes
-**/*\*/
+# Match any path component that contains a literal backslash character (escaped as \\\ in gitignore)
+**/*\\*
