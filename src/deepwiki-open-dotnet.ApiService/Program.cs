@@ -105,7 +105,7 @@ public class Program
                 return new DeepWiki.Rag.Core.VectorStore.NoOpVectorStore();
             }
 
-            return factory.Create();
+            return factory.Create(sp);
         });
 
         // Register tokenization service

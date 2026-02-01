@@ -45,10 +45,19 @@ public sealed class VectorStoreFactory
     /// <returns>An IVectorStore implementation for the configured provider.</returns>
     public IVectorStore Create()
     {
+        return Create(_serviceProvider);
+    }
+
+    /// <summary>
+    /// Creates an IVectorStore using the provided service provider scope.
+    /// This allows resolving scoped services (like DbContexts) from the current scope instead of the root provider.
+    /// </summary>
+    public IVectorStore Create(IServiceProvider serviceProvider)
+    {
         var section = _configuration.GetSection(ConfigurationSection);
         var provider = section["Provider"]?.ToLowerInvariant() ?? "sqlserver";
 
-        return CreateForProvider(provider);
+        return CreateForProvider(provider, serviceProvider);
     }
 
     /// <summary>
@@ -61,10 +70,17 @@ public sealed class VectorStoreFactory
     {
         var logger = _loggerFactory?.CreateLogger<VectorStoreFactory>();
 
+        return CreateForProvider(provider, _serviceProvider);
+    }
+
+    private IVectorStore CreateForProvider(string provider, IServiceProvider serviceProvider)
+    {
+        var logger = _loggerFactory?.CreateLogger<VectorStoreFactory>();
+
         return provider.ToLowerInvariant() switch
         {
-            "sqlserver" => CreateSqlServerStore(logger),
-            "postgres" or "postgresql" or "pgvector" => CreatePostgresStore(logger),
+            "sqlserver" => CreateSqlServerStore(serviceProvider, logger),
+            "postgres" or "postgresql" or "pgvector" => CreatePostgresStore(serviceProvider, logger),
             _ => throw new ArgumentException(
                 $"Unknown vector store provider: '{provider}'. Supported providers: sqlserver, postgres.",
                 nameof(provider))
@@ -127,17 +143,17 @@ public sealed class VectorStoreFactory
         return false;
     }
 
-    private IVectorStore CreateSqlServerStore(ILogger<VectorStoreFactory>? logger)
+    private IVectorStore CreateSqlServerStore(IServiceProvider serviceProvider, ILogger<VectorStoreFactory>? logger)
     {
         try
         {
-            var store = _serviceProvider.GetService<IVectorStore>();
+            var store = serviceProvider.GetService<IVectorStore>();
             if (store == null)
             {
                 logger?.LogWarning("SQL Server vector store not registered in DI container. Falling back to NoOpVectorStore.");
                 return new NoOpVectorStore();
             }
-            
+
             logger?.LogInformation("Created SQL Server vector store instance");
             return store;
         }
@@ -148,17 +164,17 @@ public sealed class VectorStoreFactory
         }
     }
 
-    private IVectorStore CreatePostgresStore(ILogger<VectorStoreFactory>? logger)
+    private IVectorStore CreatePostgresStore(IServiceProvider serviceProvider, ILogger<VectorStoreFactory>? logger)
     {
         try
         {
-            var store = _serviceProvider.GetService<IVectorStore>();
+            var store = serviceProvider.GetService<IVectorStore>();
             if (store == null)
             {
                 logger?.LogWarning("PostgreSQL vector store not registered in DI container. Falling back to NoOpVectorStore.");
                 return new NoOpVectorStore();
             }
-            
+
             logger?.LogInformation("Created PostgreSQL vector store instance");
             return store;
         }
