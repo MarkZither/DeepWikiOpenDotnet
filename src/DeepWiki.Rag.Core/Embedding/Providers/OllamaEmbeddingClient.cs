@@ -11,6 +11,7 @@ public sealed class OllamaEmbeddingClient : BaseEmbeddingClient
 {
     private readonly OllamaApiClient _client;
     private readonly string _modelId;
+    private readonly string _endpoint;
 
     /// <inheritdoc />
     public override string Provider => "ollama";
@@ -40,6 +41,7 @@ public sealed class OllamaEmbeddingClient : BaseEmbeddingClient
         }
 
         _modelId = modelId;
+        _endpoint = endpoint;
         _client = new OllamaApiClient(new Uri(endpoint));
         _client.SelectedModel = modelId;
 
@@ -51,13 +53,15 @@ public sealed class OllamaEmbeddingClient : BaseEmbeddingClient
     /// <inheritdoc />
     protected override async Task<float[]> EmbedCoreAsync(string text, CancellationToken cancellationToken)
     {
-        Logger?.LogDebug("Embedding text ({Length} chars) using Ollama model {ModelId}", text.Length, _modelId);
+        Logger?.LogInformation("Ollama: Sending embed request to {Endpoint} for model {ModelId}, input length={Length}", _endpoint, _modelId, text.Length);
 
         var response = await _client.EmbedAsync(new OllamaSharp.Models.EmbedRequest
         {
             Model = _modelId,
-            Input = [text]
+            Input = new List<string> { text }
         }, cancellationToken);
+
+        Logger?.LogInformation("Ollama: Embed response received (embeddings count={Count})", response?.Embeddings?.Count ?? 0);
 
         if (response?.Embeddings is null || response.Embeddings.Count == 0)
         {

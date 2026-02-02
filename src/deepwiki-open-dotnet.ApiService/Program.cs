@@ -158,6 +158,14 @@ using (var scope = app.Services.CreateScope())
         {
             if (provider.Equals("postgres", StringComparison.OrdinalIgnoreCase))
             {
+                // Strict requirement: ConnectionStrings:deepwikidb MUST be configured for Postgres
+                var pgConn = config.GetConnectionString("deepwikidb");
+                if (string.IsNullOrEmpty(pgConn))
+                {
+                    logger?.LogError("VectorStore:AutoMigrate is enabled but 'ConnectionStrings:deepwikidb' is not configured. Set this via user-secrets (for local dev) or configure Aspire to inject it. Startup will not continue.");
+                    throw new InvalidOperationException("AutoMigrate requires 'ConnectionStrings:deepwikidb' to be configured. Configure ConnectionStrings:deepwikidb in appsettings or user-secrets.");
+                }
+
                 logger?.LogInformation("VectorStore:AutoMigrate enabled. Applying Postgres migrations...");
                 var db = scope.ServiceProvider.GetRequiredService<DeepWiki.Data.Postgres.DbContexts.PostgresVectorDbContext>();
                 db.Database.Migrate();
@@ -185,16 +193,36 @@ using (var scope = app.Services.CreateScope())
 }
 
         // Configure the HTTP request pipeline.
-        app.UseExceptionHandler();
-
-        // SECURITY: Enable rate limiting middleware
-        app.UseRateLimiter();
-
+        // Development: show developer exception page so errors are visible in responses / logs
         if (app.Environment.IsDevelopment())
         {
+            app.UseDeveloperExceptionPage();
             app.MapOpenApi();
             app.MapScalarApiReference();
         }
+        else
+        {
+            app.UseExceptionHandler();
+        }
+
+        // Early request logging middleware to help diagnose requests that never reach controllers
+        app.Use(async (context, next) =>
+        {
+            app.Logger.LogInformation("Incoming request {Method} {Path} from {RemoteIp}", context.Request.Method, context.Request.Path, context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+            try
+            {
+                await next();
+                app.Logger.LogInformation("Request {Method} {Path} completed with status {StatusCode}", context.Request.Method, context.Request.Path, context.Response.StatusCode);
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogError(ex, "Unhandled exception while processing request {Method} {Path}", context.Request.Method, context.Request.Path);
+                throw;
+            }
+        });
+
+        // SECURITY: Enable rate limiting middleware
+        app.UseRateLimiter();
 
         string[] summaries = ["Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"];
 
