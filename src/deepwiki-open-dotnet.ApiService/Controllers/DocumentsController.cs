@@ -17,14 +17,17 @@ namespace DeepWiki.ApiService.Controllers;
 public class DocumentsController : ControllerBase
 {
     private readonly IDocumentIngestionService _ingestionService;
+    private readonly DeepWiki.Data.Interfaces.IDocumentRepository _repository;
     private readonly ILogger<DocumentsController> _logger;
     private readonly ResiliencePipeline _ingestionResiliencePipeline;
 
     public DocumentsController(
         IDocumentIngestionService ingestionService,
+        DeepWiki.Data.Interfaces.IDocumentRepository repository,
         ILogger<DocumentsController> logger)
     {
         _ingestionService = ingestionService ?? throw new ArgumentNullException(nameof(ingestionService));
+        _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         // Configure resilience pipeline for ingestion (embedding calls)
@@ -174,6 +177,55 @@ public class DocumentsController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new ErrorResponse { Detail = "An unexpected error occurred while processing your request." });
         }
+    }
+
+    /// <summary>
+    /// Retrieves a single document by its ID.
+    /// </summary>
+    /// <param name="id">Document ID (GUID)</param>
+    /// <returns>Document details or 404 with ErrorResponse when not found.</returns>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(DeepWiki.Data.Abstractions.Models.DocumentDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Get(Guid id)
+    {
+        try
+        {
+            var entity = await _repository.GetByIdAsync(id);
+            if (entity == null)
+            {
+                return NotFound(new ErrorResponse { Detail = "Document not found." });
+            }
+
+            var dto = MapToDocumentDto(entity);
+            return Ok(dto);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve document {Id}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new ErrorResponse { Detail = "An unexpected error occurred while retrieving the document." });
+        }
+    }
+
+    private static DeepWiki.Data.Abstractions.Models.DocumentDto MapToDocumentDto(DeepWiki.Data.Entities.DocumentEntity e)
+    {
+        return new DeepWiki.Data.Abstractions.Models.DocumentDto
+        {
+            Id = e.Id,
+            RepoUrl = e.RepoUrl,
+            FilePath = e.FilePath,
+            Title = e.Title ?? string.Empty,
+            Text = e.Text ?? string.Empty,
+            Embedding = e.Embedding?.ToArray() ?? Array.Empty<float>(),
+            MetadataJson = e.MetadataJson ?? "{}",
+            CreatedAt = e.CreatedAt,
+            UpdatedAt = e.UpdatedAt,
+            TokenCount = e.TokenCount,
+            FileType = e.FileType ?? string.Empty,
+            IsCode = e.IsCode,
+            IsImplementation = e.IsImplementation
+        };
     }
 
     /// <summary>

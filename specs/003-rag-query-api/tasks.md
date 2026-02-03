@@ -115,10 +115,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T037 [US3] Implement GET /api/documents/{id} endpoint in src/deepwiki-open-dotnet.ApiService/Controllers/DocumentsController.cs
-- [ ] T038 [US3] Add IVectorStore method or query to retrieve document by ID (may need interface extension)
-- [ ] T039 [US3] Return 404 ErrorResponse when document not found
-- [ ] T040 [US3] Create DocumentsControllerGetTests in tests/deepwiki-open-dotnet.Tests/Api/DocumentsControllerGetTests.cs
+- [X] T037 [US3] Implement GET /api/documents/{id} endpoint in src/deepwiki-open-dotnet.ApiService/Controllers/DocumentsController.cs
+- [X] T038 [US3] Add IVectorStore method or query to retrieve document by ID (may need interface extension)  # Implemented via IDocumentRepository lookup (preferred abstraction)
+- [X] T039 [US3] Return 404 ErrorResponse when document not found
+- [X] T040 [US3] Create DocumentsControllerGetTests in tests/deepwiki-open-dotnet.Tests/Api/DocumentsControllerGetTests.cs
 
 **Checkpoint**: User Story 3 complete - document retrieval working
 
