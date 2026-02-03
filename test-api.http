@@ -24,6 +24,20 @@ Content-Type: application/json
 # Query Endpoint Tests
 ###############################################################################
 
+###############################################################################
+# Documents API Tests
+###############################################################################
+
+### 1. List documents (page 1)
+GET {{baseUrl}}/api/documents?page=1&pageSize=10
+
+### 2. Get document by id (replace {id} with actual GUID)
+GET {{baseUrl}}/api/documents/{id}
+
+### 3. Delete document by id (replace {id} with actual GUID)
+DELETE {{baseUrl}}/api/documents/{id}
+
+
 ### 1. Basic semantic query (returns empty with NoOpVectorStore)
 POST {{baseUrl}}/api/query
 Content-Type: application/json

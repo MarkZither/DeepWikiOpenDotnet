@@ -8,67 +8,46 @@ using Xunit;
 
 namespace DeepWiki.ApiService.Tests.Api;
 
-public class DocumentsControllerGetTests : IClassFixture<ApiTestFixture>
+public class DocumentsControllerDeleteTests : IClassFixture<ApiTestFixture>
 {
     private readonly ApiTestFixture _factory;
 
-    public DocumentsControllerGetTests(ApiTestFixture factory)
+    public DocumentsControllerDeleteTests(ApiTestFixture factory)
     {
         _factory = factory;
     }
 
     [Fact]
-    public async Task Get_WhenDocumentExists_ReturnsOk()
+    public async Task Delete_WhenDocumentExists_ReturnsNoContent()
     {
         // Arrange
         var id = Guid.NewGuid();
-        var entity = new DocumentEntity
-        {
-            Id = id,
-            RepoUrl = "https://github.com/test/repo",
-            FilePath = "src/Test.cs",
-            Title = "Test Document",
-            Text = "Document content",
-            Embedding = new ReadOnlyMemory<float>(new float[1536]),
-            MetadataJson = "{}",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-            TokenCount = 100,
-            FileType = "cs",
-            IsCode = true,
-            IsImplementation = false
-        };
+        var deleteCalled = false;
 
         using var customFactory = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<DeepWiki.ApiService.Program>()
             .WithWebHostBuilder(builder =>
             {
                 builder.ConfigureServices(services =>
                 {
-                    // Replace IDocumentRepository with mock
                     var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
                     if (descriptor != null) services.Remove(descriptor);
 
-                    services.AddScoped<IDocumentRepository>(_ => new MockRepository(entity));
+                    services.AddScoped<IDocumentRepository>(_ => new MockRepository(true, id, () => deleteCalled = true));
                 });
             });
 
         var client = customFactory.CreateClient();
 
         // Act
-        var response = await client.GetAsync($"/api/documents/{id}", TestContext.Current.CancellationToken);
+        var response = await client.DeleteAsync($"/api/documents/{id}", TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await response.Content.ReadFromJsonAsync<DeepWiki.Data.Abstractions.Models.DocumentDto>(TestContext.Current.CancellationToken);
-        Assert.NotNull(result);
-        Assert.Equal(id, result.Id);
-        Assert.Equal(entity.RepoUrl, result.RepoUrl);
-        Assert.Equal(entity.FilePath, result.FilePath);
-        Assert.Equal(entity.Title, result.Title);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.True(deleteCalled, "Expected repository.DeleteAsync to be called");
     }
 
     [Fact]
-    public async Task Get_WhenDocumentMissing_ReturnsNotFound()
+    public async Task Delete_WhenDocumentMissing_ReturnsNotFound()
     {
         // Arrange
         var id = Guid.NewGuid();
@@ -81,14 +60,14 @@ public class DocumentsControllerGetTests : IClassFixture<ApiTestFixture>
                     var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
                     if (descriptor != null) services.Remove(descriptor);
 
-                    services.AddScoped<IDocumentRepository>(_ => new MockRepository(null));
+                    services.AddScoped<IDocumentRepository>(_ => new MockRepository(false, id));
                 });
             });
 
         var client = customFactory.CreateClient();
 
         // Act
-        var response = await client.GetAsync($"/api/documents/{id}", TestContext.Current.CancellationToken);
+        var response = await client.DeleteAsync($"/api/documents/{id}", TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -99,19 +78,28 @@ public class DocumentsControllerGetTests : IClassFixture<ApiTestFixture>
 
     private class MockRepository : IDocumentRepository
     {
-        private readonly DocumentEntity? _entity;
+        private readonly bool _exists;
+        private readonly Guid _expectedId;
+        private readonly Action? _onDelete;
 
-        public MockRepository(DocumentEntity? entity)
+        public MockRepository(bool exists, Guid expectedId, Action? onDelete = null)
         {
-            _entity = entity;
+            _exists = exists;
+            _expectedId = expectedId;
+            _onDelete = onDelete;
         }
 
         public Task AddAsync(DocumentEntity document, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            if (id != _expectedId) throw new InvalidOperationException("Unexpected id");
+            _onDelete?.Invoke();
+            return Task.CompletedTask;
+        }
         public Task<List<DocumentEntity>> GetByRepoAsync(string repoUrl, int skip = 0, int take = 100, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<DocumentEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_entity);
+        public Task<DocumentEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(DocumentEntity document, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_entity != null && _entity.Id == id);
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_exists && id == _expectedId);
         public Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

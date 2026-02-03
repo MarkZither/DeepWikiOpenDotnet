@@ -57,6 +57,20 @@ public interface IDocumentRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lists documents with optional repository filter and returns total count for pagination.
+    /// </summary>
+    /// <param name="repoUrl">Optional repository URL filter. When null, lists all documents.</param>
+    /// <param name="skip">Number of documents to skip for pagination (default 0).</param>
+    /// <param name="take">Number of documents to take. Maximum 1000.</param>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>Tuple of (Items, TotalCount).</returns>
+    Task<(List<DeepWiki.Data.Entities.DocumentEntity> Items, int TotalCount)> ListAsync(
+        string? repoUrl = null,
+        int skip = 0,
+        int take = 100,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Adds a new document to the database.
     /// </summary>
     /// <param name="document">Document entity to add. Must not be null.</param>

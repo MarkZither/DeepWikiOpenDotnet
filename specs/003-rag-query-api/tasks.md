@@ -132,10 +132,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T041 [US4] Implement DELETE /api/documents/{id} endpoint in src/deepwiki-open-dotnet.ApiService/Controllers/DocumentsController.cs
-- [ ] T042 [US4] Call IVectorStore.DeleteAsync with document ID
-- [ ] T043 [US4] Return 204 No Content on success, 404 if not found
-- [ ] T044 [US4] Create DocumentsControllerDeleteTests in tests/deepwiki-open-dotnet.Tests/Api/DocumentsControllerDeleteTests.cs
+- [X] T041 [US4] Implement DELETE /api/documents/{id} endpoint in src/deepwiki-open-dotnet.ApiService/Controllers/DocumentsController.cs
+- [X] T042 [US4] Call IVectorStore.DeleteAsync with document ID
+- [X] T043 [US4] Return 204 No Content on success, 404 if not found
+- [X] T044 [US4] Create DocumentsControllerDeleteTests in tests/deepwiki-open-dotnet.Tests/Api/DocumentsControllerDeleteTests.cs
 
 **Checkpoint**: User Story 4 complete - document deletion working
 
@@ -149,12 +149,12 @@
 
 ### Implementation for User Story 5
 
-- [ ] T045 [US5] Add IDocumentRepository or extend IVectorStore for paginated listing capability
-- [ ] T046 [US5] Implement GET /api/documents endpoint in src/deepwiki-open-dotnet.ApiService/Controllers/DocumentsController.cs
-- [ ] T047 [US5] Implement pagination parameters (page, pageSize) with defaults
-- [ ] T048 [US5] Implement repoUrl filter parameter
-- [ ] T049 [US5] Map results to DocumentListResponse with DocumentSummary items
-- [ ] T050 [US5] Create DocumentsControllerListTests in tests/deepwiki-open-dotnet.Tests/Api/DocumentsControllerListTests.cs
+- [X] T045 [US5] Add IDocumentRepository or extend IVectorStore for paginated listing capability
+- [X] T046 [US5] Implement GET /api/documents endpoint in src/deepwiki-open-dotnet.ApiService/Controllers/DocumentsController.cs
+- [X] T047 [US5] Implement pagination parameters (page, pageSize) with defaults
+- [X] T048 [US5] Implement repoUrl filter parameter
+- [X] T049 [US5] Map results to DocumentListResponse with DocumentSummary items
+- [X] T050 [US5] Create DocumentsControllerListTests in tests/deepwiki-open-dotnet.Tests/Api/DocumentsControllerListTests.cs
 
 **Checkpoint**: User Story 5 complete - document listing with pagination working
 

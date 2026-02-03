@@ -208,6 +208,86 @@ public class DocumentsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Deletes a document by its ID.
+    /// </summary>
+    /// <param name="id">Document ID (GUID)</param>
+    /// <returns>204 No Content on success, 404 when not found.</returns>
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        try
+        {
+            var exists = await _repository.ExistsAsync(id);
+            if (!exists)
+            {
+                return NotFound(new ErrorResponse { Detail = "Document not found." });
+            }
+
+            await _repository.DeleteAsync(id);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete document {Id}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new ErrorResponse { Detail = "An unexpected error occurred while deleting the document." });
+        }
+    }
+
+    /// <summary>
+    /// Lists documents with pagination and optional repoUrl filter.
+    /// </summary>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="pageSize">Items per page</param>
+    /// <param name="repoUrl">Optional repository URL filter</param>
+    [HttpGet]
+    [ProducesResponseType(typeof(DocumentListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> List(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? repoUrl = null)
+    {
+        if (page < 1)
+        {
+            return BadRequest(new ErrorResponse { Detail = "Page must be >= 1." });
+        }
+
+        if (pageSize < 1 || pageSize > 1000)
+        {
+            return BadRequest(new ErrorResponse { Detail = "PageSize must be between 1 and 1000." });
+        }
+
+        try
+        {
+            var skip = (page - 1) * pageSize;
+            var (items, total) = await _repository.ListAsync(repoUrl, skip, pageSize);
+
+            var response = new DocumentListResponse
+            {
+                Items = items.Select(MapToDocumentSummary).ToList(),
+                TotalCount = total,
+                Page = page,
+                PageSize = pageSize
+            };
+
+            return Ok(response);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ErrorResponse { Detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to list documents");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new ErrorResponse { Detail = "An unexpected error occurred while listing documents." });
+        }
+    }
+
     private static DeepWiki.Data.Abstractions.Models.DocumentDto MapToDocumentDto(DeepWiki.Data.Entities.DocumentEntity e)
     {
         return new DeepWiki.Data.Abstractions.Models.DocumentDto
@@ -225,6 +305,22 @@ public class DocumentsController : ControllerBase
             FileType = e.FileType ?? string.Empty,
             IsCode = e.IsCode,
             IsImplementation = e.IsImplementation
+        };
+    }
+
+    private static DocumentSummary MapToDocumentSummary(DeepWiki.Data.Entities.DocumentEntity e)
+    {
+        return new DocumentSummary
+        {
+            Id = e.Id,
+            RepoUrl = e.RepoUrl,
+            FilePath = e.FilePath,
+            Title = e.Title ?? string.Empty,
+            CreatedAt = e.CreatedAt,
+            UpdatedAt = e.UpdatedAt,
+            TokenCount = e.TokenCount,
+            FileType = e.FileType ?? string.Empty,
+            IsCode = e.IsCode
         };
     }
 

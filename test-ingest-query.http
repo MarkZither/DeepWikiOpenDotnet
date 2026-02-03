@@ -83,6 +83,17 @@ Content-Type: application/json
   "includeFullText": true
 }
 
+### === Documents Listing & Delete ===
+
+### 8. List documents (page 1)
+GET {{baseUrl}}/documents?page=1&pageSize=10
+
+### 9. Get document by id (replace {id} with actual GUID)
+GET {{baseUrl}}/documents/{id}
+
+### 10. Delete document by id (replace {id} with actual GUID)
+DELETE {{baseUrl}}/documents/{id}
+
 ### 5. Search with specific topic
 POST {{baseUrl}}/query
 Content-Type: application/json

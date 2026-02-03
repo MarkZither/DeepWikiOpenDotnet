@@ -59,6 +59,31 @@ public class PostgresDocumentRepository : IDocumentRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(
+        string? repoUrl = null,
+        int skip = 0,
+        int take = 100,
+        CancellationToken cancellationToken = default)
+    {
+        if (skip < 0) throw new ArgumentException("Skip must be >= 0", nameof(skip));
+        if (take < 1 || take > 1000) throw new ArgumentException("Take must be >= 1 and <= 1000", nameof(take));
+
+        var query = _context.Documents.AsQueryable();
+        if (!string.IsNullOrEmpty(repoUrl))
+        {
+            query = query.Where(d => d.RepoUrl == repoUrl);
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(d => d.CreatedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return (items, total);
+    }
+
     public async Task UpdateAsync(DocumentEntity document, CancellationToken cancellationToken = default)
     {
         if (document == null) throw new ArgumentNullException(nameof(document));
