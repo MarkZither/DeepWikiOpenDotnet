@@ -29,7 +29,7 @@ public class PostgresVectorStoreTests : IAsyncLifetime
     {
         await _fixture.InitializeAsync();
         _context = _fixture.CreateDbContext();
-        _vectorStore = new PostgresVectorStore(_context);
+        _vectorStore = new PostgresVectorStore(_context, Microsoft.Extensions.Logging.Abstractions.NullLogger<PostgresVectorStore>.Instance);
     }
 
     public async Task DisposeAsync()

@@ -15,7 +15,7 @@ public class TokenizationServiceTests
     public TokenizationServiceTests()
     {
         var encoderFactory = new TokenEncoderFactory();
-        _service = new TokenizationService(encoderFactory);
+        _service = new TokenizationService(encoderFactory, Microsoft.Extensions.Logging.Abstractions.NullLogger<TokenizationService>.Instance);
     }
 
     #region T062: CountTokensAsync for OpenAI model returns integer token count

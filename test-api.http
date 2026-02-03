@@ -2,8 +2,10 @@
 ### Run the API first: dotnet run --project src/deepwiki-open-dotnet.AppHost
 ### Or: cd src/deepwiki-open-dotnet.ApiService && dotnet run
 
-@baseUrl = http://localhost:5484
-# @baseUrl = https://localhost:5001
+# @baseUrl = http://localhost:5484
+@baseUrl = http://localhost:5000
+#@baseUrl = https://localhost:5001
+
 
 ### Health check
 GET {{baseUrl}}/health
@@ -13,6 +15,10 @@ GET {{baseUrl}}/health
 
 ### OpenAPI specification (for Scalar/Swagger UI)
 GET {{baseUrl}}/openapi/v1.json
+
+### weather forecast
+GET {{baseUrl}}/weatherforecast
+Content-Type: application/json
 
 ###############################################################################
 # Query Endpoint Tests

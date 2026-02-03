@@ -15,7 +15,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
     private readonly IVectorStore _vectorStore;
     private readonly ITokenizationService _tokenizationService;
     private readonly IEmbeddingService _embeddingService;
-    private readonly ILogger<DocumentIngestionService>? _logger;
+    private readonly ILogger<DocumentIngestionService> _logger;
 
     // === SECURITY CONSTANTS ===
     // Maximum document text size in bytes (5 MB) - prevents memory exhaustion attacks
@@ -67,15 +67,17 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
     /// <param name="tokenizationService">The tokenization service for chunking.</param>
     /// <param name="embeddingService">The embedding service for generating vectors.</param>
     /// <param name="logger">Optional logger.</param>
-    public DocumentIngestionService(
-        IVectorStore vectorStore,
-        ITokenizationService tokenizationService,
-        IEmbeddingService embeddingService,
-        ILogger<DocumentIngestionService>? logger = null)
+    public DocumentIngestionService(IVectorStore vectorStore, ITokenizationService tokenizationService,
+        IEmbeddingService embeddingService, ILogger<DocumentIngestionService> logger)
     {
-        _vectorStore = vectorStore ?? throw new ArgumentNullException(nameof(vectorStore));
-        _tokenizationService = tokenizationService ?? throw new ArgumentNullException(nameof(tokenizationService));
-        _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
+        ArgumentNullException.ThrowIfNull(vectorStore);
+        ArgumentNullException.ThrowIfNull(tokenizationService);
+        ArgumentNullException.ThrowIfNull(embeddingService);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _vectorStore = vectorStore;
+        _tokenizationService = tokenizationService;
+        _embeddingService = embeddingService;
         _logger = logger;
     }
 
@@ -86,7 +88,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
 
         if (request.Documents.Count == 0)
         {
-            _logger?.LogWarning("Ingestion request contains no documents");
+            _logger.LogWarning("Ingestion request contains no documents");
             return IngestionResult.Empty;
         }
 
@@ -96,7 +98,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
         var errors = new List<IngestionError>();
         var ingestedIds = new List<Guid>();
 
-        _logger?.LogInformation(
+        _logger.LogInformation(
             "Starting ingestion of {DocumentCount} documents with batch size {BatchSize}",
             request.Documents.Count, request.BatchSize);
 
@@ -122,7 +124,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
                 successCount++;
                 ingestedIds.Add(documentDto.Id);
 
-                _logger?.LogDebug("Successfully ingested document {DocId}: {DocIdentifier}",
+                _logger.LogDebug("Successfully ingested document {DocId}: {DocIdentifier}",
                     documentDto.Id, docIdentifier);
             }
             catch (Exception ex) when (request.ContinueOnError && ex is not OperationCanceledException)
@@ -131,7 +133,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
                 var error = IngestionError.FromException(docIdentifier, ex, stage);
                 errors.Add(error);
 
-                _logger?.LogWarning(ex, "Failed to ingest document {DocIdentifier} at stage {Stage}: {Error}",
+                _logger.LogWarning(ex, "Failed to ingest document {DocIdentifier} at stage {Stage}: {Error}",
                     docIdentifier, stage, ex.Message);
             }
         }
@@ -148,7 +150,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
             Errors = errors
         };
 
-        _logger?.LogInformation(
+        _logger.LogInformation(
             "Ingestion complete: {Success}/{Total} documents ({Rate:F1} docs/sec), {ChunkCount} chunks, {ErrorCount} errors in {Duration}ms",
             successCount, request.Documents.Count, result.DocumentsPerSecond, totalChunks, errors.Count, sw.ElapsedMilliseconds);
 
@@ -184,7 +186,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
             await _vectorStore.UpsertAsync(document, cancellationToken);
 
             sw.Stop();
-            _logger?.LogDebug(
+            _logger.LogDebug(
                 "Upserted document {DocId} ({RepoUrl}:{FilePath}) in {Duration}ms",
                 document.Id, document.RepoUrl, document.FilePath, sw.ElapsedMilliseconds);
 
@@ -193,7 +195,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             sw.Stop();
-            _logger?.LogError(ex,
+            _logger.LogError(ex,
                 "Failed to upsert document {DocId} ({RepoUrl}:{FilePath}) after {Duration}ms: {Error}",
                 document.Id, document.RepoUrl, document.FilePath, sw.ElapsedMilliseconds, ex.Message);
             throw;
@@ -217,7 +219,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
         // Get token count to validate
         var totalTokens = await _tokenizationService.CountTokensAsync(text, _embeddingService.ModelId, cancellationToken);
 
-        _logger?.LogDebug(
+        _logger.LogDebug(
             "ChunkAndEmbed: text length {Length}, total tokens {Tokens}, max per chunk {Max}",
             text.Length, totalTokens, maxTokensPerChunk);
 
@@ -276,7 +278,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
         }
 
         sw.Stop();
-        _logger?.LogInformation(
+        _logger.LogInformation(
             "ChunkAndEmbed complete: {ChunkCount} chunks, {TotalTokens} total tokens in {Duration}ms",
             results.Count, totalTokens, sw.ElapsedMilliseconds);
 
@@ -295,7 +297,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
         var suspiciousContent = DetectSuspiciousContent(doc.Text);
         if (suspiciousContent is not null)
         {
-            _logger?.LogWarning(
+            _logger.LogWarning(
                 "Potential prompt injection detected in document {RepoUrl}:{FilePath} - pattern: {Pattern}",
                 doc.RepoUrl, doc.FilePath, suspiciousContent);
         }
@@ -336,7 +338,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
 
                 embedding = chunkResults.Count > 0 ? chunkResults[0].Embedding : Array.Empty<float>();
 
-                _logger?.LogDebug(
+                _logger.LogDebug(
                     "Document {FilePath} chunked into {ChunkCount} chunks due to size ({Tokens} tokens)",
                     doc.FilePath, chunkResults.Count, tokenCount);
             }

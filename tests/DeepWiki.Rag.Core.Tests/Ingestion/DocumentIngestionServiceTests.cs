@@ -34,7 +34,7 @@ public class DocumentIngestionServiceTests
         var ts = tokenizationService ?? new StubTokenizationService();
         var es = embeddingService ?? new StubEmbeddingService();
 
-        return new DocumentIngestionService(vs, ts, es);
+        return new DocumentIngestionService(vs, ts, es, Microsoft.Extensions.Logging.Abstractions.NullLogger<DocumentIngestionService>.Instance);
     }
 
     #region T165: IngestAsync with 10 documents chunks, embeds, upserts all successfully

@@ -7,6 +7,7 @@ using DeepWiki.Data.Entities;
 using DeepWiki.Data.Interfaces;
 using DeepWiki.Data.Postgres.DbContexts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace DeepWiki.Data.Postgres.Repositories;
 
@@ -18,6 +19,7 @@ namespace DeepWiki.Data.Postgres.Repositories;
 public class PostgresVectorStore : IPersistenceVectorStore
 {
     private readonly PostgresVectorDbContext _context;
+    private readonly Microsoft.Extensions.Logging.ILogger<PostgresVectorStore> _logger;
 
     // SECURITY: Maximum number of results to prevent resource exhaustion via unbounded queries
     private const int MaxK = 1000;
@@ -25,9 +27,17 @@ public class PostgresVectorStore : IPersistenceVectorStore
     // SECURITY: Maximum length for LIKE patterns to prevent regex-like DoS patterns
     private const int MaxLikePatternLength = 500;
 
-    public PostgresVectorStore(PostgresVectorDbContext context)
+    public PostgresVectorStore(PostgresVectorDbContext context, Microsoft.Extensions.Logging.ILogger<PostgresVectorStore> logger)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _logger.LogInformation("PostgresVectorStore constructed. DbContextType={DbContextType}", context?.GetType().Name);
+    }
+
+    // Back-compat convenience ctor for tests that don't provide a logger - uses NullLogger
+    public PostgresVectorStore(PostgresVectorDbContext context)
+        : this(context, Microsoft.Extensions.Logging.Abstractions.NullLogger<PostgresVectorStore>.Instance)
+    {
     }
 
     /// <summary>

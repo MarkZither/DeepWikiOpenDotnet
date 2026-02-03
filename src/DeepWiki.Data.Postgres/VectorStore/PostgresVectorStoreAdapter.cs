@@ -21,7 +21,8 @@ public class PostgresVectorStoreAdapter : DeepWiki.Data.Abstractions.IVectorStor
     public PostgresVectorStoreAdapter(IPersistenceVectorStore inner, ILogger<PostgresVectorStoreAdapter> logger)
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _logger.LogInformation("PostgresVectorStoreAdapter constructed. InnerType={InnerType}", inner?.GetType().Name);
     }
 
     public async Task<IReadOnlyList<VectorQueryResult>> QueryAsync(float[] embedding, int k, Dictionary<string, string>? filters = null, CancellationToken cancellationToken = default)

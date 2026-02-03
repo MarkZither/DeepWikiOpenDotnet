@@ -90,15 +90,42 @@ public class QueryController : ControllerBase
             return BadRequest(new ErrorResponse { Detail = errors });
         }
 
+        var queryText = request.Query!;
+
         try
         {
-            // Embed the query text using resilient embedding service
+            // Log entry for tracing
+            var preview = queryText.Length > 100 ? queryText[..100] + "..." : queryText;
+            _logger.LogInformation("Query endpoint invoked. Query preview: '{QueryPreview}' K={K}", preview, request.K);
+
+            // Embed the query text using resilient embedding service with a local timeout to avoid hanging
             float[] queryEmbedding;
+            var swEmbed = System.Diagnostics.Stopwatch.StartNew();
             try
             {
+                _logger.LogInformation("About to call embedding provider '{Provider}'", _embeddingService.Provider);
+
+                // Apply an embedding timeout in addition to the request cancellation token
+                using var ctsEmbed = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                ctsEmbed.CancelAfter(TimeSpan.FromSeconds(15)); // short timeout for embed calls
+
                 queryEmbedding = await _embeddingResiliencePipeline.ExecuteAsync(
-                    async ct => await _embeddingService.EmbedAsync(request.Query, ct),
-                    cancellationToken);
+                    async ct => await _embeddingService.EmbedAsync(queryText, ct),
+                    ctsEmbed.Token);
+
+                swEmbed.Stop();
+                _logger.LogInformation("Embedding completed in {ElapsedMs}ms with dimension {Dim}", swEmbed.ElapsedMilliseconds, queryEmbedding?.Length ?? 0);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning("Query request was cancelled by the client");
+                return StatusCode(StatusCodes.Status499ClientClosedRequest);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogError("Embedding provider call timed out after 15s");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new ErrorResponse { Detail = "Embedding service timed out. Please try again later." });
             }
             catch (Polly.CircuitBreaker.BrokenCircuitException)
             {
@@ -108,7 +135,7 @@ public class QueryController : ControllerBase
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to embed query after retries: {Query}", request.Query);
+                _logger.LogError(ex, "Failed to embed query after retries: {Query}", queryText);
                 return StatusCode(StatusCodes.Status503ServiceUnavailable,
                     new ErrorResponse { Detail = "Failed to generate query embedding. Please try again." });
             }
@@ -160,14 +187,14 @@ public class QueryController : ControllerBase
             _logger.LogInformation(
                 "Query completed: found {ResultCount} documents for query '{Query}' with k={K}",
                 response.Length,
-                request.Query.Length > 50 ? request.Query[..50] + "..." : request.Query,
+                queryText.Length > 50 ? queryText[..50] + "..." : queryText,
                 request.K);
 
             return Ok(response);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error during query: {Query}", request.Query);
+            _logger.LogError(ex, "Unexpected error during query: {Query}", queryText);
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new ErrorResponse { Detail = "An unexpected error occurred while processing your query." });
         }

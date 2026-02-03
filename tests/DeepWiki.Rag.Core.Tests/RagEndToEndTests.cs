@@ -40,14 +40,14 @@ public class RagEndToEndTests
         // Set up services
         _vectorStore = new InMemoryVectorStore();
         _encoderFactory = new TokenEncoderFactory(null);
-        _tokenizationService = new TokenizationService(_encoderFactory, null);
+        _tokenizationService = new TokenizationService(_encoderFactory, Microsoft.Extensions.Logging.Abstractions.NullLogger<TokenizationService>.Instance);
         _embeddingService = new FixtureEmbeddingService(_sampleEmbeddings);
 
         _ingestionService = new DocumentIngestionService(
             _vectorStore,
             _tokenizationService,
             _embeddingService,
-            null);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<DocumentIngestionService>.Instance);
     }
 
     #region Fixture Loading

@@ -29,7 +29,7 @@ public class PerformanceTests
         _vectorStore = new InMemoryVectorStore();
 
         var encoderFactory = new TokenEncoderFactory(null);
-        _tokenizationService = new TokenizationService(encoderFactory, null);
+        _tokenizationService = new TokenizationService(encoderFactory, Microsoft.Extensions.Logging.Abstractions.NullLogger<TokenizationService>.Instance);
 
         _embeddingService = new StubEmbeddingService();
 
@@ -37,7 +37,7 @@ public class PerformanceTests
             _vectorStore,
             _tokenizationService,
             _embeddingService,
-            null);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<DocumentIngestionService>.Instance);
     }
 
     #region T202: Benchmark QueryAsync latency for k=10 on 10k documents (SC-001)

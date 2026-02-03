@@ -13,6 +13,9 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+        // Enable DI validation to catch misconfigurations early when building the provider (useful for debugging)
+        builder.Host.UseDefaultServiceProvider(opts => { opts.ValidateScopes = true; opts.ValidateOnBuild = true; });
+
         // Add service defaults & Aspire client integrations.
         builder.AddServiceDefaults();
 
@@ -84,8 +87,13 @@ public class Program
         builder.Services.AddSingleton<DeepWiki.Rag.Core.VectorStore.VectorStoreFactory>();
         builder.Services.AddScoped<DeepWiki.Data.Abstractions.IVectorStore>(sp =>
         {
+            // Lightweight logging for DI-time diagnosis
+            var regLogger = sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()?.CreateLogger("Startup.VectorStoreRegistration");
+
             var factory = sp.GetRequiredService<DeepWiki.Rag.Core.VectorStore.VectorStoreFactory>();
             var provider = builder.Configuration.GetValue<string>("VectorStore:Provider") ?? "postgres";
+
+            regLogger?.LogInformation("Resolving IVectorStore for provider '{Provider}'. ProviderAvailable={ProviderAvailable}", provider, factory.IsProviderAvailable(provider));
             
             // If configured provider is not available, either throw or optionally fall back to NoOp
             // New config: VectorStore:AllowNoOpFallback (bool). Default: false (throw) to fail fast when misconfigured.
@@ -105,6 +113,7 @@ public class Program
                 return new DeepWiki.Rag.Core.VectorStore.NoOpVectorStore();
             }
 
+            regLogger?.LogInformation("Creating IVectorStore implementation for provider '{Provider}'", provider);
             return factory.Create(sp);
         });
 
@@ -121,8 +130,11 @@ public class Program
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Embedding.EmbeddingServiceFactory>();
         builder.Services.AddSingleton<DeepWiki.Data.Abstractions.IEmbeddingService>(sp =>
         {
+            var regLogger = sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()?.CreateLogger("Startup.EmbeddingRegistration");
+
             var factory = sp.GetRequiredService<DeepWiki.Rag.Core.Embedding.EmbeddingServiceFactory>();
             var provider = builder.Configuration.GetValue<string>("Embedding:Provider");
+            regLogger?.LogInformation("Resolving IEmbeddingService for provider '{Provider}'. ProviderAvailable={ProviderAvailable}", provider ?? "(not set)", factory.IsProviderAvailable(provider ?? string.Empty));
             
             // If no provider is configured or configured provider is not available, use NoOp
             if (string.IsNullOrEmpty(provider) || !factory.IsProviderAvailable(provider))
@@ -135,6 +147,7 @@ public class Program
                 return new DeepWiki.Rag.Core.Embedding.NoOpEmbeddingService();
             }
             
+            regLogger?.LogInformation("Creating IEmbeddingService implementation for provider '{Provider}'", provider);
             return factory.Create();
         });
 

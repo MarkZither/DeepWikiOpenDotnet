@@ -10,7 +10,7 @@ namespace DeepWiki.Rag.Core.Tokenization;
 public sealed class TokenizationService : ITokenizationService
 {
     private readonly TokenEncoderFactory _encoderFactory;
-    private readonly ILogger<TokenizationService>? _logger;
+    private readonly ILogger<TokenizationService> _logger;
 
     // Cache encoders for frequently used models to avoid recreation
     private readonly Dictionary<string, ITokenEncoder> _encoderCache = new(StringComparer.OrdinalIgnoreCase);
@@ -21,10 +21,13 @@ public sealed class TokenizationService : ITokenizationService
     /// </summary>
     /// <param name="encoderFactory">Factory for creating provider-specific token encoders.</param>
     /// <param name="logger">Optional logger.</param>
-    public TokenizationService(TokenEncoderFactory encoderFactory, ILogger<TokenizationService>? logger = null)
+    public TokenizationService(TokenEncoderFactory encoderFactory, ILogger<TokenizationService> logger)
     {
         _encoderFactory = encoderFactory ?? throw new ArgumentNullException(nameof(encoderFactory));
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        // Construction log to trace when the tokenization service is resolved
+        _logger.LogInformation("TokenizationService constructed. EncoderFactoryType={EncoderFactoryType}", encoderFactory?.GetType().Name);
     }
 
     /// <inheritdoc />
@@ -38,7 +41,7 @@ public sealed class TokenizationService : ITokenizationService
         var encoder = GetOrCreateEncoder(modelId);
         var count = encoder.CountTokens(text);
 
-        _logger?.LogDebug("Counted {TokenCount} tokens for text of length {Length} using model {Model}",
+        _logger.LogDebug("Counted {TokenCount} tokens for text of length {Length} using model {Model}",
             count, text.Length, modelId);
 
         return Task.FromResult(count);
@@ -64,14 +67,13 @@ public sealed class TokenizationService : ITokenizationService
         var language = Chunker.DetectLanguage(text);
 
         // Create chunker with the appropriate encoder
-        var chunker = new Chunker(encoder, _logger is not null
-            ? Microsoft.Extensions.Logging.LoggerFactoryExtensions.CreateLogger<Chunker>(
-                new LoggerFactory([new LoggerProvider(_logger)]))
-            : null);
+        // Create chunker with the service logger
+        var chunker = new Chunker(encoder, Microsoft.Extensions.Logging.LoggerFactoryExtensions.CreateLogger<Chunker>(
+                new LoggerFactory([new LoggerProvider(_logger)])));
 
         var chunks = chunker.ChunkText(text, maxTokens, parentId, language);
 
-        _logger?.LogDebug("Chunked text of length {Length} into {ChunkCount} chunks using model {Model}",
+        _logger.LogDebug("Chunked text of length {Length} into {ChunkCount} chunks using model {Model}",
             text.Length, chunks.Count, effectiveModelId);
 
         // Validate word boundaries
@@ -79,7 +81,7 @@ public sealed class TokenizationService : ITokenizationService
         {
             if (!Chunker.ValidateWordBoundaries(chunk, text))
             {
-                _logger?.LogWarning("Chunk {ChunkIndex} has mid-word split boundaries", chunk.ChunkIndex);
+                _logger.LogWarning("Chunk {ChunkIndex} has mid-word split boundaries", chunk.ChunkIndex);
             }
         }
 

@@ -27,7 +27,7 @@ public class DocumentIngestionIntegrationTests
         _vectorStore = new InMemoryVectorStore();
 
         var encoderFactory = new TokenEncoderFactory(null);
-        _tokenizationService = new TokenizationService(encoderFactory, null);
+        _tokenizationService = new TokenizationService(encoderFactory, Microsoft.Extensions.Logging.Abstractions.NullLogger<TokenizationService>.Instance);
 
         _embeddingService = new StubEmbeddingService();
 
@@ -35,7 +35,7 @@ public class DocumentIngestionIntegrationTests
             _vectorStore,
             _tokenizationService,
             _embeddingService,
-            null);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<DocumentIngestionService>.Instance);
     }
 
     private static float[] CreateTestEmbedding(int dimension)
