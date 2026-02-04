@@ -59,6 +59,7 @@ public class Program
 
         // Register data layer services based on VectorStore:Provider configuration
         var vectorStoreProvider = builder.Configuration.GetValue<string>("VectorStore:Provider") ?? "postgres";
+        var dataLayerRegistered = false;
         
         if (vectorStoreProvider.Equals("postgres", StringComparison.OrdinalIgnoreCase))
         {
@@ -67,16 +68,11 @@ public class Program
             if (!string.IsNullOrWhiteSpace(connectionString))
             {
                 builder.Services.AddPostgresDataLayer(connectionString);
+                dataLayerRegistered = true;
                 
                 // Add health check for PostgreSQL
                 builder.Services.AddHealthChecks()
                     .AddDbContextCheck<DeepWiki.Data.Postgres.DbContexts.PostgresVectorDbContext>("PostgresVectorDbContext");
-            }
-            else
-            {
-                throw new InvalidOperationException(
-                    "VectorStore:Provider is set to 'postgres' but ConnectionStrings:deepwikidb is not configured. " +
-                    "Configure the connection string in appsettings.json or user secrets.");
             }
         }
         else if (vectorStoreProvider.Equals("sqlserver", StringComparison.OrdinalIgnoreCase) || 
@@ -89,21 +85,18 @@ public class Program
             if (!string.IsNullOrWhiteSpace(connectionString))
             {
                 builder.Services.AddSqlServerDataLayer(connectionString);
+                dataLayerRegistered = true;
                 
                 // Add health check for SQL Server
                 builder.Services.AddHealthChecks()
                     .AddDbContextCheck<DeepWiki.Data.SqlServer.DbContexts.SqlServerVectorDbContext>("SqlServerVectorDbContext");
             }
-            else
-            {
-                throw new InvalidOperationException(
-                    "VectorStore:Provider is set to 'sqlserver' but no connection string is configured. " +
-                    "Set ConnectionStrings:SqlServer or VectorStore:SqlServer:ConnectionString in appsettings.json or user secrets.");
-            }
         }
-        else
+        
+        if (!dataLayerRegistered)
         {
-            // No recognized provider configured - IVectorStore factory will handle fallback to NoOp if allowed
+            // No data layer registered - add minimal health checks
+            // IDocumentRepository will need to be provided by test fixtures or will fail at DI resolution time
             builder.Services.AddHealthChecks();
         }
 
