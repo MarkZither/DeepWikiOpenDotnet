@@ -1,5 +1,6 @@
 using DeepWiki.ApiService.Models;
 using DeepWiki.ApiService.Tests.Api;
+using DeepWiki.ApiService.Tests.TestUtilities;
 using DeepWiki.Data.Abstractions;
 using DeepWiki.Data.Abstractions.Models;
 using Microsoft.Extensions.DependencyInjection;
@@ -348,7 +349,7 @@ public class DocumentsControllerIngestTests : IClassFixture<ApiTestFixture>
                     }
                     
                     // Add a no-op repository for testing
-                    services.AddScoped<DeepWiki.Data.Interfaces.IDocumentRepository>(_ => new NoOpRepository());
+                    services.AddScoped<DeepWiki.Data.Interfaces.IDocumentRepository>(_ => new NoOpDocumentRepository());
                 });
             });
 
@@ -466,32 +467,5 @@ public class DocumentsControllerIngestTests : IClassFixture<ApiTestFixture>
             };
             return Task.FromResult<IReadOnlyList<ChunkEmbeddingResult>>(results);
         }
-    }
-    
-    /// <summary>
-    /// No-op implementation of IDocumentRepository for testing.
-    /// </summary>
-    private class NoOpRepository : DeepWiki.Data.Interfaces.IDocumentRepository
-    {
-        public Task AddAsync(DeepWiki.Data.Entities.DocumentEntity document, CancellationToken cancellationToken = default) 
-            => Task.CompletedTask;
-            
-        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) 
-            => Task.CompletedTask;
-            
-        public Task<List<DeepWiki.Data.Entities.DocumentEntity>> GetByRepoAsync(string repoUrl, int skip = 0, int take = 100, CancellationToken cancellationToken = default) 
-            => Task.FromResult(new List<DeepWiki.Data.Entities.DocumentEntity>());
-            
-        public Task<DeepWiki.Data.Entities.DocumentEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) 
-            => Task.FromResult<DeepWiki.Data.Entities.DocumentEntity?>(null);
-            
-        public Task UpdateAsync(DeepWiki.Data.Entities.DocumentEntity document, CancellationToken cancellationToken = default) 
-            => Task.CompletedTask;
-            
-        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) 
-            => Task.FromResult(false);
-            
-        public Task<(List<DeepWiki.Data.Entities.DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, CancellationToken cancellationToken = default) 
-            => Task.FromResult((new List<DeepWiki.Data.Entities.DocumentEntity>(), 0));
     }
 }
