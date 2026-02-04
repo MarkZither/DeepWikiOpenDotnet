@@ -2,8 +2,6 @@ using DeepWiki.ApiService.Models;
 using DeepWiki.Data.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 using Polly;
-using Polly.CircuitBreaker;
-using Polly.Retry;
 using System.Text.Json;
 
 namespace DeepWiki.ApiService.Controllers;
@@ -25,46 +23,13 @@ public class QueryController : ControllerBase
     public QueryController(
         IVectorStore vectorStore,
         IEmbeddingService embeddingService,
-        ILogger<QueryController> logger)
+        ILogger<QueryController> logger,
+        ResiliencePipeline embeddingResiliencePipeline)
     {
         _vectorStore = vectorStore ?? throw new ArgumentNullException(nameof(vectorStore));
         _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
-        // Configure resilience pipeline for embedding service calls (Polly v8 API)
-        _embeddingResiliencePipeline = new ResiliencePipelineBuilder()
-            .AddRetry(new RetryStrategyOptions
-            {
-                ShouldHandle = new PredicateBuilder().Handle<Exception>(),
-                MaxRetryAttempts = 3,
-                Delay = TimeSpan.FromSeconds(1),
-                BackoffType = DelayBackoffType.Exponential,
-                OnRetry = args =>
-                {
-                    _logger.LogWarning(
-                        "Embedding service retry attempt {AttemptNumber} after {Delay}ms. Exception: {Exception}",
-                        args.AttemptNumber,
-                        args.RetryDelay.TotalMilliseconds,
-                        args.Outcome.Exception?.Message);
-                    return ValueTask.CompletedTask;
-                }
-            })
-            .AddCircuitBreaker(new CircuitBreakerStrategyOptions
-            {
-                ShouldHandle = new PredicateBuilder().Handle<Exception>(),
-                FailureRatio = 0.5,
-                SamplingDuration = TimeSpan.FromSeconds(30),
-                MinimumThroughput = 5,
-                BreakDuration = TimeSpan.FromSeconds(30),
-                OnOpened = args =>
-                {
-                    _logger.LogError(
-                        "Circuit breaker opened for embedding service. Will retry after {BreakDuration}s",
-                        args.BreakDuration.TotalSeconds);
-                    return ValueTask.CompletedTask;
-                }
-            })
-            .Build();
+        _embeddingResiliencePipeline = embeddingResiliencePipeline ?? throw new ArgumentNullException(nameof(embeddingResiliencePipeline));
     }
 
     /// <summary>
