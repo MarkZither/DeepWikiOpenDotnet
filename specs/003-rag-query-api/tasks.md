@@ -164,13 +164,13 @@
 
 **Purpose**: Final improvements affecting all user stories
 
-- [ ] T051 [P] Add OpenAPI annotations to all endpoints in QueryController and DocumentsController
-- [ ] T052 [P] Update appsettings.json with VectorStore configuration section
-- [ ] T053 [P] Update appsettings.Development.json with sample VectorStore configuration
-- [ ] T054 Add endpoint registration in Program.cs (MapControllers or minimal API groups)
-- [ ] T055 [P] Validate all endpoints match contracts/openapi.yaml specification
-- [ ] T056 [P] Run quickstart.md validation - verify all curl examples work
-- [ ] T057 Final code review and cleanup
+- [X] T051 [P] Add OpenAPI annotations to all endpoints in QueryController and DocumentsController
+- [X] T052 [P] Update appsettings.json with VectorStore configuration section
+- [X] T053 [P] Update appsettings.Development.json with sample VectorStore configuration
+- [X] T054 Add endpoint registration in Program.cs (MapControllers or minimal API groups)
+- [X] T055 [P] Validate all endpoints match contracts/openapi.yaml specification
+- [X] T056 [P] Run quickstart.md validation - verify all curl examples work
+- [X] T057 Final code review and cleanup
 
 ---
 

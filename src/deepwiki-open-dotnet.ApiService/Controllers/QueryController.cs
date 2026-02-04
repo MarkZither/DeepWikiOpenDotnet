@@ -13,6 +13,8 @@ namespace DeepWiki.ApiService.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
+[ApiExplorerSettings(GroupName = "v1")]
 public class QueryController : ControllerBase
 {
     private readonly IVectorStore _vectorStore;

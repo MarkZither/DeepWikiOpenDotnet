@@ -14,6 +14,8 @@ namespace DeepWiki.ApiService.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
+[ApiExplorerSettings(GroupName = "v1")]
 public class DocumentsController : ControllerBase
 {
     private readonly IDocumentIngestionService _ingestionService;

@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UserSecretsId>9c76134a-1512-41df-bfb4-ecacb612ec66</UserSecretsId>
+    <!-- Generate XML documentation for OpenAPI and documentation consumers -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
