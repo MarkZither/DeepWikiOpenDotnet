@@ -1,7 +1,7 @@
 using DeepWiki.ApiService.Configuration;
+using DeepWiki.Data.Postgres.DependencyInjection;
+using DeepWiki.Data.SqlServer.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
-using Pgvector.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using System.Threading.RateLimiting;
 
@@ -52,33 +52,60 @@ public class Program
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
         builder.Services.AddOpenApi();
 
-        // --- Database context ---
-        // Register PostgreSQL DbContext with pgvector support
-        // Aspire provides the connection string via configuration, we configure pgvector at EF Core level
-        builder.Services.AddDbContext<DeepWiki.Data.Postgres.DbContexts.PostgresVectorDbContext>((sp, options) =>
-        {
-            var connectionString = builder.Configuration.GetConnectionString("deepwikidb");
-            if (!string.IsNullOrEmpty(connectionString))
-            {
-                options.UseNpgsql(connectionString, npgsqlOptions => npgsqlOptions.UseVector());
-            }
-        });
-        
-        // Add health check for PostgreSQL
-        builder.Services.AddHealthChecks()
-            .AddDbContextCheck<DeepWiki.Data.Postgres.DbContexts.PostgresVectorDbContext>("PostgresVectorDbContext");
-
         // --- Vector store & RAG services ---
         // Register VectorStore configuration options
         builder.Services.Configure<VectorStoreOptions>(
             builder.Configuration.GetSection(VectorStoreOptions.SectionName));
 
-        // Register PostgreSQL services (repository and vector store)
-        // Note: The connection string is already configured by Aspire via AddNpgsqlDbContext above
-        // We only need to register the repositories and adapters
-        builder.Services.AddScoped<DeepWiki.Data.Interfaces.IDocumentRepository, DeepWiki.Data.Postgres.Repositories.PostgresDocumentRepository>();
-        builder.Services.AddScoped<DeepWiki.Data.Interfaces.IPersistenceVectorStore, DeepWiki.Data.Postgres.Repositories.PostgresVectorStore>();
-        builder.Services.AddScoped<DeepWiki.Data.Postgres.VectorStore.PostgresVectorStoreAdapter>();
+        // Register data layer services based on VectorStore:Provider configuration
+        var vectorStoreProvider = builder.Configuration.GetValue<string>("VectorStore:Provider") ?? "postgres";
+        
+        if (vectorStoreProvider.Equals("postgres", StringComparison.OrdinalIgnoreCase))
+        {
+            // Register PostgreSQL data layer (DbContext, IDocumentRepository, IPersistenceVectorStore)
+            var connectionString = builder.Configuration.GetConnectionString("deepwikidb");
+            if (!string.IsNullOrWhiteSpace(connectionString))
+            {
+                builder.Services.AddPostgresDataLayer(connectionString);
+                
+                // Add health check for PostgreSQL
+                builder.Services.AddHealthChecks()
+                    .AddDbContextCheck<DeepWiki.Data.Postgres.DbContexts.PostgresVectorDbContext>("PostgresVectorDbContext");
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "VectorStore:Provider is set to 'postgres' but ConnectionStrings:deepwikidb is not configured. " +
+                    "Configure the connection string in appsettings.json or user secrets.");
+            }
+        }
+        else if (vectorStoreProvider.Equals("sqlserver", StringComparison.OrdinalIgnoreCase) || 
+                 vectorStoreProvider.Equals("mssql", StringComparison.OrdinalIgnoreCase))
+        {
+            // Register SQL Server data layer (DbContext, IDocumentRepository, IPersistenceVectorStore)
+            var connectionString = builder.Configuration.GetConnectionString("SqlServer") 
+                ?? builder.Configuration.GetValue<string>("VectorStore:SqlServer:ConnectionString");
+            
+            if (!string.IsNullOrWhiteSpace(connectionString))
+            {
+                builder.Services.AddSqlServerDataLayer(connectionString);
+                
+                // Add health check for SQL Server
+                builder.Services.AddHealthChecks()
+                    .AddDbContextCheck<DeepWiki.Data.SqlServer.DbContexts.SqlServerVectorDbContext>("SqlServerVectorDbContext");
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "VectorStore:Provider is set to 'sqlserver' but no connection string is configured. " +
+                    "Set ConnectionStrings:SqlServer or VectorStore:SqlServer:ConnectionString in appsettings.json or user secrets.");
+            }
+        }
+        else
+        {
+            // No recognized provider configured - IVectorStore factory will handle fallback to NoOp if allowed
+            builder.Services.AddHealthChecks();
+        }
 
         // Register vector store via factory pattern
         // Configuration: Set "VectorStore:Provider" to "sqlserver" or "postgres" in appsettings.json
