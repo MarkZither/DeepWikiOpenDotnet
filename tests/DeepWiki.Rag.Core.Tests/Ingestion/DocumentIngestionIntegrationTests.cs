@@ -27,7 +27,8 @@ public class DocumentIngestionIntegrationTests
         _vectorStore = new InMemoryVectorStore();
 
         var encoderFactory = new TokenEncoderFactory(null);
-        _tokenizationService = new TokenizationService(encoderFactory, Microsoft.Extensions.Logging.Abstractions.NullLogger<TokenizationService>.Instance);
+        var loggerFactory = Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+        _tokenizationService = new TokenizationService(encoderFactory, Microsoft.Extensions.Logging.Abstractions.NullLogger<TokenizationService>.Instance, loggerFactory);
 
         _embeddingService = new StubEmbeddingService();
 

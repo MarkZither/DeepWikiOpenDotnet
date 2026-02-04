@@ -40,7 +40,8 @@ public class RagEndToEndTests
         // Set up services
         _vectorStore = new InMemoryVectorStore();
         _encoderFactory = new TokenEncoderFactory(null);
-        _tokenizationService = new TokenizationService(_encoderFactory, Microsoft.Extensions.Logging.Abstractions.NullLogger<TokenizationService>.Instance);
+        var loggerFactory = Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+        _tokenizationService = new TokenizationService(_encoderFactory, Microsoft.Extensions.Logging.Abstractions.NullLogger<TokenizationService>.Instance, loggerFactory);
         _embeddingService = new FixtureEmbeddingService(_sampleEmbeddings);
 
         _ingestionService = new DocumentIngestionService(
