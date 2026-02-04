@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using DeepWiki.Data.Abstractions;
+using DeepWiki.Data.Interfaces;
 using DeepWiki.Rag.Core.VectorStore;
+using DeepWiki.ApiService.Tests.TestUtilities;
 
 namespace DeepWiki.ApiService.Tests.Api;
 
@@ -30,6 +32,17 @@ public class ApiTestFixture : WebApplicationFactory<DeepWiki.ApiService.Program>
             
             // Register NoOpVectorStore for tests (individual tests can override with mocks)
             services.AddScoped<IVectorStore, NoOpVectorStore>();
+            
+            // Remove production IDocumentRepository registration if present and replace with NoOp for testing
+            var repositoryDescriptor = services.FirstOrDefault(d => 
+                d.ServiceType == typeof(IDocumentRepository));
+            if (repositoryDescriptor != null)
+            {
+                services.Remove(repositoryDescriptor);
+            }
+            
+            // Register NoOpDocumentRepository for tests (individual tests can override with mocks)
+            services.AddScoped<IDocumentRepository, NoOpDocumentRepository>();
             
             // Override configuration for test environment
             builder.ConfigureAppConfiguration((context, config) =>

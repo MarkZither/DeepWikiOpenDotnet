@@ -1,5 +1,6 @@
 using DeepWiki.ApiService.Models;
 using DeepWiki.ApiService.Tests.Api;
+using DeepWiki.ApiService.Tests.TestUtilities;
 using DeepWiki.Data.Abstractions;
 using DeepWiki.Data.Abstractions.Models;
 using Microsoft.Extensions.DependencyInjection;
@@ -339,6 +340,16 @@ public class DocumentsControllerIngestTests : IClassFixture<ApiTestFixture>
 
                     // Add mock that returns test data
                     services.AddScoped<IDocumentIngestionService>(_ => new MockIngestionService());
+                    
+                    // Remove production IDocumentRepository registration if present
+                    var repoDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(DeepWiki.Data.Interfaces.IDocumentRepository));
+                    if (repoDescriptor != null)
+                    {
+                        services.Remove(repoDescriptor);
+                    }
+                    
+                    // Add a no-op repository for testing
+                    services.AddScoped<DeepWiki.Data.Interfaces.IDocumentRepository>(_ => new NoOpDocumentRepository());
                 });
             });
 
