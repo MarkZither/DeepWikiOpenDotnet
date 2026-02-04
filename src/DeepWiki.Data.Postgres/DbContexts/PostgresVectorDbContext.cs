@@ -7,6 +7,8 @@ namespace DeepWiki.Data.Postgres.DbContexts;
 /// <summary>
 /// EF Core DbContext for PostgreSQL vector database.
 /// Provides DbSet for documents and configures connection, retry policy, and logging.
+/// Note: UseVector() for pgvector support must be configured at service registration, not here,
+/// because Aspire uses DbContext pooling which doesn't allow OnConfiguring overrides.
 /// </summary>
 public class PostgresVectorDbContext : DbContext
 {
@@ -21,29 +23,10 @@ public class PostgresVectorDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         
+        // Enable pgvector extension
+        modelBuilder.HasPostgresExtension("vector");
+        
         // Apply entity configuration
         modelBuilder.ApplyConfiguration(new DocumentEntityConfiguration());
-    }
-
-    /// <summary>
-    /// Configures default retry policy for transient PostgreSQL failures.
-    /// Note: This is only used when DbContext is instantiated without explicit options.
-    /// The factory (design-time) provides fully configured options, so this won't be called during migrations.
-    /// </summary>
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        base.OnConfiguring(optionsBuilder);
-
-        // Only configure if not already configured (e.g., DI container hasn't set options yet)
-        if (!optionsBuilder.IsConfigured)
-        {
-            // This path is only for scenarios where DbContext is created without explicit options
-            optionsBuilder.UseNpgsql(c => c
-                .EnableRetryOnFailure(
-                    maxRetryCount: 3,
-                    maxRetryDelay: TimeSpan.FromSeconds(30),
-                    errorCodesToAdd: null)
-            );
-        }
     }
 }

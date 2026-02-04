@@ -5,10 +5,44 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "type": "aspire",
+            "name": "Aspire: AppHost (Dashboard + All Services)",
+            "type": "coreclr",
             "request": "launch",
-            "name": "Aspire: Launch default apphost",
-            "program": "${workspaceFolder}"
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/src/deepwiki-open-dotnet.AppHost/bin/Debug/net10.0/deepwiki-open-dotnet.AppHost.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/deepwiki-open-dotnet.AppHost",
+            "stopAtEntry": false,
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+                "uriFormat": "%s"
+            },
+            "console": "internalConsole",
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "DOTNET_ENVIRONMENT": "Development"
+            }
+        },
+        {
+            "name": "Launch API with Scalar (Standalone)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/src/deepwiki-open-dotnet.ApiService/bin/Debug/net10.0/deepwiki-open-dotnet.ApiService.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/deepwiki-open-dotnet.ApiService",
+            "stopAtEntry": false,
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+                "uriFormat": "%s/scalar/v1"
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "http://localhost:5000"
+            },
+            "console": "internalConsole"
         }
     ]
 }

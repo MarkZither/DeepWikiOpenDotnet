@@ -1,0 +1,483 @@
+openapi: 3.0.3
+info:
+  title: DeepWiki RAG Query API
+  description: |
+    REST API for semantic document search, document management, and content ingestion.
+    Integrates with vector store backends (SQL Server 2025, PostgreSQL with pgvector).
+    
+    ## Authentication
+    Anonymous access for MVP. Future versions will add authentication.
+    
+    ## Rate Limiting
+    100 requests per minute per IP address. Returns 429 when exceeded.
+    
+    ## Error Responses
+    All errors return `{"detail": "error message"}` format for Python API parity.
+  version: 1.0.0
+  contact:
+    name: DeepWiki Team
+
+servers:
+  - url: /api
+    description: API base path
+
+tags:
+  - name: Query
+    description: Semantic search operations
+  - name: Documents
+    description: Document CRUD operations
+  - name: Ingestion
+    description: Document ingestion operations
+
+paths:
+  /query:
+    post:
+      tags: [Query]
+      summary: Semantic document search
+      description: |
+        Submit a natural language query and receive semantically similar documents
+        from the vector store, ordered by similarity score.
+      operationId: queryDocuments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            examples:
+              simple:
+                summary: Simple query
+                value:
+                  query: "How do I implement authentication?"
+                  k: 10
+              filtered:
+                summary: Query with repository filter
+                value:
+                  query: "Database connection patterns"
+                  k: 5
+                  filters:
+                    repoUrl: "https://github.com/example/repo"
+                  includeFullText: true
+      responses:
+        '200':
+          description: Search results ordered by similarity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QueryResultItem'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Embedding service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents:
+    get:
+      tags: [Documents]
+      summary: List documents with pagination
+      description: Retrieve a paginated list of all documents in the vector store.
+      operationId: listDocuments
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-based)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: Items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: repoUrl
+          in: query
+          description: Filter by repository URL
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated document list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentListResponse'
+        '400':
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/{id}:
+    get:
+      tags: [Documents]
+      summary: Get document by ID
+      description: Retrieve a single document by its unique identifier.
+      operationId: getDocument
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Document ID (GUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Document details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDto'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [Documents]
+      summary: Delete document
+      description: Remove a document from the vector store.
+      operationId: deleteDocument
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Document ID (GUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Document deleted successfully
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/ingest:
+    post:
+      tags: [Ingestion]
+      summary: Ingest documents
+      description: |
+        Submit documents for chunking, embedding, and storage in the vector store.
+        Supports batch processing with configurable error handling.
+      operationId: ingestDocuments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestRequest'
+            examples:
+              single:
+                summary: Single document
+                value:
+                  documents:
+                    - repoUrl: "https://github.com/example/repo"
+                      filePath: "docs/README.md"
+                      title: "Project README"
+                      text: "# My Project\n\nThis is the project documentation..."
+              batch:
+                summary: Batch ingestion
+                value:
+                  documents:
+                    - repoUrl: "https://github.com/example/repo"
+                      filePath: "src/main.cs"
+                      title: "Main Entry Point"
+                      text: "using System;\n\nnamespace Example..."
+                    - repoUrl: "https://github.com/example/repo"
+                      filePath: "src/utils.cs"
+                      title: "Utility Functions"
+                      text: "namespace Example.Utils..."
+                  continueOnError: true
+                  batchSize: 10
+      responses:
+        '200':
+          description: Ingestion results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Embedding service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    QueryRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: Natural language search query
+          example: "How do I implement authentication in ASP.NET Core?"
+        k:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+          description: Maximum number of results to return
+        filters:
+          $ref: '#/components/schemas/QueryFilters'
+        includeFullText:
+          type: boolean
+          default: true
+          description: Whether to include full document text in results
+
+    QueryFilters:
+      type: object
+      properties:
+        repoUrl:
+          type: string
+          description: Filter by repository URL
+        filePath:
+          type: string
+          description: Filter by file path pattern
+
+    QueryResultItem:
+      type: object
+      required:
+        - id
+        - repoUrl
+        - filePath
+        - title
+        - similarityScore
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Document ID
+        repoUrl:
+          type: string
+          description: Source repository URL
+        filePath:
+          type: string
+          description: File path within repository
+        title:
+          type: string
+          description: Document title
+        text:
+          type: string
+          description: Full document text (when includeFullText=true)
+        similarityScore:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Cosine similarity score
+        metadata:
+          type: object
+          description: Document metadata
+
+    IngestRequest:
+      type: object
+      required:
+        - documents
+      properties:
+        documents:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/IngestDocument'
+        continueOnError:
+          type: boolean
+          default: true
+          description: Continue processing if individual documents fail
+        batchSize:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+          description: Batch size for parallel processing
+
+    IngestDocument:
+      type: object
+      required:
+        - repoUrl
+        - filePath
+        - title
+        - text
+      properties:
+        repoUrl:
+          type: string
+          description: Source repository URL
+        filePath:
+          type: string
+          description: File path within repository
+        title:
+          type: string
+          description: Document title
+        text:
+          type: string
+          maxLength: 5000000
+          description: Full document text content
+        metadata:
+          type: object
+          description: Optional metadata
+
+    IngestResponse:
+      type: object
+      properties:
+        successCount:
+          type: integer
+          description: Number of documents successfully ingested
+        failureCount:
+          type: integer
+          description: Number of documents that failed
+        totalChunks:
+          type: integer
+          description: Total chunks created
+        durationMs:
+          type: integer
+          format: int64
+          description: Processing duration in milliseconds
+        ingestedDocumentIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: IDs of successfully ingested documents
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/IngestError'
+
+    IngestError:
+      type: object
+      required:
+        - documentIdentifier
+        - message
+        - stage
+      properties:
+        documentIdentifier:
+          type: string
+          description: Identifier for the failed document
+        message:
+          type: string
+          description: Error message
+        stage:
+          type: string
+          description: Processing stage where failure occurred
+
+    DocumentDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        repoUrl:
+          type: string
+        filePath:
+          type: string
+        title:
+          type: string
+        text:
+          type: string
+        metadataJson:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        tokenCount:
+          type: integer
+        fileType:
+          type: string
+        isCode:
+          type: boolean
+        isImplementation:
+          type: boolean
+
+    DocumentListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentSummary'
+        totalCount:
+          type: integer
+          description: Total number of documents
+        page:
+          type: integer
+          description: Current page number
+        pageSize:
+          type: integer
+          description: Items per page
+        totalPages:
+          type: integer
+          description: Total number of pages
+
+    DocumentSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        repoUrl:
+          type: string
+        filePath:
+          type: string
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        tokenCount:
+          type: integer
+        fileType:
+          type: string
+        isCode:
+          type: boolean
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Error message

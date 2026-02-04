@@ -1,0 +1,55 @@
+# docker-compose for local development (persistent volumes)
+# Designed to work with Docker Compose or Podman Compose
+# Use `podman-compose up -d` or `docker compose up -d` to start
+
+version: '3.9'
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: deepwiki-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-deepwikidb}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} || exit 1"]
+      interval: 10s
+      retries: 10
+      timeout: 5s
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: deepwiki-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Your_strong_SA_password!}
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"${MSSQL_SA_PASSWORD}\" -Q \"SELECT 1\" 2>/dev/null || exit 1"]
+      interval: 10s
+      retries: 10
+      timeout: 5s
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    container_name: deepwiki-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-pgadmin@local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-pgadmin}
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  sqlserver_data:

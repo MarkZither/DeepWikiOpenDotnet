@@ -1,0 +1,31 @@
+# docker-compose for tests (ephemeral containers - no named volumes)
+# Use this when you want fresh DBs for short-lived test runs
+
+version: '3.9'
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: deepwiki-postgres-test
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-deepwikidb}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "15432:5432"  # mapped to avoid clash with debug/dev postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} || exit 1"]
+      interval: 5s
+      retries: 10
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: deepwiki-sqlserver-test
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Your_strong_SA_password!}
+    ports:
+      - "11433:1433"  # avoid clash with debug/dev sqlserver
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"${MSSQL_SA_PASSWORD}\" -Q \"SELECT 1\" 2>/dev/null || exit 1"]
+      interval: 5s
+      retries: 10

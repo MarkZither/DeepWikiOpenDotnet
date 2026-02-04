@@ -1,3 +1,24 @@
+# Release Notes: v1.1.0 - RAG Query API (Polish)
+
+**Release Date**: February 4, 2026  
+**Status**: Feature Complete ✅  
+**Type**: Minor Release
+
+---
+
+## Summary
+Phase 8 (Polish & Cross-Cutting Concerns) for the `003-rag-query-api` feature has been completed. This release includes OpenAPI annotations, configuration samples, OpenAPI contract validation tests, quickstart verification, and related cleanup documented in `specs/003-rag-query-api/tasks.md` (T051-T057 completed).
+
+### Highlights
+- ✅ Added OpenAPI annotations to `QueryController` and `DocumentsController`
+- ✅ Added `VectorStore` & `Embedding` sample configuration to `appsettings.json` and `appsettings.Development.json`
+- ✅ Added `OpenApiContractTests` to validate generated OpenAPI doc and quickstart curl examples
+- ✅ Enabled XML documentation generation for improved OpenAPI output
+- ✅ Validated endpoints vs `specs/003-rag-query-api/contracts/openapi.yaml`
+- ✅ Updated `specs/003-rag-query-api/tasks.md` to mark Phase 8 tasks T051–T057 as complete
+
+---
+
 # Release Notes: v1.0.0 - Multi-Database Data Access Layer
 
 **Release Date**: January 18, 2026  

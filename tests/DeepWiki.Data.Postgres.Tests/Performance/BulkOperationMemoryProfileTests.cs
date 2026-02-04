@@ -71,7 +71,7 @@ public class BulkOperationMemoryProfileTests : IAsyncLifetime
         // Act
         using (var context = new PostgresVectorDbContext(options))
         {
-            var vectorStore = new PostgresVectorStore(context);
+            var vectorStore = new PostgresVectorStore(context, Microsoft.Extensions.Logging.Abstractions.NullLogger<PostgresVectorStore>.Instance);
             await vectorStore.BulkUpsertAsync(documents);
         }
 
@@ -129,7 +129,7 @@ Result: {(peakMemoryMB < 500 ? "PASS" : "FAIL")} ({peakMemoryMB}MB)
             // Act: Bulk upsert with this batch size
             using (var context = new PostgresVectorDbContext(options))
             {
-                var vectorStore = new PostgresVectorStore(context);
+                var vectorStore = new PostgresVectorStore(context, Microsoft.Extensions.Logging.Abstractions.NullLogger<PostgresVectorStore>.Instance);
                 // Process in batches
                 for (int i = 0; i < allDocuments.Count; i += batchSize)
                 {
@@ -191,7 +191,7 @@ Batch Size: {batchSize}
         {
             using (var context = new PostgresVectorDbContext(options))
             {
-                var vectorStore = new PostgresVectorStore(context);
+                var vectorStore = new PostgresVectorStore(context, Microsoft.Extensions.Logging.Abstractions.NullLogger<PostgresVectorStore>.Instance);
                 await vectorStore.BulkUpsertAsync(documentsSet1);
             }
         });

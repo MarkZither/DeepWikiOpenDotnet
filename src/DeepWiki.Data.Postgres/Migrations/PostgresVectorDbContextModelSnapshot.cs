@@ -21,6 +21,7 @@ namespace DeepWiki.Data.Postgres.Migrations
                 .HasAnnotation("ProductVersion", "10.0.2")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("DeepWiki.Data.Entities.DocumentEntity", b =>
