@@ -9,7 +9,7 @@ on:
 
 env:
   DOTNET_VERSION: '10.x'
-  SOLUTION_PATH: 'deepwiki-open-dotnet.sln'
+  SOLUTION_PATH: 'deepwiki-open-dotnet.slnx'
 
 jobs:
   build:
