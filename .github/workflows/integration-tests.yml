@@ -14,7 +14,7 @@ on:
 
 env:
   DOTNET_VERSION: '10.x'
-  SOLUTION_PATH: 'deepwiki-open-dotnet.slnx'
+  SOLUTION_PATH: 'deepwiki-open-dotnet.sln'
 
 jobs:
   integration-tests:
