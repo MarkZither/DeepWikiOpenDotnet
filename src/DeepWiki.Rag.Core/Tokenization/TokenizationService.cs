@@ -11,6 +11,7 @@ public sealed class TokenizationService : ITokenizationService
 {
     private readonly TokenEncoderFactory _encoderFactory;
     private readonly ILogger<TokenizationService> _logger;
+    private readonly ILogger<Chunker> _chunkerLogger;
 
     // Cache encoders for frequently used models to avoid recreation
     private readonly Dictionary<string, ITokenEncoder> _encoderCache = new(StringComparer.OrdinalIgnoreCase);
@@ -20,11 +21,19 @@ public sealed class TokenizationService : ITokenizationService
     /// Creates a new tokenization service.
     /// </summary>
     /// <param name="encoderFactory">Factory for creating provider-specific token encoders.</param>
-    /// <param name="logger">Optional logger.</param>
-    public TokenizationService(TokenEncoderFactory encoderFactory, ILogger<TokenizationService> logger)
+    /// <param name="logger">Logger for the tokenization service.</param>
+    /// <param name="loggerFactory">Logger factory for creating loggers for dependencies.</param>
+    public TokenizationService(
+        TokenEncoderFactory encoderFactory,
+        ILogger<TokenizationService> logger,
+        ILoggerFactory loggerFactory)
     {
         _encoderFactory = encoderFactory ?? throw new ArgumentNullException(nameof(encoderFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+
+        // Create logger for Chunker once during construction instead of per-request
+        _chunkerLogger = loggerFactory.CreateLogger<Chunker>();
 
         // Construction log to trace when the tokenization service is resolved
         _logger.LogInformation("TokenizationService constructed. EncoderFactoryType={EncoderFactoryType}", encoderFactory?.GetType().Name);
@@ -66,10 +75,8 @@ public sealed class TokenizationService : ITokenizationService
         // Detect language for metadata
         var language = Chunker.DetectLanguage(text);
 
-        // Create chunker with the appropriate encoder
-        // Create chunker with the service logger
-        var chunker = new Chunker(encoder, Microsoft.Extensions.Logging.LoggerFactoryExtensions.CreateLogger<Chunker>(
-                new LoggerFactory([new LoggerProvider(_logger)])));
+        // Create chunker with the appropriate encoder and reused logger
+        var chunker = new Chunker(encoder, _chunkerLogger);
 
         var chunks = chunker.ChunkText(text, maxTokens, parentId, language);
 
@@ -110,14 +117,5 @@ public sealed class TokenizationService : ITokenizationService
             _encoderCache[key] = encoder;
             return encoder;
         }
-    }
-
-    /// <summary>
-    /// Helper class to create a logger for the chunker.
-    /// </summary>
-    private sealed class LoggerProvider(ILogger parentLogger) : ILoggerProvider
-    {
-        public ILogger CreateLogger(string categoryName) => parentLogger;
-        public void Dispose() { }
     }
 }

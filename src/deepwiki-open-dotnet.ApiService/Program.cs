@@ -2,6 +2,9 @@ using DeepWiki.ApiService.Configuration;
 using DeepWiki.Data.Postgres.DependencyInjection;
 using DeepWiki.Data.SqlServer.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using Pgvector.EntityFrameworkCore;
+using Polly;
 using Scalar.AspNetCore;
 using System.Threading.RateLimiting;
 
@@ -169,6 +172,48 @@ public class Program
             
             regLogger?.LogInformation("Creating IEmbeddingService implementation for provider '{Provider}'", provider);
             return factory.Create();
+        });
+
+        // Register resilience pipeline for embedding service calls as a singleton
+        // This avoids rebuilding the pipeline for every request, which is more efficient
+        builder.Services.AddSingleton<ResiliencePipeline>(sp =>
+        {
+            var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+            var logger = loggerFactory.CreateLogger("EmbeddingResiliencePipeline");
+
+            return new ResiliencePipelineBuilder()
+                .AddRetry(new Polly.Retry.RetryStrategyOptions
+                {
+                    ShouldHandle = new Polly.PredicateBuilder().Handle<Exception>(),
+                    MaxRetryAttempts = 3,
+                    Delay = TimeSpan.FromSeconds(1),
+                    BackoffType = Polly.DelayBackoffType.Exponential,
+                    OnRetry = args =>
+                    {
+                        logger.LogWarning(
+                            "Embedding service retry attempt {AttemptNumber} after {Delay}ms. Exception: {Exception}",
+                            args.AttemptNumber,
+                            args.RetryDelay.TotalMilliseconds,
+                            args.Outcome.Exception?.Message);
+                        return ValueTask.CompletedTask;
+                    }
+                })
+                .AddCircuitBreaker(new Polly.CircuitBreaker.CircuitBreakerStrategyOptions
+                {
+                    ShouldHandle = new Polly.PredicateBuilder().Handle<Exception>(),
+                    FailureRatio = 0.5,
+                    SamplingDuration = TimeSpan.FromSeconds(30),
+                    MinimumThroughput = 5,
+                    BreakDuration = TimeSpan.FromSeconds(30),
+                    OnOpened = args =>
+                    {
+                        logger.LogError(
+                            "Circuit breaker opened for embedding service. Will retry after {BreakDuration}s",
+                            args.BreakDuration.TotalSeconds);
+                        return ValueTask.CompletedTask;
+                    }
+                })
+                .Build();
         });
 
         // Register document ingestion service (Slice 4: orchestrates chunking, embedding, upsert)
