@@ -195,7 +195,7 @@ Total rough estimate: 4–8 weeks depending on team size and parallelization.
 
 ## MCP Server & Private Copilot Extension — Speckit-spec (MVP)
 
-**Summary:** Provide an MCP streaming RAG service and a private Copilot-like extension in two parallel features to reach a focused MVP quickly and safely.
+**Summary:** Provide an MCP streaming RAG service and a private github Copilot extension in two parallel features to reach a focused MVP quickly and safely.
 
 > Specify: This document contains two Speckit-ready feature specs (server + client). Each spec includes: a short feature description, clarify questions for product decisions, technical points, acceptance criteria, and a short file-level task list for implementation.
 
