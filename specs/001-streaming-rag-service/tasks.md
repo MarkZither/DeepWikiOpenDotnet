@@ -52,13 +52,13 @@
 
 ### Foundational Test Tasks (TDD - Write First)
 
-- [ ] T005a 🧪 [P] Write contract test for IGenerationService interface in tests/DeepWiki.Data.Abstractions.Tests/IGenerationServiceContractTests.cs (verify async enumerable signature, cancellation support)
-- [ ] T007a 🧪 [P] Write DTO serialization tests in tests/deepwiki-open-dotnet.Tests/Models/GenerationDTOTests.cs (GenerationDelta, SessionRequest, SessionResponse, PromptRequest, CancelRequest) - verify JSON round-trip, required fields, validation attributes; Note: ErrorResponse already exists in ApiService/Models/
-- [ ] T012a 🧪 [P] Write contract test for IModelProvider interface in tests/DeepWiki.Rag.Core.Tests/IModelProviderContractTests.cs (verify streaming signature, health check, cancellation)
-- [ ] T013a 🧪 [P] Write entity validation tests in tests/DeepWiki.Rag.Core.Tests/Models/SessionTests.cs (Session state transitions, validation rules, expiration logic)
-- [ ] T014a 🧪 [P] Write entity validation tests in tests/DeepWiki.Rag.Core.Tests/Models/PromptTests.cs (Prompt state transitions, idempotency key uniqueness, validation rules)
-- [ ] T016a 🧪 Write SessionManager unit tests in tests/DeepWiki.Rag.Core.Tests/Services/SessionManagerTests.cs (session creation, prompt creation, idempotency key checking, session expiration cleanup, concurrent access safety)
-- [ ] T017a 🧪 Write GenerationMetrics unit tests in tests/DeepWiki.Rag.Core.Tests/Observability/GenerationMetricsTests.cs (TTF recording, token counting, error rate tracking, metric emission validation)
+- [X] T005a 🧪 [P] Write contract test for IGenerationService interface in tests/DeepWiki.Data.Abstractions.Tests/IGenerationServiceContractTests.cs (verify async enumerable signature, cancellation support)
+- [X] T007a 🧪 [P] Write DTO serialization tests in tests/deepwiki-open-dotnet.Tests/Models/GenerationDTOTests.cs (GenerationDelta, SessionRequest, SessionResponse, PromptRequest, CancelRequest) - verify JSON round-trip, required fields, validation attributes; Note: ErrorResponse already exists in ApiService/Models/
+- [X] T012a 🧪 [P] Write contract test for IModelProvider interface in tests/DeepWiki.Rag.Core.Tests/IModelProviderContractTests.cs (verify streaming signature, health check, cancellation)
+- [X] T013a 🧪 [P] Write entity validation tests in tests/DeepWiki.Rag.Core.Tests/Models/SessionTests.cs (Session state transitions, validation rules, expiration logic)
+- [X] T014a 🧪 [P] Write entity validation tests in tests/DeepWiki.Rag.Core.Tests/Models/PromptTests.cs (Prompt state transitions, idempotency key uniqueness, validation rules)
+- [X] T016a 🧪 Write SessionManager unit tests in tests/DeepWiki.Rag.Core.Tests/Services/SessionManagerTests.cs (session creation, prompt creation, idempotency key checking, session expiration cleanup, concurrent access safety)
+- [X] T017a 🧪 Write GenerationMetrics unit tests in tests/DeepWiki.Rag.Core.Tests/Observability/GenerationMetricsTests.cs (TTF recording, token counting, error rate tracking, metric emission validation)
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
