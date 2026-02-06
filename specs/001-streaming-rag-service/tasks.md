@@ -3,9 +3,9 @@
 **Input**: Design documents from `/specs/001-streaming-rag-service/`
 **Prerequisites**: plan.md, spec.md (user stories), research.md, data-model.md, contracts/
 
-**Tests**: Tests are NOT explicitly requested in the feature specification. This task list focuses on implementation only. TDD can be added in a future iteration if desired.
+**Tests**: Tests are REQUIRED per Constitution Section I (Test-First). Test tasks are integrated throughout phases and MUST pass before corresponding implementation tasks can be considered complete. This follows TDD principles: write test → watch it fail → implement → watch it pass.
 
-**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
+**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story. Test tasks marked with 🧪 are blockers for implementation tasks.
 
 ## Format: `- [ ] [ID] [P?] [Story?] Description`
 
@@ -23,6 +23,8 @@
 - [ ] T002 Create directory structure for new components: src/DeepWiki.Data.Abstractions/DTOs/, src/DeepWiki.Rag.Core/Services/, src/DeepWiki.Rag.Core/Providers/, src/DeepWiki.Rag.Core/Streaming/
 - [ ] T003 [P] Add NuGet package references: AspNetCoreRateLimit (5.0+), OpenAI SDK (2.0.0+), System.Text.Json (if not already present)
 - [ ] T004 [P] Configure OpenTelemetry metrics instrumentation in src/deepwiki-open-dotnet.ServiceDefaults/Extensions.cs
+- [ ] T004a [P] 🧪 Create test project structure: tests/DeepWiki.Rag.Core.Tests/, tests/deepwiki-open-dotnet.Tests/Integration/
+- [ ] T004b [P] 🧪 Add test NuGet packages: xUnit (2.6+), Moq (4.20+), FluentAssertions (6.12+), Microsoft.AspNetCore.Mvc.Testing (10.0)
 
 ---
 
@@ -32,6 +34,8 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
+### Foundational Implementation Tasks
+
 - [ ] T005 Define IGenerationService interface in src/DeepWiki.Data.Abstractions/IGenerationService.cs with IAsyncEnumerable<GenerationDelta> GenerateAsync method
 - [ ] T006 [P] Create GenerationRequest DTO in src/DeepWiki.Data.Abstractions/DTOs/GenerationRequest.cs
 - [ ] T007 [P] Create GenerationDelta DTO in src/DeepWiki.Data.Abstractions/DTOs/GenerationDelta.cs with JSON serialization attributes
@@ -40,12 +44,22 @@
 - [ ] T010 [P] Create PromptRequest DTO in src/DeepWiki.Data.Abstractions/DTOs/PromptRequest.cs with validation attributes
 - [ ] T011 [P] Create CancelRequest DTO in src/DeepWiki.Data.Abstractions/DTOs/CancelRequest.cs
 - [ ] T012 Define IModelProvider interface in src/DeepWiki.Rag.Core/Providers/IModelProvider.cs with Name, IsAvailableAsync, StreamAsync methods
-- [ ] T013 Create Session entity class in src/DeepWiki.Rag.Core/Models/Session.cs per data-model.md schema
+- [ ] T013 Create Session entity class in src/DeepWiki.Rag.Core/Models/Session.cs per data-model.md schema (add ExpiresAt field for session expiration)
 - [ ] T014 [P] Create Prompt entity class in src/DeepWiki.Rag.Core/Models/Prompt.cs per data-model.md schema
 - [ ] T015 [P] Create SessionStatus and PromptStatus enums in src/DeepWiki.Rag.Core/Models/Enums.cs
 - [ ] T016 Implement SessionManager class in src/DeepWiki.Rag.Core/Services/SessionManager.cs with in-memory storage (ConcurrentDictionary) for sessions and prompts
 - [ ] T017 Implement GenerationMetrics class in src/DeepWiki.Rag.Core/Observability/GenerationMetrics.cs with TTF histogram, token counter, error counter
 - [ ] T018 Configure rate limiting middleware registration in src/deepwiki-open-dotnet.ApiService/Program.cs with IP-based token-bucket settings
+
+### Foundational Test Tasks (TDD - Write First)
+
+- [ ] T005a 🧪 [P] Write contract test for IGenerationService interface in tests/DeepWiki.Data.Abstractions.Tests/IGenerationServiceContractTests.cs (verify async enumerable signature, cancellation support)
+- [ ] T006a 🧪 [P] Write DTO serialization tests in tests/DeepWiki.Data.Abstractions.Tests/DTOSerializationTests.cs (GenerationRequest, GenerationDelta, SessionRequest, SessionResponse, PromptRequest, CancelRequest) - verify JSON round-trip, required fields, validation attributes
+- [ ] T012a 🧪 [P] Write contract test for IModelProvider interface in tests/DeepWiki.Rag.Core.Tests/IModelProviderContractTests.cs (verify streaming signature, health check, cancellation)
+- [ ] T013a 🧪 [P] Write entity validation tests in tests/DeepWiki.Rag.Core.Tests/Models/SessionTests.cs (Session state transitions, validation rules, expiration logic)
+- [ ] T014a 🧪 [P] Write entity validation tests in tests/DeepWiki.Rag.Core.Tests/Models/PromptTests.cs (Prompt state transitions, idempotency key uniqueness, validation rules)
+- [ ] T016a 🧪 Write SessionManager unit tests in tests/DeepWiki.Rag.Core.Tests/Services/SessionManagerTests.cs (session creation, prompt creation, idempotency key checking, session expiration cleanup, concurrent access safety)
+- [ ] T017a 🧪 Write GenerationMetrics unit tests in tests/DeepWiki.Rag.Core.Tests/Observability/GenerationMetricsTests.cs (TTF recording, token counting, error rate tracking, metric emission validation)
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -57,31 +71,43 @@
 
 **Independent Test**: Start stub server and extension against HTTP NDJSON endpoint; send prompt and verify token deltas are streamed, accept inserts text
 
-### Implementation for User Story 1
+### Test Tasks for User Story 1 (TDD - Write First) 🧪
 
-- [ ] T019 [P] [US1] Implement StreamNormalizer class in src/DeepWiki.Rag.Core/Streaming/StreamNormalizer.cs with sequence assignment, deduplication, UTF-8 validation
-- [ ] T020 [P] [US1] Implement OllamaProvider class in src/DeepWiki.Rag.Core/Providers/OllamaProvider.cs with HTTP streaming client for /api/generate endpoint
-- [ ] T021 [US1] Implement OllamaProvider.StreamAsync method with NDJSON parsing, delta mapping, and 30s stall timeout
-- [ ] T022 [US1] Implement OllamaProvider.IsAvailableAsync health check using /api/tags endpoint
-- [ ] T023 [US1] Implement GenerationService class in src/DeepWiki.Rag.Core/Services/GenerationService.cs orchestrating IVectorStore retrieval + IModelProvider generation
-- [ ] T024 [US1] Add RAG context building logic in GenerationService to format retrieved documents into system prompt
-- [ ] T025 [US1] Implement cancellation token propagation and timeout enforcement (30s) in GenerationService
-- [ ] T026 [US1] Add idempotency key checking in GenerationService to return cached responses for duplicate keys
-- [ ] T027 [US1] Wire StreamNormalizer into GenerationService pipeline to ensure sequence integrity
-- [ ] T028 [US1] Implement GenerationController.CreateSession endpoint (POST /api/generation/session) in src/deepwiki-open-dotnet.ApiService/Controllers/GenerationController.cs
-- [ ] T029 [US1] Implement GenerationController.StreamGeneration endpoint (POST /api/generation/stream) with IAsyncEnumerable<GenerationDelta> return type and application/x-ndjson content type
-- [ ] T030 [US1] Implement GenerationController.CancelGeneration endpoint (POST /api/generation/cancel) in src/deepwiki-open-dotnet.ApiService/Controllers/GenerationController.cs
+- [ ] T019a 🧪 [P] [US1] Write StreamNormalizer unit tests in tests/DeepWiki.Rag.Core.Tests/Streaming/StreamNormalizerTests.cs (sequence assignment, deduplication, UTF-8 incomplete byte handling, edge cases)
+- [ ] T020a 🧪 [P] [US1] Write OllamaProvider unit tests in tests/DeepWiki.Rag.Core.Tests/Providers/OllamaProviderTests.cs (NDJSON parsing, delta mapping, health check, 30s timeout, connection failure, provider stall scenario)
+- [ ] T023a 🧪 [US1] Write GenerationService unit tests in tests/DeepWiki.Rag.Core.Tests/Services/GenerationServiceTests.cs (RAG orchestration, context formatting, cancellation propagation, idempotency key caching, timeout enforcement, error delta emission)
+- [ ] T028a 🧪 [P] [US1] Write controller integration tests in tests/deepwiki-open-dotnet.Tests/Integration/GenerationControllerTests.cs using TestServer (session creation, streaming endpoint NDJSON format validation, cancel endpoint, error responses 400/404)
+- [ ] T034a 🧪 [US1] Write rate limiting integration tests in tests/deepwiki-open-dotnet.Tests/Integration/RateLimitingTests.cs (429 after limit exceeded, X-RateLimit-* headers, Retry-After header, legitimate traffic not blocked)
+- [ ] T036a 🧪 [US1] Write metrics validation tests in tests/DeepWiki.Rag.Core.Tests/Observability/MetricsIntegrationTests.cs (TTF recorded, tokens/sec emitted, token counts tracked, OpenTelemetry export validation)
+- [ ] T039a 🧪 [US1] Write cancellation latency test in tests/deepwiki-open-dotnet.Tests/Integration/CancellationTests.cs (verify SC-002: cancellation completes <200ms, no further deltas emitted, final done/error delta within 200ms)
+- [ ] T039b 🧪 [US1] Write edge case test suite in tests/deepwiki-open-dotnet.Tests/Integration/EdgeCaseTests.cs (provider stalls, duplicate tokens, partial UTF-8 sequences, concurrent cancel requests, idempotency key retries)
+- [ ] T039c 🧪 [US1] Write tokenization parity tests in tests/DeepWiki.Rag.Core.Tests/TokenizationParityTests.cs per FR-008 (critical flows: exact parity for schema outputs/code blocks/formatting; non-critical flows: <=5% tolerance, chunk boundary drift <=1 token)
+
+### Implementation Tasks for User Story 1
+
+- [ ] T019 [P] [US1] Implement StreamNormalizer class in src/DeepWiki.Rag.Core/Streaming/StreamNormalizer.cs with sequence assignment, deduplication, UTF-8 validation (tests T019a must pass)
+- [ ] T020 [P] [US1] Implement OllamaProvider class in src/DeepWiki.Rag.Core/Providers/OllamaProvider.cs with HTTP streaming client for /api/generate endpoint (tests T020a must pass)
+- [ ] T021 [US1] Implement OllamaProvider.StreamAsync method with NDJSON parsing, delta mapping, and 30s stall timeout (tests T020a must pass)
+- [ ] T022 [US1] Implement OllamaProvider.IsAvailableAsync health check using /api/tags endpoint (tests T020a must pass)
+- [ ] T023 [US1] Implement GenerationService class in src/DeepWiki.Rag.Core/Services/GenerationService.cs orchestrating IVectorStore retrieval + IModelProvider generation (tests T023a must pass)
+- [ ] T024 [US1] Add RAG context building logic in GenerationService to format retrieved documents into system prompt (tests T023a must pass)
+- [ ] T025 [US1] Implement cancellation token propagation and timeout enforcement (30s) in GenerationService (tests T023a, T039a must pass)
+- [ ] T026 [US1] Add idempotency key checking in GenerationService to return cached responses for duplicate keys (tests T023a, T039b must pass)
+- [ ] T027 [US1] Wire StreamNormalizer into GenerationService pipeline to ensure sequence integrity (tests T019a, T023a must pass)
+- [ ] T028 [US1] Implement GenerationController.CreateSession endpoint (POST /api/generation/session) in src/deepwiki-open-dotnet.ApiService/Controllers/GenerationController.cs (tests T028a must pass)
+- [ ] T029 [US1] Implement GenerationController.StreamGeneration endpoint (POST /api/generation/stream) with IAsyncEnumerable<GenerationDelta> return type and application/x-ndjson content type (tests T028a must pass)
+- [ ] T030 [US1] Implement GenerationController.CancelGeneration endpoint (POST /api/generation/cancel) in src/deepwiki-open-dotnet.ApiService/Controllers/GenerationController.cs (tests T028a, T039a must pass)
 - [ ] T031 [US1] Add dependency injection registration for IGenerationService, SessionManager, OllamaProvider in src/deepwiki-open-dotnet.ApiService/Program.cs
 - [ ] T032 [US1] Configure Ollama base URL from configuration (appsettings.json) with default http://localhost:11434
-- [ ] T033 [US1] Add error handling in GenerationController to convert exceptions to structured error deltas
-- [ ] T034 [US1] Implement rate limiting middleware using AspNetCoreRateLimit in src/deepwiki-open-dotnet.ApiService/Middleware/RateLimitingMiddleware.cs with 100 req/min per IP
+- [ ] T033 [US1] Add error handling in GenerationController to convert exceptions to structured error deltas (tests T028a must pass)
+- [ ] T034 [US1] Implement rate limiting middleware using AspNetCoreRateLimit in src/deepwiki-open-dotnet.ApiService/Middleware/RateLimitingMiddleware.cs with 100 req/min per IP (tests T034a must pass)
 - [ ] T035 [US1] Add rate limit configuration section to src/deepwiki-open-dotnet.ApiService/appsettings.json
-- [ ] T036 [US1] Wire up GenerationMetrics instrumentation in GenerationService to record TTF, tokens/sec, token counts
-- [ ] T037 [US1] Add request validation in GenerationController for empty prompts, invalid sessionIds, topK range checks
-- [ ] T038 [US1] Implement TTF measurement in GenerationService using Stopwatch from first request to first delta emission
+- [ ] T036 [US1] Wire up GenerationMetrics instrumentation in GenerationService to record TTF, tokens/sec, token counts (tests T036a must pass)
+- [ ] T037 [US1] Add request validation in GenerationController for empty prompts, invalid sessionIds, topK range checks (tests T028a must pass)
+- [ ] T038 [US1] Implement TTF measurement in GenerationService using Stopwatch from first request to first delta emission (tests T036a must pass, define "typical dev setup" baseline: 16GB RAM, Ollama vicuna-13b, local SSD)
 - [ ] T039 [US1] Add logging for session lifecycle (create, prompt submit, cancel, complete) using ILogger
 
-**Checkpoint**: User Story 1 complete - HTTP NDJSON streaming with Ollama provider, rate limiting, observability, cancellation
+**Checkpoint**: User Story 1 complete - HTTP NDJSON streaming with Ollama provider, rate limiting, observability, cancellation (all tests passing)
 
 ---
 
@@ -113,26 +139,34 @@
 
 **Independent Test**: Run provider failure scenarios (simulate disconnect) and validate server emits error delta and cleans up session
 
-### Implementation for User Story 3
+### Test Tasks for User Story 3 (TDD - Write First) 🧪
 
-- [ ] T049 [P] [US3] Implement OpenAIProvider class in src/DeepWiki.Rag.Core/Providers/OpenAIProvider.cs with SDK streaming integration
-- [ ] T050 [US3] Implement OpenAIProvider.StreamAsync using ChatClient.CompleteChatStreamingAsync with delta mapping and sequence tracking
-- [ ] T051 [US3] Implement OpenAIProvider.IsAvailableAsync health check with API connectivity test
+- [ ] T049a 🧪 [P] [US3] Write OpenAIProvider unit tests in tests/DeepWiki.Rag.Core.Tests/Providers/OpenAIProviderTests.cs (SDK streaming, delta mapping, sequence tracking, health check, connection failure)
+- [ ] T053a 🧪 [US3] Write provider selection tests in tests/DeepWiki.Rag.Core.Tests/Services/ProviderSelectionTests.cs (ordered fallback, circuit breaker logic, availability tracking, provider stall handling)
+- [ ] T054a 🧪 [US3] Write circuit breaker tests in tests/DeepWiki.Rag.Core.Tests/Services/CircuitBreakerTests.cs (repeated failures trigger circuit open, timeout before retry, successful request closes circuit)
+- [ ] T059a 🧪 [US3] Write metrics export validation test in tests/deepwiki-open-dotnet.Tests/Integration/PrometheusExportTests.cs (verify OpenTelemetry exports to Prometheus format, TTF/tokens/errors visible)
+- [ ] T060a 🧪 [P] [US3] Write health check endpoint tests in tests/deepwiki-open-dotnet.Tests/Integration/HealthCheckTests.cs (provider availability reported, degraded status when provider down)
+
+### Implementation Tasks for User Story 3
+
+- [ ] T049 [P] [US3] Implement OpenAIProvider class in src/DeepWiki.Rag.Core/Providers/OpenAIProvider.cs with SDK streaming integration (tests T049a must pass)
+- [ ] T050 [US3] Implement OpenAIProvider.StreamAsync using ChatClient.CompleteChatStreamingAsync with delta mapping and sequence tracking (tests T049a must pass)
+- [ ] T051 [US3] Implement OpenAIProvider.IsAvailableAsync health check with API connectivity test (tests T049a must pass)
 - [ ] T052 [US3] Add provider selection configuration in appsettings.json with ordered provider list (e.g., ["Ollama", "OpenAI"])
-- [ ] T053 [US3] Implement provider selection logic in GenerationService to try providers in order and fallback on failure
-- [ ] T054 [US3] Add circuit breaker logic in GenerationService to skip unavailable providers temporarily after repeated failures
-- [ ] T055 [US3] Implement error delta emission in GenerationService for provider timeout (30s stall) with structured metadata
-- [ ] T056 [US3] Implement error delta emission in GenerationService for provider connection failures with structured metadata
-- [ ] T057 [US3] Add cancellation cleanup logic in SessionManager to mark prompts as Cancelled and emit final done delta
-- [ ] T058 [US3] Implement Retry-After header calculation in rate limiting middleware for 429 responses
-- [ ] T059 [US3] Add Prometheus metrics export configuration in src/deepwiki-open-dotnet.ServiceDefaults/Extensions.cs for GenerationMetrics
-- [ ] T060 [US3] Create health check endpoint in GenerationController (GET /api/generation/health) reporting provider availability
-- [ ] T061 [US3] Add per-session token count tracking in SessionManager and Prompt entity
-- [ ] T062 [US3] Implement error rate counter in GenerationMetrics categorized by error type (timeout, unavailable, cancelled)
+- [ ] T053 [US3] Implement provider selection logic in GenerationService to try providers in order and fallback on failure (tests T053a must pass)
+- [ ] T054 [US3] Add circuit breaker logic in GenerationService to skip unavailable providers temporarily after repeated failures (tests T054a must pass)
+- [ ] T055 [US3] Implement error delta emission in GenerationService for provider timeout (30s stall) with structured metadata (tests T023a, T053a must pass)
+- [ ] T056 [US3] Implement error delta emission in GenerationService for provider connection failures with structured metadata (tests T023a, T053a must pass)
+- [ ] T057 [US3] Add cancellation cleanup logic in SessionManager to mark prompts as Cancelled and emit final done delta (tests T016a must pass)
+- [ ] T058 [US3] Implement Retry-After header calculation in rate limiting middleware for 429 responses (tests T034a must pass)
+- [ ] T059 [US3] Add Prometheus metrics export configuration in src/deepwiki-open-dotnet.ServiceDefaults/Extensions.cs for GenerationMetrics (tests T059a must pass)
+- [ ] T060 [US3] Create health check endpoint in GenerationController (GET /api/generation/health) reporting provider availability (tests T060a must pass)
+- [ ] T061 [US3] Add per-session token count tracking in SessionManager and Prompt entity (tests T016a must pass)
+- [ ] T062 [US3] Implement error rate counter in GenerationMetrics categorized by error type (timeout, unavailable, cancelled) (tests T017a must pass)
 - [ ] T063 [US3] Add logging for provider selection, fallback, and availability changes using ILogger
-- [ ] T064 [US3] Implement graceful shutdown handling in GenerationService to emit done deltas for in-flight prompts on app shutdown
+- [ ] T064 [US3] Implement graceful shutdown handling in GenerationService to emit done deltas for in-flight prompts on app shutdown (tests T023a must pass)
 
-**Checkpoint**: User Story 3 complete - provider switchover, error handling, comprehensive observability, ops readiness
+**Checkpoint**: User Story 3 complete - provider switchover, error handling, comprehensive observability, ops readiness (all tests passing)
 
 ---
 
@@ -140,15 +174,21 @@
 
 **Purpose**: Provide richer bidirectional communication for TypeScript/.NET clients (not MVP-blocking)
 
+### Test Tasks for SignalR 🧪
+
+- [ ] T065a 🧪 [P] Write SignalR contract parity tests in tests/deepwiki-open-dotnet.Tests/Integration/SignalRParityTests.cs (HTTP NDJSON vs SignalR delta sequences match for same input, schema validation)
+
+### Implementation Tasks for SignalR
+
 - [ ] T065 [P] Create GenerationHub SignalR hub class in src/deepwiki-open-dotnet.ApiService/Hubs/GenerationHub.cs
-- [ ] T066 [P] Implement GenerationHub.StartSession method
-- [ ] T067 [P] Implement GenerationHub.SendPrompt streaming method returning IAsyncEnumerable<GenerationDelta>
-- [ ] T068 [P] Implement GenerationHub.Cancel method
+- [ ] T066 [P] Implement GenerationHub.StartSession method (tests T065a must pass)
+- [ ] T067 [P] Implement GenerationHub.SendPrompt streaming method returning IAsyncEnumerable<GenerationDelta> (tests T065a must pass)
+- [ ] T068 [P] Implement GenerationHub.Cancel method (tests T065a must pass)
 - [ ] T069 Add SignalR endpoint registration in src/deepwiki-open-dotnet.ApiService/Program.cs with hub route /hubs/generation
 - [ ] T070 Add SignalR CORS policy configuration for local development and internal origins
-- [ ] T071 Document SignalR usage in quickstart.md with TypeScript client example
+- [ ] T071 Document SignalR usage in quickstart.md with TypeScript client example and add health check curl example
 
-**Checkpoint**: SignalR hub available as convenience transport with contract parity
+**Checkpoint**: SignalR hub available as convenience transport with contract parity (tests passing)
 
 ---
 
@@ -157,17 +197,21 @@
 **Purpose**: Improvements affecting multiple user stories
 
 - [ ] T072 [P] Update API documentation in README.md with links to quickstart.md and contracts/
+- [ ] T072a 🧪 [P] Validate OpenTelemetry metrics export to Grafana using docker-compose test environment (run all tests, verify TTF/tokens/errors visible in Grafana dashboard)
 - [ ] T073 [P] Add architecture diagram to specs/001-streaming-rag-service/ showing component relationships
-- [ ] T074 Add validation for session expiration (1 hour inactivity) in SessionManager with automatic cleanup
+- [ ] T073a 🧪 [P] Validate OpenAPI spec with Spectral linter in CI (ensure contracts/generation-service.yaml has no warnings)
+- [ ] T074 Add validation for session expiration (1 hour inactivity) in SessionManager with automatic cleanup (tests T016a must pass)
 - [ ] T075 [P] Add XML documentation comments to all public APIs (IGenerationService, IModelProvider, DTOs)
-- [ ] T076 Optimize memory usage in StreamNormalizer to avoid buffering entire response
-- [ ] T077 Add backpressure handling in GenerationService if client consumes deltas slowly
+- [ ] T076 Optimize memory usage in StreamNormalizer to avoid buffering entire response (benchmark with 10K token response)
+- [ ] T077 Add backpressure handling in GenerationService if client consumes deltas slowly (verify with slow client simulation test)
 - [ ] T078 [P] Create Grafana dashboard JSON for TTF, tokens/sec, error rates in docs/observability/
-- [ ] T079 [P] Add deployment guide in docs/deployment-checklist.md for Ollama + API service setup
-- [ ] T080 Run through all quickstart.md scenarios manually and validate against acceptance criteria in spec.md
-- [ ] T081 Add integration with existing IVectorStore implementation to ensure RAG retrieval works end-to-end
+- [ ] T079 [P] Add deployment guide in docs/deployment-checklist.md for Ollama + API service setup and document Owner field as "reserved for future use" in data-model.md
+- [ ] T080 Run through all quickstart.md scenarios manually and validate against acceptance criteria in spec.md (create checklist: session creation, streaming, cancellation, curl demo, rate limiting)
+- [ ] T081 Add integration with existing IVectorStore implementation to ensure RAG retrieval works end-to-end (integration test with sample documents)
+- [ ] T081a 🧪 Create Agent Framework tool binding example in docs/examples/AgentToolExample.cs demonstrating queryKnowledge tool integration per Constitution Section VIII
 - [ ] T082 Configure logging levels for production (Information) vs development (Debug) in appsettings.json
 - [ ] T083 Add security headers middleware (X-Content-Type-Options, X-Frame-Options) for production deployment
+- [ ] T084 🧪 Run full test suite validation: unit tests >=90% coverage, integration tests pass, contract tests pass, E2E scenarios validated (per Constitution Test-First gate)
 
 ---
 
@@ -325,10 +369,13 @@ Each story adds value without breaking previous functionality.
 
 ## Summary
 
-- **Total Tasks**: 83
-- **MVP Tasks (Phase 1-3)**: 39 tasks (Setup + Foundational + US1)
-- **Enhancement Tasks (Phase 4-7)**: 44 tasks
-- **Parallel Opportunities**: 25+ tasks marked [P] across all phases
+- **Total Tasks**: 108 (83 implementation + 25 test tasks)
+- **MVP Tasks (Phase 1-3)**: 53 tasks (6 setup + 21 foundational + 26 US1 implementation+tests)
+- **Enhancement Tasks (Phase 4-7)**: 55 tasks
+- **Test Tasks** (marked 🧪): 25 tasks enforcing Test-First principle per Constitution
+- **Parallel Opportunities**: 35+ tasks marked [P] across all phases
 - **User Stories**: 3 independent stories (P1: Developer assistant, P2: CLI/curl, P3: Ops/admin)
-- **MVP Scope**: User Story 1 provides complete baseline functionality (HTTP NDJSON, Ollama, rate limiting, observability)
-- **Estimated Timeline**: 4-6 weeks (1 developer), 2-3 weeks (3 developers with parallel execution)
+- **MVP Scope**: User Story 1 provides complete baseline functionality (HTTP NDJSON, Ollama, rate limiting, observability) with comprehensive test coverage
+- **Constitution Compliance**: ✅ Test-First enforced with TDD workflow, ✅ Agent Framework compatibility (T081a), ✅ EF Core reuse, ✅ Local-First ML, ✅ Observability validation
+- **Estimated Timeline**: 5-7 weeks (1 developer with TDD), 3-4 weeks (3 developers with parallel execution)
+- **Test Coverage Goals**: >=90% code coverage per Constitution, all integration tests passing, contract parity validated
