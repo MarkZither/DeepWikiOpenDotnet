@@ -7,6 +7,7 @@ using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using DeepWiki.Data.Abstractions.Observability;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -57,7 +58,8 @@ public static class Extensions
             {
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                    .AddRuntimeInstrumentation()
+                    .AddMeter(ObservabilityConstants.GenerationMeterName);
             })
             .WithTracing(tracing =>
             {

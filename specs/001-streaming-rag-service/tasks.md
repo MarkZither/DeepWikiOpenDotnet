@@ -19,12 +19,12 @@
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Review project structure in [plan.md](plan.md) and verify existing directories match
-- [ ] T002 Create directory structure for new components: src/deepwiki-open-dotnet.ApiService/Models/ (if not exists), src/DeepWiki.Rag.Core/Services/, src/DeepWiki.Rag.Core/Providers/, src/DeepWiki.Rag.Core/Streaming/
-- [ ] T003 [P] Add NuGet package references: System.Text.Json (if not already present)
-- [ ] T004 [P] Configure OpenTelemetry metrics instrumentation in src/deepwiki-open-dotnet.ServiceDefaults/Extensions.cs
-- [ ] T004a [P] 🧪 Create test project structure: tests/DeepWiki.Rag.Core.Tests/, tests/deepwiki-open-dotnet.Tests/Integration/
-- [ ] T004b [P] 🧪 Add test NuGet packages: xUnit (2.6+), Moq (4.20+), FluentAssertions (6.12+), Microsoft.AspNetCore.Mvc.Testing (10.0)
+- [X] T001 Review project structure in [plan.md](plan.md) and verify existing directories match
+- [X] T002 Create directory structure for new components: src/deepwiki-open-dotnet.ApiService/Models/ (if not exists), src/DeepWiki.Rag.Core/Services/, src/DeepWiki.Rag.Core/Providers/, src/DeepWiki.Rag.Core/Streaming/
+- [X] T003 [P] Add NuGet package references: System.Text.Json (if not already present)
+- [X] T004 [P] Configure OpenTelemetry metrics instrumentation in src/deepwiki-open-dotnet.ServiceDefaults/Extensions.cs
+- [X] T004a [P] 🧪 Create test project structure: tests/DeepWiki.Rag.Core.Tests/, tests/deepwiki-open-dotnet.Tests/Integration/
+- [X] T004b [P] 🧪 Add test NuGet packages: xUnit (2.6+), Moq (4.20+), FluentAssertions (6.12+), Microsoft.AspNetCore.Mvc.Testing (10.0)
 
 ---
 
@@ -36,19 +36,19 @@
 
 ### Foundational Implementation Tasks
 
-- [ ] T005 Define IGenerationService interface in src/DeepWiki.Data.Abstractions/IGenerationService.cs with IAsyncEnumerable<GenerationDelta> GenerateAsync method (uses PromptRequest from T010)
-- [ ] T007 [P] Create GenerationDelta DTO in src/deepwiki-open-dotnet.ApiService/Models/GenerationDelta.cs with JSON serialization attributes
-- [ ] T008 [P] Create SessionRequest DTO in src/deepwiki-open-dotnet.ApiService/Models/SessionRequest.cs
-- [ ] T009 [P] Create SessionResponse DTO in src/deepwiki-open-dotnet.ApiService/Models/SessionResponse.cs
-- [ ] T010 [P] Create PromptRequest DTO in src/deepwiki-open-dotnet.ApiService/Models/PromptRequest.cs with validation attributes
-- [ ] T011 [P] Create CancelRequest DTO in src/deepwiki-open-dotnet.ApiService/Models/CancelRequest.cs
-- [ ] T012 Define IModelProvider interface in src/DeepWiki.Rag.Core/Providers/IModelProvider.cs with Name, IsAvailableAsync, StreamAsync methods
-- [ ] T013 Create Session entity class in src/DeepWiki.Rag.Core/Models/Session.cs per data-model.md schema (add ExpiresAt field for session expiration)
-- [ ] T014 [P] Create Prompt entity class in src/DeepWiki.Rag.Core/Models/Prompt.cs per data-model.md schema
-- [ ] T015 [P] Create SessionStatus and PromptStatus enums in src/DeepWiki.Rag.Core/Models/Enums.cs
-- [ ] T016 Implement SessionManager class in src/DeepWiki.Rag.Core/Services/SessionManager.cs with in-memory storage (ConcurrentDictionary) for sessions and prompts
-- [ ] T017 Implement GenerationMetrics class in src/DeepWiki.Rag.Core/Observability/GenerationMetrics.cs with TTF histogram, token counter, error counter
-- [ ] T018 Configure rate limiting middleware registration in src/deepwiki-open-dotnet.ApiService/Program.cs with IP-based token-bucket settings
+- [X] T005 Define IGenerationService interface in src/DeepWiki.Data.Abstractions/IGenerationService.cs with IAsyncEnumerable<GenerationDelta> GenerateAsync method (uses PromptRequest from T010)
+- [X] T007 [P] Create GenerationDelta DTO in src/deepwiki-open-dotnet.ApiService/Models/GenerationDelta.cs with JSON serialization attributes
+- [X] T008 [P] Create SessionRequest DTO in src/deepwiki-open-dotnet.ApiService/Models/SessionRequest.cs
+- [X] T009 [P] Create SessionResponse DTO in src/deepwiki-open-dotnet.ApiService/Models/SessionResponse.cs
+- [X] T010 [P] Create PromptRequest DTO in src/deepwiki-open-dotnet.ApiService/Models/PromptRequest.cs with validation attributes
+- [X] T011 [P] Create CancelRequest DTO in src/deepwiki-open-dotnet.ApiService/Models/CancelRequest.cs
+- [X] T012 Define IModelProvider interface in src/DeepWiki.Rag.Core/Providers/IModelProvider.cs with Name, IsAvailableAsync, StreamAsync methods
+- [X] T013 Create Session entity class in src/DeepWiki.Rag.Core/Models/Session.cs per data-model.md schema (add ExpiresAt field for session expiration)
+- [X] T014 [P] Create Prompt entity class in src/DeepWiki.Rag.Core/Models/Prompt.cs per data-model.md schema
+- [X] T015 [P] Create SessionStatus and PromptStatus enums in src/DeepWiki.Rag.Core/Models/Enums.cs
+- [X] T016 Implement SessionManager class in src/DeepWiki.Rag.Core/Services/SessionManager.cs with in-memory storage (ConcurrentDictionary) for sessions and prompts
+- [X] T017 Implement GenerationMetrics class in src/DeepWiki.Rag.Core/Observability/GenerationMetrics.cs with TTF histogram, token counter, error counter
+- [X] T018 Configure rate limiting middleware registration in src/deepwiki-open-dotnet.ApiService/Program.cs with IP-based token-bucket settings
 
 ### Foundational Test Tasks (TDD - Write First)
 
