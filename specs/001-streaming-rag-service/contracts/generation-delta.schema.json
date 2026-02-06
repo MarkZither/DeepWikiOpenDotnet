@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://deepwiki.example.com/schemas/generation-delta.json",
+  "title": "GenerationDelta",
+  "description": "Streaming token delta event emitted during RAG generation",
+  "type": "object",
+  "required": ["promptId", "type", "seq", "role"],
+  "properties": {
+    "promptId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier of the prompt this delta belongs to",
+      "examples": ["f47ac10b-58cc-4372-a567-0e02b2c3d479"]
+    },
+    "type": {
+      "type": "string",
+      "enum": ["token", "done", "error"],
+      "description": "Event type: token (incremental text), done (completion), error (failure)"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonically increasing sequence number (0-based) for ordering"
+    },
+    "text": {
+      "type": ["string", "null"],
+      "description": "Incremental token text (required for type=token, optional for done/error)",
+      "examples": ["This ", "is ", "a test."]
+    },
+    "role": {
+      "type": "string",
+      "enum": ["assistant", "system", "user"],
+      "description": "Role of the message sender",
+      "default": "assistant"
+    },
+    "metadata": {
+      "type": ["object", "null"],
+      "description": "Optional metadata (provider-specific data for tokens, error details for errors)",
+      "examples": [
+        {"finishReason": "stop"},
+        {"code": "provider_timeout", "message": "Provider stalled for 30s"}
+      ]
+    }
+  },
+  "examples": [
+    {
+      "promptId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "type": "token",
+      "seq": 0,
+      "text": "Vector embeddings are ",
+      "role": "assistant"
+    },
+    {
+      "promptId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "type": "token",
+      "seq": 1,
+      "text": "dense numerical representations of text.",
+      "role": "assistant"
+    },
+    {
+      "promptId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "type": "done",
+      "seq": 2,
+      "role": "assistant",
+      "metadata": {
+        "tokenCount": 12,
+        "finishReason": "stop"
+      }
+    },
+    {
+      "promptId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "type": "error",
+      "seq": 5,
+      "role": "system",
+      "metadata": {
+        "code": "provider_timeout",
+        "message": "Provider stalled for 30s with no tokens"
+      }
+    }
+  ],
+  "definitions": {
+    "errorMetadata": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Error code identifier",
+          "examples": ["provider_timeout", "provider_unavailable", "invalid_request"]
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable error message"
+        }
+      }
+    }
+  }
+}
