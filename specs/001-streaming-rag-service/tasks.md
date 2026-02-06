@@ -20,8 +20,8 @@
 **Purpose**: Project initialization and basic structure
 
 - [ ] T001 Review project structure in [plan.md](plan.md) and verify existing directories match
-- [ ] T002 Create directory structure for new components: src/DeepWiki.Data.Abstractions/DTOs/, src/DeepWiki.Rag.Core/Services/, src/DeepWiki.Rag.Core/Providers/, src/DeepWiki.Rag.Core/Streaming/
-- [ ] T003 [P] Add NuGet package references: AspNetCoreRateLimit (5.0+), OpenAI SDK (2.0.0+), System.Text.Json (if not already present)
+- [ ] T002 Create directory structure for new components: src/deepwiki-open-dotnet.ApiService/Models/ (if not exists), src/DeepWiki.Rag.Core/Services/, src/DeepWiki.Rag.Core/Providers/, src/DeepWiki.Rag.Core/Streaming/
+- [ ] T003 [P] Add NuGet package references: System.Text.Json (if not already present)
 - [ ] T004 [P] Configure OpenTelemetry metrics instrumentation in src/deepwiki-open-dotnet.ServiceDefaults/Extensions.cs
 - [ ] T004a [P] 🧪 Create test project structure: tests/DeepWiki.Rag.Core.Tests/, tests/deepwiki-open-dotnet.Tests/Integration/
 - [ ] T004b [P] 🧪 Add test NuGet packages: xUnit (2.6+), Moq (4.20+), FluentAssertions (6.12+), Microsoft.AspNetCore.Mvc.Testing (10.0)
@@ -36,13 +36,12 @@
 
 ### Foundational Implementation Tasks
 
-- [ ] T005 Define IGenerationService interface in src/DeepWiki.Data.Abstractions/IGenerationService.cs with IAsyncEnumerable<GenerationDelta> GenerateAsync method
-- [ ] T006 [P] Create GenerationRequest DTO in src/DeepWiki.Data.Abstractions/DTOs/GenerationRequest.cs
-- [ ] T007 [P] Create GenerationDelta DTO in src/DeepWiki.Data.Abstractions/DTOs/GenerationDelta.cs with JSON serialization attributes
-- [ ] T008 [P] Create SessionRequest DTO in src/DeepWiki.Data.Abstractions/DTOs/SessionRequest.cs
-- [ ] T009 [P] Create SessionResponse DTO in src/DeepWiki.Data.Abstractions/DTOs/SessionResponse.cs
-- [ ] T010 [P] Create PromptRequest DTO in src/DeepWiki.Data.Abstractions/DTOs/PromptRequest.cs with validation attributes
-- [ ] T011 [P] Create CancelRequest DTO in src/DeepWiki.Data.Abstractions/DTOs/CancelRequest.cs
+- [ ] T005 Define IGenerationService interface in src/DeepWiki.Data.Abstractions/IGenerationService.cs with IAsyncEnumerable<GenerationDelta> GenerateAsync method (uses PromptRequest from T010)
+- [ ] T007 [P] Create GenerationDelta DTO in src/deepwiki-open-dotnet.ApiService/Models/GenerationDelta.cs with JSON serialization attributes
+- [ ] T008 [P] Create SessionRequest DTO in src/deepwiki-open-dotnet.ApiService/Models/SessionRequest.cs
+- [ ] T009 [P] Create SessionResponse DTO in src/deepwiki-open-dotnet.ApiService/Models/SessionResponse.cs
+- [ ] T010 [P] Create PromptRequest DTO in src/deepwiki-open-dotnet.ApiService/Models/PromptRequest.cs with validation attributes
+- [ ] T011 [P] Create CancelRequest DTO in src/deepwiki-open-dotnet.ApiService/Models/CancelRequest.cs
 - [ ] T012 Define IModelProvider interface in src/DeepWiki.Rag.Core/Providers/IModelProvider.cs with Name, IsAvailableAsync, StreamAsync methods
 - [ ] T013 Create Session entity class in src/DeepWiki.Rag.Core/Models/Session.cs per data-model.md schema (add ExpiresAt field for session expiration)
 - [ ] T014 [P] Create Prompt entity class in src/DeepWiki.Rag.Core/Models/Prompt.cs per data-model.md schema
@@ -54,7 +53,7 @@
 ### Foundational Test Tasks (TDD - Write First)
 
 - [ ] T005a 🧪 [P] Write contract test for IGenerationService interface in tests/DeepWiki.Data.Abstractions.Tests/IGenerationServiceContractTests.cs (verify async enumerable signature, cancellation support)
-- [ ] T006a 🧪 [P] Write DTO serialization tests in tests/DeepWiki.Data.Abstractions.Tests/DTOSerializationTests.cs (GenerationRequest, GenerationDelta, SessionRequest, SessionResponse, PromptRequest, CancelRequest) - verify JSON round-trip, required fields, validation attributes
+- [ ] T007a 🧪 [P] Write DTO serialization tests in tests/deepwiki-open-dotnet.Tests/Models/GenerationDTOTests.cs (GenerationDelta, SessionRequest, SessionResponse, PromptRequest, CancelRequest) - verify JSON round-trip, required fields, validation attributes; Note: ErrorResponse already exists in ApiService/Models/
 - [ ] T012a 🧪 [P] Write contract test for IModelProvider interface in tests/DeepWiki.Rag.Core.Tests/IModelProviderContractTests.cs (verify streaming signature, health check, cancellation)
 - [ ] T013a 🧪 [P] Write entity validation tests in tests/DeepWiki.Rag.Core.Tests/Models/SessionTests.cs (Session state transitions, validation rules, expiration logic)
 - [ ] T014a 🧪 [P] Write entity validation tests in tests/DeepWiki.Rag.Core.Tests/Models/PromptTests.cs (Prompt state transitions, idempotency key uniqueness, validation rules)
@@ -269,7 +268,7 @@
 **Phase 1 (Setup)**: All tasks can run in parallel
 
 **Phase 2 (Foundational)**:
-- T006-T011: All DTO classes (parallel)
+- T007-T011: All DTO classes (parallel)
 - T013-T015: All entity/enum classes (parallel)
 - T005, T012: Interfaces can be defined in parallel
 - T016-T018: Infrastructure classes can proceed after interfaces complete
@@ -369,8 +368,8 @@ Each story adds value without breaking previous functionality.
 
 ## Summary
 
-- **Total Tasks**: 108 (83 implementation + 25 test tasks)
-- **MVP Tasks (Phase 1-3)**: 53 tasks (6 setup + 21 foundational + 26 US1 implementation+tests)
+- **Total Tasks**: 107 (82 implementation + 25 test tasks)
+- **MVP Tasks (Phase 1-3)**: 52 tasks (6 setup + 20 foundational + 26 US1 implementation+tests)
 - **Enhancement Tasks (Phase 4-7)**: 55 tasks
 - **Test Tasks** (marked 🧪): 25 tasks enforcing Test-First principle per Constitution
 - **Parallel Opportunities**: 35+ tasks marked [P] across all phases
