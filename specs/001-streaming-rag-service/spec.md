@@ -63,6 +63,7 @@ An operator validates server behavior under cancellation, provider failures, and
 - **FR-008**: System MUST include contract tests for parity across transports (HTTP streaming - line-delimited JSON vs persistent socket frames) and unit tests for tokenization parity. **Decision**: Tokenization parity is **required for critical flows** (e.g., schema outputs, code blocks, formatted answers) and **allowed to be approximate** for other flows with measurable tolerances. **Acceptance**: critical-flow parity unit tests must match the Python baseline exactly for representative critical prompts; non-critical parity tests must assert tolerance bounds (example: <=5% token-count difference or chunk boundary drift <=1 token). Contract tests must still verify `GenerationDelta` schema parity across transports.
 - **FR-009**: System MUST provide clear error deltas with structured `code` and `message` and include `idempotencyKey` for retry safety. **Acceptance**: contract tests assert error delta schema (code + message) and idempotencyKey must be preserved across retries and reflected in server logs or response metadata.
 - **FR-010**: System MUST provide a simple HTTP streaming (line-delimited JSON) baseline and an optional persistent socket-based hub for richer client experiences; tests must verify parity of event schema across transports. **Acceptance**: a curl demo against the HTTP streaming baseline streams `GenerationDelta` events and the parity tests validate the schema across transports.
+- **FR-011**: System MUST implement IP-based rate-limiting for MVP using a simple token-bucket or fixed-window strategy (per-IP). **Decision**: IP-based rate-limiting required for MVP; per-org rate-limiting deferred. **Acceptance**: tests verify rate-limit enforcement (429 status after limit exceeded), rate-limit headers (X-RateLimit-Limit, X-RateLimit-Remaining), and integration tests demonstrate that legitimate traffic is not blocked while excessive requests from a single IP are throttled.
 
 *Unclear decisions requiring stakeholder input (limit 3):*
 - **FR-CLAR-001**: Auth model: MVP will run internal-only with **no auth**. **Decision**: internal-only (no auth) chosen for MVP; future work may add API-key or per-org tokens for revocation, audit, and billing. **Acceptance**: server runs without auth in internal deployments and tests demonstrate expected behavior.
@@ -95,6 +96,7 @@ An operator validates server behavior under cancellation, provider failures, and
 - Q: Tokenization parity tolerance — what level of parity is required vs the Python baseline? → A: **C — require parity only for critical flows (schema, code blocks, output formatting); allow close-enough behavior elsewhere with measurable tolerances and tests.**
 - Q: Provider priority configuration — per-deployment or per-org for MVP? → A: **Per-deployment only** — a single ordered provider list in server config; per-org priority deferred.
 - Q: Provider stall timeout — how long should the server wait before timing out a stalled provider? → A: **30 seconds** — balances local model slowness with stuck-provider detection (tests may use shorter values like 5s).
+- Q: Rate-limiting approach for MVP? → A: **A — IP-based rate-limiting required for MVP** (simple token-bucket or fixed-window per IP; per-org rate-limiting deferred).
 
 **Acceptance**: Add unit tests that assert exact parity for a small set of critical prompts (schema outputs, code blocks, formatting) and additional parity-sample tests asserting tolerance bounds (e.g., <=5% token-count difference, chunk boundaries within 1 token) for non-critical flows.
 ## Deliverables & File-level Tasks
@@ -102,7 +104,8 @@ An operator validates server behavior under cancellation, provider failures, and
 - Implement provider adapter prototype (local provider runtime) in `DeepWiki.Rag.Core/Providers/` (stream parser + normalization).
 - Implement provider selection configuration and tests for local-first behavior and managed-provider fallback.
 - Add transport NDJSON controller endpoint (server-side streaming) and an optional persistent socket-based hub with parity tests.
-- Tests: `DeepWiki.Rag.Core.Tests/OllamaGenerationStreamingTests.cs`, `ApiService.Tests/StreamingContractTests.cs`, `extensions/copilot-private/tests/streaming.e2e.ts` stub.
+- Implement IP-based rate-limiting middleware/filter (token-bucket or fixed-window) with configurable limits.
+- Tests: `DeepWiki.Rag.Core.Tests/OllamaGenerationStreamingTests.cs`, `ApiService.Tests/StreamingContractTests.cs`, `ApiService.Tests/RateLimitingTests.cs`, `extensions/copilot-private/tests/streaming.e2e.ts` stub.
 
 ---
 
