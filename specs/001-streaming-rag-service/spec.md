@@ -46,7 +46,7 @@ An operator validates server behavior under cancellation, provider failures, and
 ---
 
 ### Edge Cases
-- What happens when a provider stalls (no tokens for X seconds)? Server should timeout and emit an `error` delta.
+- What happens when a provider stalls (no tokens for X seconds)? Server should timeout after **30 seconds** of no token activity and emit an `error` delta (tests may use shorter timeouts like 5s for fast feedback).
 - How are duplicate prompts handled? Use idempotency keys on prompts to ensure retry-safe behavior.
 - Partial provider dups (same token re-emitted) must be normalized by sequence numbers on the server.
 
@@ -94,6 +94,7 @@ An operator validates server behavior under cancellation, provider failures, and
 - Q: Local hosting — is running Ollama locally acceptable for dev and on‑prem deployments? → A: Local-first with extension possibilities for managed/remote.
 - Q: Tokenization parity tolerance — what level of parity is required vs the Python baseline? → A: **C — require parity only for critical flows (schema, code blocks, output formatting); allow close-enough behavior elsewhere with measurable tolerances and tests.**
 - Q: Provider priority configuration — per-deployment or per-org for MVP? → A: **Per-deployment only** — a single ordered provider list in server config; per-org priority deferred.
+- Q: Provider stall timeout — how long should the server wait before timing out a stalled provider? → A: **30 seconds** — balances local model slowness with stuck-provider detection (tests may use shorter values like 5s).
 
 **Acceptance**: Add unit tests that assert exact parity for a small set of critical prompts (schema outputs, code blocks, formatting) and additional parity-sample tests asserting tolerance bounds (e.g., <=5% token-count difference, chunk boundaries within 1 token) for non-critical flows.
 ## Deliverables & File-level Tasks
