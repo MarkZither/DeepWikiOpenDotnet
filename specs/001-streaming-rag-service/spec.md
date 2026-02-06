@@ -59,7 +59,7 @@ An operator validates server behavior under cancellation, provider failures, and
 - **FR-004**: System MUST support prompt cancellation semantics: on `Cancel`, provider streams are aborted promptly and a final `done` or `error` delta is emitted within **200ms** of Cancel acknowledgment in typical dev environments.
 - **FR-005**: System MUST normalize and validate provider token streams (sequence numbers, deduping, trimming incomplete UTF-8, etc.) before emitting to clients. **Acceptance**: contract tests verify deduping, correct sequencing, and UTF-8 safety on emitted deltas.
 - **FR-006**: System MUST provide observable metrics: time-to-first-token (TTF), tokens-per-second, per-session token counts, and error rates. **Acceptance**: metrics emitted under synthetic test load include TTF, tokens/sec, and per-session counts; tests assert metric emission and reasonable value ranges.
-- **FR-007**: System MUST support provider adapters and runtime provider selection (e.g., local provider runtime, OpenAI remote) and a configurable provider priority per deployment or per-org. **Acceptance**: tests demonstrate provider selection and fallback behavior in a controlled environment.
+- **FR-007**: System MUST support provider adapters and runtime provider selection (e.g., local provider runtime, OpenAI remote) and a configurable provider priority per deployment or per-org. **Decision**: default selection for MVP is **local-first** with optional managed/remote provider fallback. **Acceptance**: tests demonstrate provider selection, local-first behavior, and fallback to managed providers in a controlled environment.
 - **FR-008**: System MUST include contract tests for parity across transports (HTTP streaming - line-delimited JSON vs persistent socket frames) and unit tests for tokenization parity samples. **Acceptance**: contract tests verify parity of `GenerationDelta` JSON across transports for representative prompts.
 - **FR-009**: System MUST provide clear error deltas with structured `code` and `message` and include `idempotencyKey` for retry safety. **Acceptance**: contract tests assert error delta schema (code + message) and idempotencyKey must be preserved across retries and reflected in server logs or response metadata.
 - **FR-010**: System MUST provide a simple HTTP streaming (line-delimited JSON) baseline and an optional persistent socket-based hub for richer client experiences; tests must verify parity of event schema across transports. **Acceptance**: a curl demo against the HTTP streaming baseline streams `GenerationDelta` events and the parity tests validate the schema across transports.
@@ -89,9 +89,14 @@ An operator validates server behavior under cancellation, provider failures, and
 - Embedding dimensionality and tokenizer parity are managed by provider adapters; exact tokenization parity required only by tests (close-enough acceptable by default).
 - A local provider runtime (e.g., Ollama) is available in dev environments to meet the TTF targets.
 
+## Clarifications
+### Session 2026-02-06
+- Q: Local hosting — is running Ollama locally acceptable for dev and on-prem deployments? → A: Local-first with extension possibilities for managed/remote.
+
 ## Deliverables & File-level Tasks
 - Add `DeepWiki.Data.Abstractions/IGenerationService.cs` and DTOs (`GenerationRequest`, `GenerationDelta`).
 - Implement provider adapter prototype (local provider runtime) in `DeepWiki.Rag.Core/Providers/` (stream parser + normalization).
+- Implement provider selection configuration and tests for local-first behavior and managed-provider fallback.
 - Add transport NDJSON controller endpoint (server-side streaming) and an optional persistent socket-based hub with parity tests.
 - Tests: `DeepWiki.Rag.Core.Tests/OllamaGenerationStreamingTests.cs`, `ApiService.Tests/StreamingContractTests.cs`, `extensions/copilot-private/tests/streaming.e2e.ts` stub.
 
