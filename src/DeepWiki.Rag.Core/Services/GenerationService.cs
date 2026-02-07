@@ -19,11 +19,14 @@ public class GenerationService : IGenerationService
     private readonly ConcurrentDictionary<string, List<GenerationDelta>> _idempotencyCache = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _promptCancellations = new();
 
-    public GenerationService(IModelProvider provider, SessionManager sessionManager, ILogger<GenerationService> logger)
+    private readonly DeepWiki.Rag.Core.Observability.GenerationMetrics _metrics;
+
+    public GenerationService(IModelProvider provider, SessionManager sessionManager, DeepWiki.Rag.Core.Observability.GenerationMetrics metrics, ILogger<GenerationService> logger)
     {
         _provider = provider;
         _sessionManager = sessionManager;
         _logger = logger;
+        _metrics = metrics;
     }
 
     public async IAsyncEnumerable<GenerationDelta> GenerateAsync(string sessionId, string promptText, int topK = 5, Dictionary<string, string>? filters = null, string? idempotencyKey = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -91,10 +94,21 @@ public class GenerationService : IGenerationService
                     if (item.Type == "token" && item.Text != null)
                     {
                         var chunks = new System.Collections.Generic.List<byte[]> { System.Text.Encoding.UTF8.GetBytes(item.Text) };
+                        var timer = _metrics.StartTtfMeasurement();
+                        var first = true;
                         foreach (var nd in normalizer.Normalize(chunks))
                         {
                             recorded.Add(nd);
                             _sessionManager.UpdatePromptStatus(sessionId, prompt.PromptId, PromptStatus.InFlight, recorded.Count);
+
+                            // On first token, record TTF
+                            if (first)
+                            {
+                                first = false;
+                                _metrics.RecordTimeToFirstToken(timer.Elapsed.TotalMilliseconds, _provider.Name);
+                            }
+
+                            _metrics.RecordTokens(1, _provider.Name);
                             yield return nd;
                         }
                     }

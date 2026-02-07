@@ -146,6 +146,7 @@ public class Program
 
         // Session manager and generation service
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.SessionManager>();
+        builder.Services.AddSingleton<DeepWiki.Rag.Core.Observability.GenerationMetrics>();
         builder.Services.AddScoped<DeepWiki.Data.Abstractions.IGenerationService, DeepWiki.Rag.Core.Services.GenerationService>();
 
         // Register Ollama provider with HttpClient (configurable endpoint)
