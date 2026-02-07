@@ -9,6 +9,12 @@ namespace DeepWiki.Rag.Core.Tests.Services
 {
     public class GenerationServiceTests
     {
+        private class SimpleMeterFactory : System.Diagnostics.Metrics.IMeterFactory, System.IDisposable
+        {
+            public System.Diagnostics.Metrics.Meter Create(System.Diagnostics.Metrics.MeterOptions options) => new System.Diagnostics.Metrics.Meter(options.Name, options.Version);
+            public System.Diagnostics.Metrics.Meter Create(string name, string? version = null) => new System.Diagnostics.Metrics.Meter(name, version);
+            public void Dispose() { }
+        }
         [Fact]
         public void IGenerationService_Has_Expected_Signature()
         {
@@ -30,7 +36,9 @@ namespace DeepWiki.Rag.Core.Tests.Services
             // Arrange: provider that throws
             var provider = new ThrowingProvider(new Exception("boom"));
             var sessionManager = new DeepWiki.Rag.Core.Services.SessionManager();
-            var service = new DeepWiki.Rag.Core.Services.GenerationService(provider, sessionManager, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance);
+            var metricsFactory = new SimpleMeterFactory();
+            var gm = new DeepWiki.Rag.Core.Observability.GenerationMetrics(metricsFactory);
+            var service = new DeepWiki.Rag.Core.Services.GenerationService(provider, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance);
 
             var session = sessionManager.CreateSession();
 
@@ -52,7 +60,9 @@ namespace DeepWiki.Rag.Core.Tests.Services
             // Arrange: provider that yields tokens slowly
             var provider = new SlowProvider(10, 100);
             var sessionManager = new DeepWiki.Rag.Core.Services.SessionManager();
-            var service = new DeepWiki.Rag.Core.Services.GenerationService(provider, sessionManager, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance);
+            var metricsFactory = new SimpleMeterFactory();
+            var gm = new DeepWiki.Rag.Core.Observability.GenerationMetrics(metricsFactory);
+            var service = new DeepWiki.Rag.Core.Services.GenerationService(provider, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance);
 
             var session = sessionManager.CreateSession();
             using var cts = new CancellationTokenSource();
@@ -92,10 +102,11 @@ namespace DeepWiki.Rag.Core.Tests.Services
             public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
             public async IAsyncEnumerable<DeepWiki.Data.Abstractions.Models.GenerationDelta> StreamAsync(string promptText, string? systemPrompt = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
             {
+                var pid = Guid.NewGuid().ToString();
                 for (int i = 0; i < _count; i++)
                 {
                     await Task.Delay(_delayMs, cancellationToken);
-                    yield return new DeepWiki.Data.Abstractions.Models.GenerationDelta { PromptId = string.Empty, Role = "assistant", Type = "token", Seq = i, Text = i.ToString() };
+                    yield return new DeepWiki.Data.Abstractions.Models.GenerationDelta { PromptId = pid, Role = "assistant", Type = "token", Seq = i, Text = i.ToString() };
                 }
             }
         }

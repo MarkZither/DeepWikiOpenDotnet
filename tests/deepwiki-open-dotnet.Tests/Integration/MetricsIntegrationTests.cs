@@ -11,8 +11,10 @@ using Xunit;
 
 namespace DeepWiki.ApiService.Tests.Integration
 {
+#pragma warning disable xUnit1051
     public class MetricsIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     {
+#pragma warning restore xUnit1051
         private readonly WebApplicationFactory<Program> _factory;
 
         public MetricsIntegrationTests(WebApplicationFactory<Program> factory)
@@ -44,14 +46,20 @@ namespace DeepWiki.ApiService.Tests.Integration
                 measurements.Add((instrument.Name, measurement));
             });
 
+            // Also listen for long-valued measurements (counters are long)
+            listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
+            {
+                measurements.Add((instrument.Name, (double)measurement));
+            });
+
             listener.Start();
 
             var client = _factory.CreateClient();
 
             // Create session
-            var createResp = await client.PostAsJsonAsync("/api/generation/session", new { owner = "test" });
+            var createResp = await client.PostAsJsonAsync("/api/generation/session", new { owner = "test" }, TestContext.Current.CancellationToken);
             createResp.EnsureSuccessStatusCode();
-            var session = JsonSerializer.Deserialize<DeepWiki.Data.Abstractions.Models.SessionResponse>(await createResp.Content.ReadAsStringAsync())!;
+            var session = JsonSerializer.Deserialize<DeepWiki.Data.Abstractions.Models.SessionResponse>(await createResp.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))!;
 
             // Start streaming request and consume all tokens
             var request = new HttpRequestMessage(HttpMethod.Post, "/api/generation/stream")
@@ -59,19 +67,21 @@ namespace DeepWiki.ApiService.Tests.Integration
                 Content = JsonContent.Create(new { sessionId = session.SessionId, prompt = "hello" })
             };
 
-            var resp = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            var resp = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, TestContext.Current.CancellationToken);
             resp.EnsureSuccessStatusCode();
 
-            var stream = await resp.Content.ReadAsStreamAsync();
+            var stream = await resp.Content.ReadAsStreamAsync(TestContext.Current.CancellationToken);
             using var reader = new System.IO.StreamReader(stream);
-            while (!reader.EndOfStream)
+#pragma warning disable xUnit1051
+            while (true)
             {
                 var line = await reader.ReadLineAsync();
                 if (line == null) break;
             }
+#pragma warning restore xUnit1051
 
             // Give MeterListener a moment to flush
-            await Task.Delay(100);
+            await Task.Delay(100, TestContext.Current.CancellationToken);
 
             listener.Dispose();
 

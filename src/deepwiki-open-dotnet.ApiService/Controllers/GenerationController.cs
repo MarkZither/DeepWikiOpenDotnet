@@ -18,14 +18,14 @@ public class GenerationController : ControllerBase
         _sessionManager = sessionManager;
     }
 
-    [HttpPost("/session")]
+    [HttpPost("session")]
     public ActionResult<SessionResponse> CreateSession([FromBody] SessionRequest req)
     {
         var session = _sessionManager.CreateSession(req?.Owner);
         return Created(string.Empty, new SessionResponse { SessionId = session.SessionId });
     }
 
-    [HttpPost("/stream")]
+    [HttpPost("stream")]
     public async Task StreamGeneration([FromBody] PromptRequest req)
     {
         if (!ModelState.IsValid)
@@ -60,7 +60,7 @@ public class GenerationController : ControllerBase
         }
     }
 
-    [HttpPost("/cancel")]
+    [HttpPost("cancel")]
     public async Task<IActionResult> CancelGeneration([FromBody] CancelRequest req)
     {
         if (!ModelState.IsValid)
