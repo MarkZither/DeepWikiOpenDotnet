@@ -24,14 +24,20 @@ public class SqlServerFixture : IAsyncLifetime
     {
         await _container.StartAsync();
 
-        // Wait for SQL Server to accept connections and be ready (retry with backoff)
+        // Wait for SQL Server to accept connections and be ready (retry with exponential backoff)
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var maxWait = TimeSpan.FromSeconds(180);
+        var maxWait = TimeSpan.FromMinutes(5); // allow up to 5 minutes for container startup in constrained CI
+        var attempt = 0;
+        var connBuilder = new SqlConnectionStringBuilder(ConnectionString)
+        {
+            ConnectTimeout = 30 // make connect attempts a bit more patient
+        };
+
         while (true)
         {
             try
             {
-                using (var connection = new SqlConnection(ConnectionString))
+                using (var connection = new SqlConnection(connBuilder.ConnectionString))
                 {
                     await connection.OpenAsync();
                 }
@@ -40,10 +46,13 @@ public class SqlServerFixture : IAsyncLifetime
             }
             catch (Exception)
             {
+                attempt++;
                 if (sw.Elapsed > maxWait)
                     throw;
 
-                await Task.Delay(1000);
+                // Exponential backoff with cap (up to 5s)
+                var delayMs = Math.Min(1000 * attempt, 5000);
+                await Task.Delay(delayMs);
             }
         }
 
@@ -62,9 +71,15 @@ public class SqlServerFixture : IAsyncLifetime
         }
 
         // Wait for the new database to accept connections (DeepWikiTest) before proceeding
-        var testDbConnectionString = ConnectionString.Replace("master", "DeepWikiTest");
+        var testDbConnectionString = new SqlConnectionStringBuilder(ConnectionString)
+        {
+            InitialCatalog = "DeepWikiTest",
+            ConnectTimeout = 30
+        }.ConnectionString;
+
         var dbReadySw = System.Diagnostics.Stopwatch.StartNew();
-        var dbMaxWait = TimeSpan.FromSeconds(180);
+        var dbMaxWait = TimeSpan.FromMinutes(5);
+        attempt = 0;
         while (true)
         {
             try
@@ -78,10 +93,12 @@ public class SqlServerFixture : IAsyncLifetime
             }
             catch (Exception)
             {
+                attempt++;
                 if (dbReadySw.Elapsed > dbMaxWait)
                     throw;
 
-                await Task.Delay(1000);
+                var delayMs = Math.Min(1000 * attempt, 5000);
+                await Task.Delay(delayMs);
             }
         }
     }
@@ -97,15 +114,39 @@ public class SqlServerFixture : IAsyncLifetime
     /// </summary>
     public SqlServerVectorDbContext CreateDbContext()
     {
-        var testConnectionString = ConnectionString.Replace("master", "DeepWikiTest");
+        var testConnectionString = new SqlConnectionStringBuilder(ConnectionString)
+        {
+            InitialCatalog = "DeepWikiTest",
+            ConnectTimeout = 30
+        }.ConnectionString;
+
         var options = new DbContextOptionsBuilder<SqlServerVectorDbContext>()
-            .UseSqlServer(testConnectionString, o => o.CommandTimeout(180))
+            .UseSqlServer(testConnectionString, o => o.CommandTimeout(180).EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null))
             .Options;
 
         var context = new SqlServerVectorDbContext(options);
         
-        // Apply migrations/create schema
-        context.Database.EnsureCreated();
+        // Apply migrations/create schema with a small retry to handle transient lock/race conditions
+        var applySw = System.Diagnostics.Stopwatch.StartNew();
+        var applyMax = TimeSpan.FromSeconds(60);
+        var tries = 0;
+        while (true)
+        {
+            try
+            {
+                context.Database.EnsureCreated();
+                break;
+            }
+            catch (Exception)
+            {
+                tries++;
+                if (applySw.Elapsed > applyMax || tries > 6)
+                    throw;
+
+                // Use synchronous wait here because this method is synchronous and used by tests.
+                Task.Delay(Math.Min(500 * tries, 2000)).GetAwaiter().GetResult();
+            }
+        }
 
         return context;
     }
