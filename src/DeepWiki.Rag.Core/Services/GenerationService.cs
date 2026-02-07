@@ -58,13 +58,44 @@ public class GenerationService : IGenerationService
         // Use a producer task to consume the provider stream and write into a channel.
         var channel = System.Threading.Channels.Channel.CreateUnbounded<GenerationDelta>();
 
+        // NOTE: We explicitly copy provider deltas into new GenerationDelta instances using the
+        // service-owned PromptId so that clients can reliably cancel using the prompt id we
+        // assign. Providers may emit their own prompt ids (or none), so copying ensures a
+        // consistent identifier surface across the service boundary.
+        //
+        // Additionally, when the prompt is cancelled we emit a final "done" delta and attempt
+        // to complete the channel. This ensures the HTTP streaming response terminates promptly
+        // instead of leaving clients waiting for more data from the provider (which may still be
+        // producing or blocked). The TryWrite/TryComplete calls are best-effort to avoid throwing
+        // during cancellation cleanup.
+        cts.Token.Register(() =>
+        {
+            try
+            {
+                var done = new GenerationDelta { PromptId = prompt.PromptId, Type = "done", Seq = recorded.Count, Role = "assistant" };
+                channel.Writer.TryWrite(done);
+                channel.Writer.TryComplete();
+            }
+            catch { }
+        });
+
         var producer = Task.Run(async () =>
         {
             try
             {
                 await foreach (var delta in _provider.StreamAsync(promptText, null, cts.Token))
                 {
-                    await channel.Writer.WriteAsync(delta, cts.Token);
+                    var outDelta = new GenerationDelta
+                    {
+                        PromptId = prompt.PromptId,
+                        Type = delta.Type,
+                        Seq = delta.Seq,
+                        Text = delta.Text,
+                        Role = delta.Role,
+                        Metadata = delta.Metadata
+                    };
+
+                    await channel.Writer.WriteAsync(outDelta, cts.Token);
                 }
 
                 channel.Writer.Complete();
