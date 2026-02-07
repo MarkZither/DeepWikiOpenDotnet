@@ -144,6 +144,18 @@ public class Program
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Tokenization.TokenEncoderFactory>();
         builder.Services.AddSingleton<DeepWiki.Data.Abstractions.ITokenizationService, DeepWiki.Rag.Core.Tokenization.TokenizationService>();
 
+        // Session manager and generation service
+        builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.SessionManager>();
+        builder.Services.AddScoped<DeepWiki.Data.Abstractions.IGenerationService, DeepWiki.Rag.Core.Services.GenerationService>();
+
+        // Register Ollama provider with HttpClient (configurable endpoint)
+        builder.Services.AddHttpClient<DeepWiki.Rag.Core.Providers.IModelProvider, DeepWiki.Rag.Core.Providers.OllamaProvider>((sp, client) =>
+        {
+            var cfg = sp.GetRequiredService<IConfiguration>();
+            var endpoint = cfg.GetValue<string>("Ollama:Endpoint") ?? "http://localhost:11434";
+            client.BaseAddress = new Uri(endpoint);
+        });
+
         // Register embedding service via factory pattern
         // Configuration: Set "Embedding:Provider" to "openai", "foundry", or "ollama" in appsettings.json
         // For OpenAI: Set "Embedding:OpenAI:ApiKey" or OPENAI_API_KEY env var

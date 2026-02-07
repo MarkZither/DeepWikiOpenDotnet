@@ -29,4 +29,9 @@ public interface IGenerationService
         Dictionary<string, string>? filters = null,
         string? idempotencyKey = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Attempts to cancel an in-flight prompt for the given session.
+    /// </summary>
+    Task CancelAsync(string sessionId, string promptId);
 }
