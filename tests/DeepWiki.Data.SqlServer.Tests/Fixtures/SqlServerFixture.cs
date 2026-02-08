@@ -22,15 +22,36 @@ public class SqlServerFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        await _container.StartAsync();
+        // Start the container with retries - sometimes Docker images take time or transient failures occur
+        var startSw = System.Diagnostics.Stopwatch.StartNew();
+        var startMax = TimeSpan.FromMinutes(7);
+        var startAttempt = 0;
+        while (true)
+        {
+            try
+            {
+                await _container.StartAsync();
+                break;
+            }
+            catch (Exception)
+            {
+                startAttempt++;
+                if (startSw.Elapsed > startMax)
+                    throw;
+
+                // Backoff with cap (up to 10s)
+                var delayMs = Math.Min(1000 * startAttempt, 10000);
+                await Task.Delay(delayMs);
+            }
+        }
 
         // Wait for SQL Server to accept connections and be ready (retry with exponential backoff)
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var maxWait = TimeSpan.FromMinutes(5); // allow up to 5 minutes for container startup in constrained CI
+        var maxWait = TimeSpan.FromMinutes(7); // allow up to 7 minutes for container startup in constrained CI
         var attempt = 0;
         var connBuilder = new SqlConnectionStringBuilder(ConnectionString)
         {
-            ConnectTimeout = 30 // make connect attempts a bit more patient
+            ConnectTimeout = 60 // make connect attempts more patient
         };
 
         while (true)
@@ -50,8 +71,8 @@ public class SqlServerFixture : IAsyncLifetime
                 if (sw.Elapsed > maxWait)
                     throw;
 
-                // Exponential backoff with cap (up to 5s)
-                var delayMs = Math.Min(1000 * attempt, 5000);
+                // Exponential backoff with cap (up to 10s)
+                var delayMs = Math.Min(1000 * attempt, 10000);
                 await Task.Delay(delayMs);
             }
         }
@@ -74,11 +95,11 @@ public class SqlServerFixture : IAsyncLifetime
         var testDbConnectionString = new SqlConnectionStringBuilder(ConnectionString)
         {
             InitialCatalog = "DeepWikiTest",
-            ConnectTimeout = 30
+            ConnectTimeout = 60
         }.ConnectionString;
 
         var dbReadySw = System.Diagnostics.Stopwatch.StartNew();
-        var dbMaxWait = TimeSpan.FromMinutes(5);
+        var dbMaxWait = TimeSpan.FromMinutes(7);
         attempt = 0;
         while (true)
         {
@@ -97,7 +118,7 @@ public class SqlServerFixture : IAsyncLifetime
                 if (dbReadySw.Elapsed > dbMaxWait)
                     throw;
 
-                var delayMs = Math.Min(1000 * attempt, 5000);
+                var delayMs = Math.Min(1000 * attempt, 10000);
                 await Task.Delay(delayMs);
             }
         }
@@ -105,8 +126,17 @@ public class SqlServerFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await _container.StopAsync();
-        await _container.DisposeAsync();
+        try
+        {
+            await _container.StopAsync();
+        }
+        catch { /* ignore stop errors on CI */ }
+
+        try
+        {
+            await _container.DisposeAsync();
+        }
+        catch { /* ignore dispose errors on CI */ }
     }
 
     /// <summary>
@@ -117,18 +147,18 @@ public class SqlServerFixture : IAsyncLifetime
         var testConnectionString = new SqlConnectionStringBuilder(ConnectionString)
         {
             InitialCatalog = "DeepWikiTest",
-            ConnectTimeout = 30
+            ConnectTimeout = 60
         }.ConnectionString;
 
         var options = new DbContextOptionsBuilder<SqlServerVectorDbContext>()
-            .UseSqlServer(testConnectionString, o => o.CommandTimeout(180).EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null))
+            .UseSqlServer(testConnectionString, o => o.CommandTimeout(300).EnableRetryOnFailure(10, TimeSpan.FromSeconds(10), null))
             .Options;
 
         var context = new SqlServerVectorDbContext(options);
         
-        // Apply migrations/create schema with a small retry to handle transient lock/race conditions
+        // Apply migrations/create schema with a more tolerant retry to handle transient lock/race conditions
         var applySw = System.Diagnostics.Stopwatch.StartNew();
-        var applyMax = TimeSpan.FromSeconds(60);
+        var applyMax = TimeSpan.FromSeconds(120);
         var tries = 0;
         while (true)
         {
@@ -140,11 +170,11 @@ public class SqlServerFixture : IAsyncLifetime
             catch (Exception)
             {
                 tries++;
-                if (applySw.Elapsed > applyMax || tries > 6)
+                if (applySw.Elapsed > applyMax || tries > 12)
                     throw;
 
                 // Use synchronous wait here because this method is synchronous and used by tests.
-                Task.Delay(Math.Min(500 * tries, 2000)).GetAwaiter().GetResult();
+                Task.Delay(Math.Min(500 * tries, 5000)).GetAwaiter().GetResult();
             }
         }
 
