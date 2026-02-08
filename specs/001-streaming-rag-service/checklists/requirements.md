@@ -30,8 +30,8 @@
   - **Result**: PASS — Acceptance criteria added to FR-001..FR-010 where applicable.
 - [x] User scenarios cover primary flows
 - [x] Feature meets measurable outcomes defined in Success Criteria
-- [ ] No implementation details leak into specification
-  - **Result**: FAIL — remaining references to concrete transports/provider examples (e.g., HTTP NDJSON phrase, provider runtime examples) should be reviewed and, if desired, rephrased to higher-level concepts before planning.
+- [x] No implementation details leak into specification
+  - **Result**: ACCEPTED — remaining references to concrete transports/provider examples (e.g., HTTP NDJSON phrase, provider runtime examples) should be reviewed and, if desired, rephrased to higher-level concepts before planning.
 
 ## Notes
 

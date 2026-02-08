@@ -33,22 +33,31 @@ public class Program
             {
                 // Rate limit by IP address (or authenticated user ID when auth is added)
                 var partitionKey = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                
+
+                // Read configuration values (with sane defaults)
+                var rlCfg = context.RequestServices.GetRequiredService<IConfiguration>().GetSection("RateLimit");
+                var permitLimit = rlCfg.GetValue<int?>("PermitLimit") ?? 100;
+                var windowSec = rlCfg.GetValue<int?>("WindowSeconds") ?? 60;
+                var queueLimit = rlCfg.GetValue<int?>("QueueLimit") ?? 10;
+                var retryAfter = rlCfg.GetValue<int?>("RetryAfterSeconds") ?? 60;
+
                 return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
                 {
-                    PermitLimit = 100,           // 100 requests per window
-                    Window = TimeSpan.FromMinutes(1),
+                    PermitLimit = permitLimit,
+                    Window = TimeSpan.FromSeconds(windowSec),
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    QueueLimit = 10              // Allow 10 requests to queue
+                    QueueLimit = queueLimit
                 });
             });
-            
+
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (context, token) =>
             {
-                context.HttpContext.Response.Headers.RetryAfter = "60";
+                var rlCfg = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>().GetSection("RateLimit");
+                var retryAfter = rlCfg.GetValue<int?>("RetryAfterSeconds") ?? 60;
+                context.HttpContext.Response.Headers.RetryAfter = retryAfter.ToString();
                 await context.HttpContext.Response.WriteAsync(
-                    "Rate limit exceeded. Please retry after 60 seconds.", token);
+                    $"Rate limit exceeded. Please retry after {retryAfter} seconds.", token);
             };
         });
 

@@ -15,18 +15,24 @@ public class GenerationService : IGenerationService
     private readonly IModelProvider _provider;
     private readonly SessionManager _sessionManager;
     private readonly ILogger<GenerationService> _logger;
+    private readonly DeepWiki.Data.Abstractions.IVectorStore? _vectorStore;
+    private readonly DeepWiki.Data.Abstractions.IEmbeddingService? _embeddingService;
 
     private readonly ConcurrentDictionary<string, List<GenerationDelta>> _idempotencyCache = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _promptCancellations = new();
 
     private readonly DeepWiki.Rag.Core.Observability.GenerationMetrics _metrics;
+    private readonly TimeSpan _providerStallTimeout;
 
-    public GenerationService(IModelProvider provider, SessionManager sessionManager, DeepWiki.Rag.Core.Observability.GenerationMetrics metrics, ILogger<GenerationService> logger)
+    public GenerationService(IModelProvider provider, SessionManager sessionManager, DeepWiki.Rag.Core.Observability.GenerationMetrics metrics, ILogger<GenerationService> logger, DeepWiki.Data.Abstractions.IVectorStore? vectorStore = null, DeepWiki.Data.Abstractions.IEmbeddingService? embeddingService = null, TimeSpan? providerStallTimeout = null)
     {
         _provider = provider;
         _sessionManager = sessionManager;
         _logger = logger;
         _metrics = metrics;
+        _vectorStore = vectorStore;
+        _embeddingService = embeddingService;
+        _providerStallTimeout = providerStallTimeout ?? TimeSpan.FromSeconds(30);
     }
 
     public async IAsyncEnumerable<GenerationDelta> GenerateAsync(string sessionId, string promptText, int topK = 5, Dictionary<string, string>? filters = null, string? idempotencyKey = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -58,6 +64,35 @@ public class GenerationService : IGenerationService
         // Use a producer task to consume the provider stream and write into a channel.
         var channel = System.Threading.Channels.Channel.CreateUnbounded<GenerationDelta>();
 
+        // Build RAG system prompt if vector store + embedding service available and topK > 0
+        string? systemPrompt = null;
+        if (_vectorStore != null && _embeddingService != null && topK > 0)
+        {
+            try
+            {
+                var embedding = await _embeddingService.EmbedAsync(promptText, cancellationToken);
+                var results = await _vectorStore.QueryAsync(embedding, topK, filters, cancellationToken);
+
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("Context documents:");
+                foreach (var r in results.Take(topK))
+                {
+                    sb.AppendLine($"- Title: {r.Document.Title}");
+                    var excerpt = r.Document.Text;
+                    if (excerpt?.Length > 500) excerpt = excerpt.Substring(0, 500) + "...";
+                    sb.AppendLine($"  Excerpt: {excerpt}");
+                    sb.AppendLine();
+                }
+
+                systemPrompt = sb.ToString();
+                _logger.LogInformation("Built RAG system prompt with {Count} documents for prompt {PromptId}", results.Count, prompt.PromptId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to build RAG context for prompt {PromptId}; continuing without context", prompt.PromptId);
+            }
+        }
+
         // NOTE: We explicitly copy provider deltas into new GenerationDelta instances using the
         // service-owned PromptId so that clients can reliably cancel using the prompt id we
         // assign. Providers may emit their own prompt ids (or none), so copying ensures a
@@ -83,7 +118,7 @@ public class GenerationService : IGenerationService
         {
             try
             {
-                await foreach (var delta in _provider.StreamAsync(promptText, null, cts.Token))
+                await foreach (var delta in _provider.StreamAsync(promptText, systemPrompt, cts.Token))
                 {
                     var outDelta = new GenerationDelta
                     {
@@ -118,12 +153,42 @@ public class GenerationService : IGenerationService
         {
             var normalizer = new DeepWiki.Rag.Core.Streaming.StreamNormalizer(prompt.PromptId, "assistant");
 
+            // Monitor for provider stall (no tokens within configured timeout)
+            var lastTokenTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var lastTokenTime = DateTime.UtcNow;
+
+            var stallMonitor = Task.Run(async () =>
+            {
+                while (!cancellationToken.IsCancellationRequested && !cts.IsCancellationRequested)
+                {
+                    await Task.Delay(500, cancellationToken);
+                    if (DateTime.UtcNow - lastTokenTime > _providerStallTimeout)
+                    {
+                        // Emit error delta and cancel
+                        try
+                        {
+                            var err = new GenerationDelta { PromptId = prompt.PromptId, Type = "error", Seq = recorded.Count, Role = "assistant", Metadata = new { code = "timeout", message = "Provider stalled" } };
+                            channel.Writer.TryWrite(err);
+                            _sessionManager.UpdatePromptStatus(sessionId, prompt.PromptId, PromptStatus.Error, recorded.Count);
+                            channel.Writer.TryComplete();
+                        }
+                        catch { }
+
+                        try { cts.Cancel(); } catch { }
+                        break;
+                    }
+                }
+            });
+
             while (await channel.Reader.WaitToReadAsync(cancellationToken))
             {
                 while (channel.Reader.TryRead(out var item))
                 {
                     if (item.Type == "token" && item.Text != null)
                     {
+                        // update last token time
+                        lastTokenTime = DateTime.UtcNow;
+
                         var chunks = new System.Collections.Generic.List<byte[]> { System.Text.Encoding.UTF8.GetBytes(item.Text) };
                         var timer = _metrics.StartTtfMeasurement();
                         var first = true;
@@ -150,6 +215,13 @@ public class GenerationService : IGenerationService
                         yield return item;
                     }
                 }
+            }
+
+            // Cancel monitor task if still running
+            if (!stallMonitor.IsCompleted)
+            {
+                try { cts.Cancel(); } catch { }
+                try { await stallMonitor; } catch { }
             }
 
             // Ensure producer completed successfully

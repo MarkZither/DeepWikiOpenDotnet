@@ -30,8 +30,11 @@ public class GenerationController : ControllerBase
     {
         if (!ModelState.IsValid)
         {
+            // Return validations to the client as JSON with 400 status
             Response.StatusCode = 400;
-            await Response.WriteAsync("Invalid request");
+            var json = JsonSerializer.Serialize(ModelState);
+            await Response.WriteAsync(json + "\n");
+            await Response.Body.FlushAsync();
             return;
         }
 
@@ -57,6 +60,22 @@ public class GenerationController : ControllerBase
         catch (OperationCanceledException)
         {
             // Client cancelled - just return
+        }
+        catch (Exception ex)
+        {
+            // Convert unexpected exceptions into a structured error delta so streaming clients get a usable event
+            var err = new DeepWiki.Data.Abstractions.Models.GenerationDelta
+            {
+                PromptId = req.SessionId,
+                Type = "error",
+                Role = "assistant",
+                Seq = 0,
+                Metadata = new { code = "internal_error", message = ex.Message }
+            };
+
+            var json = JsonSerializer.Serialize(err);
+            await Response.WriteAsync(json + "\n");
+            await Response.Body.FlushAsync();
         }
     }
 

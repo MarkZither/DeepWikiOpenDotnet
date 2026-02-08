@@ -60,6 +60,33 @@ namespace DeepWiki.ApiService.Tests.Controllers
         }
 
         [Fact]
+        public async Task StreamGeneration_Writes_ErrorDelta_On_Exception()
+        {
+            var sessionManager = new DeepWiki.Rag.Core.Services.SessionManager();
+            var svc = new ThrowingService();
+            var controller = new GenerationController(svc, sessionManager);
+
+            var session = sessionManager.CreateSession();
+
+            var ctx = new DefaultHttpContext();
+            var ms = new MemoryStream();
+            ctx.Response.Body = ms;
+            controller.ControllerContext = new ControllerContext { HttpContext = ctx };
+
+            var req = new PromptRequest { SessionId = session.SessionId, Prompt = "hello" };
+
+            await controller.StreamGeneration(req);
+
+            ms.Seek(0, SeekOrigin.Begin);
+            var text = new StreamReader(ms).ReadToEnd();
+            var lines = text.Split('\n', System.StringSplitOptions.RemoveEmptyEntries);
+            lines.Length.Should().Be(1);
+
+            var err = JsonSerializer.Deserialize<DeepWiki.Data.Abstractions.Models.GenerationDelta>(lines[0]);
+            err!.Type.Should().Be("error");
+            ((JsonElement)err.Metadata!).GetProperty("code").GetString().Should().Be("internal_error");
+        }
+        [Fact]
         public async Task CancelGeneration_Returns_Ok()
         {
             var sessionManager = new DeepWiki.Rag.Core.Services.SessionManager();
@@ -86,6 +113,24 @@ namespace DeepWiki.ApiService.Tests.Controllers
             {
                 return Task.CompletedTask;
             }
+        }
+
+        private class ThrowingService : IGenerationService
+        {
+            public IAsyncEnumerable<DeepWiki.Data.Abstractions.Models.GenerationDelta> GenerateAsync(string sessionId, string promptText, int topK = 5, System.Collections.Generic.Dictionary<string, string>? filters = null, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+            {
+                return GenerateImpl();
+
+                async IAsyncEnumerable<DeepWiki.Data.Abstractions.Models.GenerationDelta> GenerateImpl()
+                {
+                    // include a non-constant conditional yield to satisfy compiler requirement for async-iterator
+                    if (DateTime.UtcNow.Ticks == 0) yield break;
+                    await Task.Yield();
+                    throw new System.InvalidOperationException("boom");
+                }
+            }
+
+            public Task CancelAsync(string sessionId, string promptId) => Task.CompletedTask;
         }
     }
 }

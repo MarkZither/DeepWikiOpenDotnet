@@ -103,9 +103,9 @@
   - IsAvailableAsync implemented and tested
 - [X] T023 [US1] Implement GenerationService class in src/DeepWiki.Rag.Core/Services/GenerationService.cs orchestrating IVectorStore retrieval + IModelProvider generation (tests T023a must pass)  
   - src/DeepWiki.Rag.Core/Services/GenerationService.cs added with cancellation, idempotency cache, and StreamNormalizer wiring; unit tests pass
-- [ ] T024 [US1] Add RAG context building logic in GenerationService to format retrieved documents into system prompt (tests T023a must pass)
-- [ ] T025 [US1] Implement cancellation token propagation and timeout enforcement (30s) in GenerationService (tests T023a, T039a must pass)
-- [ ] T026 [US1] Add idempotency key checking in GenerationService to return cached responses for duplicate keys (tests T023a, T039b must pass)
+- [X] T024 [US1] Add RAG context building logic in GenerationService to format retrieved documents into system prompt (tests T023a must pass)
+- [X] T025 [US1] Implement cancellation token propagation and timeout enforcement (30s) in GenerationService (tests T023a, T039a must pass)
+- [X] T026 [US1] Add idempotency key checking in GenerationService to return cached responses for duplicate keys (tests T023a, T039b must pass)
 - [X] T027 [US1] Wire StreamNormalizer into GenerationService pipeline to ensure sequence integrity (tests T019a, T023a must pass)  
   - StreamNormalizer used to normalize token chunks before emission
 - [X] T028 [US1] Implement GenerationController.CreateSession endpoint (POST /api/generation/session) in src/deepwiki-open-dotnet.ApiService/Controllers/GenerationController.cs (tests T028a must pass)  
@@ -116,14 +116,14 @@
   - Cancel endpoint implemented (calls IGenerationService.CancelAsync) and unit test added
 - [X] T031 [US1] Add dependency injection registration for IGenerationService, SessionManager, OllamaProvider in src/deepwiki-open-dotnet.ApiService/Program.cs  
   - DI registrations added for SessionManager, GenerationService and OllamaProvider
-- [ ] T032 [US1] Configure Ollama base URL from configuration (appsettings.json) with default http://localhost:11434
-- [ ] T033 [US1] Add error handling in GenerationController to convert exceptions to structured error deltas (tests T028a must pass)
-- [ ] T034 [US1] Implement rate limiting middleware using AspNetCoreRateLimit in src/deepwiki-open-dotnet.ApiService/Middleware/RateLimitingMiddleware.cs with 100 req/min per IP (tests T034a must pass)
-- [ ] T035 [US1] Add rate limit configuration section to src/deepwiki-open-dotnet.ApiService/appsettings.json
-- [ ] T036 [US1] Wire up GenerationMetrics instrumentation in GenerationService to record TTF, tokens/sec, token counts (tests T036a must pass)
-- [ ] T037 [US1] Add request validation in GenerationController for empty prompts, invalid sessionIds, topK range checks (tests T028a must pass)
-- [ ] T038 [US1] Implement TTF measurement in GenerationService using Stopwatch from first request to first delta emission (tests T036a must pass, define "typical dev setup" baseline: 16GB RAM, Ollama vicuna-13b, local SSD)
-- [ ] T039 [US1] Add logging for session lifecycle (create, prompt submit, cancel, complete) using ILogger
+- [X] T032 [US1] Configure Ollama base URL from configuration (appsettings.json) with default http://localhost:11434
+- [X] T033 [US1] Add error handling in GenerationController to convert exceptions to structured error deltas (tests T028a must pass)
+- [X] T034 [US1] Implement rate limiting middleware using AspNetCoreRateLimit in src/deepwiki-open-dotnet.ApiService/Middleware/RateLimitingMiddleware.cs with 100 req/min per IP (tests T034a must pass)
+- [X] T035 [US1] Add rate limit configuration section to src/deepwiki-open-dotnet.ApiService/appsettings.json
+- [X] T036 [US1] Wire up GenerationMetrics instrumentation in GenerationService to record TTF, tokens/sec, token counts (tests T036a must pass)
+- [X] T037 [US1] Add request validation in GenerationController for empty prompts, invalid sessionIds, topK range checks (tests T028a must pass)
+- [X] T038 [US1] Implement TTF measurement in GenerationService using Stopwatch from first request to first delta emission (tests T036a must pass, define "typical dev setup" baseline: 16GB RAM, Ollama vicuna-13b, local SSD)
+- [X] T039 [US1] Add logging for session lifecycle (create, prompt submit, cancel, complete) using ILogger
 
 **Checkpoint**: User Story 1 complete - HTTP NDJSON streaming with Ollama provider, rate limiting, observability, cancellation (all tests passing)
 
