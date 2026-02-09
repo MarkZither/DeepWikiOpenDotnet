@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using DeepWiki.Data.Abstractions.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DeepWiki.Rag.Core.Providers;
 
@@ -12,16 +13,11 @@ public class OllamaProvider : IModelProvider
     private readonly ILogger<OllamaProvider> _logger;
     private readonly TimeSpan _stallTimeout;
 
-    public OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logger)
-        : this(httpClient, logger, TimeSpan.FromSeconds(30))
-    {
-    }
-
-    public OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logger, TimeSpan stallTimeout)
+    public OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logger, TimeSpan? stallTimeout = null)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _stallTimeout = stallTimeout;
+        _stallTimeout = stallTimeout ?? TimeSpan.FromSeconds(30);
     }
 
     public string Name => "Ollama";
