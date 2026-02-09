@@ -55,7 +55,14 @@ public class Program
             {
                 var rlCfg = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>().GetSection("RateLimit");
                 var retryAfter = rlCfg.GetValue<int?>("RetryAfterSeconds") ?? 60;
+                var permitLimit = rlCfg.GetValue<int?>("PermitLimit") ?? 100;
+                var windowSec = rlCfg.GetValue<int?>("WindowSeconds") ?? 60;
+
                 context.HttpContext.Response.Headers.RetryAfter = retryAfter.ToString();
+                context.HttpContext.Response.Headers["X-RateLimit-Limit"] = permitLimit.ToString();
+                context.HttpContext.Response.Headers["X-RateLimit-Remaining"] = "0";
+                context.HttpContext.Response.Headers["X-RateLimit-Reset"] = (DateTimeOffset.UtcNow.ToUnixTimeSeconds() + windowSec).ToString();
+
                 await context.HttpContext.Response.WriteAsync(
                     $"Rate limit exceeded. Please retry after {retryAfter} seconds.", token);
             };
@@ -158,13 +165,17 @@ public class Program
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Observability.GenerationMetrics>();
         builder.Services.AddScoped<DeepWiki.Data.Abstractions.IGenerationService, DeepWiki.Rag.Core.Services.GenerationService>();
 
-        // Register Ollama provider with HttpClient (configurable endpoint)
-        builder.Services.AddHttpClient<DeepWiki.Rag.Core.Providers.IModelProvider, DeepWiki.Rag.Core.Providers.OllamaProvider>((sp, client) =>
+        // Register Ollama provider as a typed HttpClient and map the interface to it.
+        // Using the concrete typed client ensures the concrete type can be resolved directly
+        // (some consumers or DI validation may request the concrete type).
+        builder.Services.AddHttpClient<DeepWiki.Rag.Core.Providers.OllamaProvider>((sp, client) =>
         {
             var cfg = sp.GetRequiredService<IConfiguration>();
             var endpoint = cfg.GetValue<string>("Ollama:Endpoint") ?? "http://localhost:11434";
             client.BaseAddress = new Uri(endpoint);
         });
+        builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
+            sp.GetRequiredService<DeepWiki.Rag.Core.Providers.OllamaProvider>());
 
         // Register embedding service via factory pattern
         // Configuration: Set "Embedding:Provider" to "openai", "foundry", or "ollama" in appsettings.json
@@ -323,6 +334,28 @@ using (var scope = app.Services.CreateScope())
 
         // SECURITY: Enable rate limiting middleware
         app.UseRateLimiter();
+
+        // Add headers for rate limit visibility (X-RateLimit-*) on all responses. Values are best-effort
+        app.Use(async (ctx, next) =>
+        {
+            var rlCfg = ctx.RequestServices.GetRequiredService<IConfiguration>().GetSection("RateLimit");
+            var permitLimit = rlCfg.GetValue<int?>("PermitLimit") ?? 100;
+            var windowSec = rlCfg.GetValue<int?>("WindowSeconds") ?? 60;
+
+            ctx.Response.OnStarting(() =>
+            {
+                // Best-effort values; Remaining is unknown at this stage, so we leave it to the limiter on rejection
+                if (!ctx.Response.Headers.ContainsKey("X-RateLimit-Limit"))
+                    ctx.Response.Headers["X-RateLimit-Limit"] = permitLimit.ToString();
+                if (!ctx.Response.Headers.ContainsKey("X-RateLimit-Remaining"))
+                    ctx.Response.Headers["X-RateLimit-Remaining"] = "unknown";
+                if (!ctx.Response.Headers.ContainsKey("X-RateLimit-Reset"))
+                    ctx.Response.Headers["X-RateLimit-Reset"] = (DateTimeOffset.UtcNow.ToUnixTimeSeconds() + windowSec).ToString();
+                return Task.CompletedTask;
+            });
+
+            await next();
+        });
 
         string[] summaries = ["Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"];
 
