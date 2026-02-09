@@ -171,7 +171,8 @@ public class Program
         builder.Services.AddHttpClient<DeepWiki.Rag.Core.Providers.OllamaProvider>((sp, client) =>
         {
             var cfg = sp.GetRequiredService<IConfiguration>();
-            var endpoint = cfg.GetValue<string>("Ollama:Endpoint") ?? "http://localhost:11434";
+            // Prefer the configured embedding section (Embedding:Ollama:Endpoint). Fall back to legacy key 'Ollama:Endpoint' for compatibility.
+            var endpoint = cfg.GetValue<string>("Embedding:Ollama:Endpoint") ?? cfg.GetValue<string>("Ollama:Endpoint") ?? "http://localhost:11434";
             client.BaseAddress = new Uri(endpoint);
         });
         builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
