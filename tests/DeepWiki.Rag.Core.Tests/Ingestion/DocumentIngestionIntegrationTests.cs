@@ -368,9 +368,12 @@ public class DocumentIngestionIntegrationTests
         public string ModelId => "stub-model";
         public int EmbeddingDimension => 1536;
 
-        public Task<float[]> EmbedAsync(string text, CancellationToken cancellationToken = default)
+        public async Task<float[]> EmbedAsync(string text, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(CreateHashBasedEmbedding(text));
+            // Simulate small work and respect cancellation so integration tests can reliably cancel
+            await Task.Delay(5, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return CreateHashBasedEmbedding(text);
         }
 
         public async IAsyncEnumerable<float[]> EmbedBatchAsync(
@@ -379,24 +382,33 @@ public class DocumentIngestionIntegrationTests
         {
             foreach (var text in texts)
             {
+                // Small delay per item to allow cancellation to be observed during long ingestions
+                await Task.Delay(5, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
                 yield return CreateHashBasedEmbedding(text);
             }
-            await Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<EmbeddingResponse>> EmbedBatchWithMetadataAsync(
+        public async Task<IReadOnlyList<EmbeddingResponse>> EmbedBatchWithMetadataAsync(
             IEnumerable<string> texts,
             int batchSize = 10,
             CancellationToken cancellationToken = default)
         {
-            var responses = texts.Select(t => new EmbeddingResponse
+            var responses = new List<EmbeddingResponse>();
+            foreach (var t in texts)
             {
-                Vector = CreateHashBasedEmbedding(t),
-                Provider = Provider,
-                ModelId = ModelId,
-                LatencyMs = 1
-            }).ToList();
-            return Task.FromResult<IReadOnlyList<EmbeddingResponse>>(responses);
+                await Task.Delay(5, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                responses.Add(new EmbeddingResponse
+                {
+                    Vector = CreateHashBasedEmbedding(t),
+                    Provider = Provider,
+                    ModelId = ModelId,
+                    LatencyMs = 1
+                });
+            }
+
+            return responses;
         }
     }
 
@@ -422,6 +434,8 @@ public class DocumentIngestionIntegrationTests
             Dictionary<string, string>? filters = null,
             CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             lock (_lock)
             {
                 var query = _documents.Values.AsEnumerable();
@@ -458,6 +472,8 @@ public class DocumentIngestionIntegrationTests
 
         public Task UpsertAsync(DocumentDto document, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             lock (_lock)
             {
                 // Check for existing by RepoUrl+FilePath

@@ -26,7 +26,7 @@ namespace DeepWiki.Rag.Core.Tests.Providers
 
             var handler = new FakeHandler(ndjson.ToString(), HttpStatusCode.OK);
             var client = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
-            var provider = new OllamaProvider(client, NullLogger<OllamaProvider>.Instance, TimeSpan.FromSeconds(5));
+            var provider = new OllamaProvider(client, NullLogger<OllamaProvider>.Instance, "test-model", TimeSpan.FromSeconds(5));
 
             // Act
             var list = new System.Collections.Generic.List<GenerationDelta>();
@@ -48,7 +48,7 @@ namespace DeepWiki.Rag.Core.Tests.Providers
         {
             var handler = new FakeHandler(string.Empty, HttpStatusCode.InternalServerError);
             var client = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
-            var provider = new OllamaProvider(client, NullLogger<OllamaProvider>.Instance, TimeSpan.FromSeconds(1));
+            var provider = new OllamaProvider(client, NullLogger<OllamaProvider>.Instance, "test-model", TimeSpan.FromSeconds(1));
 
             var ok = await provider.IsAvailableAsync();
 
@@ -61,7 +61,7 @@ namespace DeepWiki.Rag.Core.Tests.Providers
             // Handler simulates a slow stream by only sending data after delay exceeding stall timeout
             var handler = new SlowStreamHandler(delayBeforeFirstByteMs: 3000); // 3s
             var client = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
-            var provider = new OllamaProvider(client, NullLogger<OllamaProvider>.Instance, TimeSpan.FromMilliseconds(500)); // 0.5s stall timeout
+            var provider = new OllamaProvider(client, NullLogger<OllamaProvider>.Instance, "test-model", TimeSpan.FromMilliseconds(500)); // 0.5s stall timeout
 
             var ex = await Assert.ThrowsAsync<TimeoutException>(async () =>
             {

@@ -68,14 +68,16 @@ namespace DeepWiki.Rag.Core.Tests.Services
             using var cts = new CancellationTokenSource();
             cts.CancelAfter(50);
 
-            // Act & Assert
-            await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            // Act & Assert - cancellation may surface as TaskCanceledException or OperationCanceledException
+            var ex = await Record.ExceptionAsync(async () =>
             {
                 await foreach (var d in service.GenerateAsync(session.SessionId, "prompt", cancellationToken: cts.Token))
                 {
                     // consume
                 }
             });
+
+            ex.Should().BeAssignableTo<System.OperationCanceledException>();
         }
 
         private class ThrowingProvider : DeepWiki.Rag.Core.Providers.IModelProvider
@@ -139,6 +141,55 @@ namespace DeepWiki.Rag.Core.Tests.Services
             capturedSystemPrompt.Should().NotBeNull();
             capturedSystemPrompt.Should().Contain("Context documents:");
             capturedSystemPrompt.Should().Contain("Title: doc-1");
+        }
+
+        [Fact]
+        public async Task GenerateAsync_Passes_Filters_To_VectorStore()
+        {
+            // Arrange: capture filters
+            System.Collections.Generic.Dictionary<string, string>? receivedFilters = null;
+
+            var vectorStore = new CapturingVectorStore((embedding, k, filters, ct) => {
+                receivedFilters = filters;
+                return Task.FromResult((System.Collections.Generic.IReadOnlyList<DeepWiki.Data.Abstractions.Models.VectorQueryResult>)new DeepWiki.Data.Abstractions.Models.VectorQueryResult[] { });
+            });
+
+            var provider = new TestProviderCaptureSystemPrompt((pt, sp, ct) => { });
+            var sessionManager = new DeepWiki.Rag.Core.Services.SessionManager();
+            var metricsFactory = new SimpleMeterFactory();
+            var gm = new DeepWiki.Rag.Core.Observability.GenerationMetrics(metricsFactory);
+            var embeddingService = new FakeEmbeddingService();
+
+            var service = new DeepWiki.Rag.Core.Services.GenerationService(provider, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance, vectorStore, embeddingService);
+
+            var session = sessionManager.CreateSession();
+
+            var filters = new System.Collections.Generic.Dictionary<string, string> { { "repoUrl", "https://github.com/example/repo" } };
+
+            // Act
+            await foreach (var d in service.GenerateAsync(session.SessionId, "prompt", topK: 1, filters: filters, cancellationToken: CancellationToken.None))
+            {
+                // consume
+            }
+
+            // Assert
+            receivedFilters.Should().NotBeNull();
+            receivedFilters!.Should().ContainKey("repoUrl");
+            receivedFilters["repoUrl"].Should().Be("https://github.com/example/repo");
+        }
+
+        private class CapturingVectorStore : DeepWiki.Data.Abstractions.IVectorStore
+        {
+            private readonly System.Func<float[], int, System.Collections.Generic.Dictionary<string, string>?, CancellationToken, Task<System.Collections.Generic.IReadOnlyList<DeepWiki.Data.Abstractions.Models.VectorQueryResult>>> _fn;
+            public CapturingVectorStore(System.Func<float[], int, System.Collections.Generic.Dictionary<string, string>?, CancellationToken, Task<System.Collections.Generic.IReadOnlyList<DeepWiki.Data.Abstractions.Models.VectorQueryResult>>> fn)
+            {
+                _fn = fn;
+            }
+
+            public Task<System.Collections.Generic.IReadOnlyList<DeepWiki.Data.Abstractions.Models.VectorQueryResult>> QueryAsync(float[] embedding, int k, System.Collections.Generic.Dictionary<string, string>? filters = null, CancellationToken cancellationToken = default) => _fn(embedding, k, filters, cancellationToken);
+            public Task UpsertAsync(DeepWiki.Data.Abstractions.Models.DocumentDto document, CancellationToken cancellationToken = default) => Task.CompletedTask;
+            public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+            public Task RebuildIndexAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         }
 
         [Fact]

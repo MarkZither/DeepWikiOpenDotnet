@@ -12,11 +12,13 @@ public class OllamaProvider : IModelProvider
     private readonly HttpClient _httpClient;
     private readonly ILogger<OllamaProvider> _logger;
     private readonly TimeSpan _stallTimeout;
+    private readonly string _model;
 
-    public OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logger, TimeSpan? stallTimeout = null)
+    public OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logger, string model, TimeSpan? stallTimeout = null)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _model = !string.IsNullOrWhiteSpace(model) ? model : throw new ArgumentException("Model cannot be empty", nameof(model));
         _stallTimeout = stallTimeout ?? TimeSpan.FromSeconds(30);
     }
 
@@ -44,7 +46,13 @@ public class OllamaProvider : IModelProvider
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(_stallTimeout);
 
-        var request = new { prompt = promptText, system_prompt = systemPrompt };
+        var request = new 
+        { 
+            model = _model,
+            prompt = promptText, 
+            system = systemPrompt,
+            stream = true
+        };
         HttpResponseMessage resp;
         try
         {

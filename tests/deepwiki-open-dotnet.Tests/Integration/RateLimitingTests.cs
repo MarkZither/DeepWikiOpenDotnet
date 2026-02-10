@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using System.Net.Http.Json;
 using Xunit;
 
 namespace DeepWiki.ApiService.Tests.Integration
@@ -15,6 +16,14 @@ namespace DeepWiki.ApiService.Tests.Integration
         public RateLimitingTests(WebApplicationFactory<Program> factory)
         {
             _factory = factory;
+        }
+
+        [Fact]
+        public async Task SuccessfulResponse_Includes_RateLimit_Headers()
+        {
+            var client = _factory.CreateClient();
+            var res = await client.PostAsJsonAsync("/api/generation/session", new { owner = "test" }, TestContext.Current.CancellationToken);
+            res.Headers.Should().Contain(h => h.Key == "X-RateLimit-Limit" || h.Key == "X-RateLimit-Remaining" || h.Key == "X-RateLimit-Reset");
         }
 
         [Fact]
@@ -33,6 +42,9 @@ namespace DeepWiki.ApiService.Tests.Integration
             // Assert: at least one response should be 429 and include Retry-After header
             responses.Should().Contain(r => r.StatusCode == HttpStatusCode.TooManyRequests);
             responses.Should().Contain(r => r.Headers.Contains("Retry-After"));
+
+            // Additionally, verify X-RateLimit headers are present on responses where applicable
+            responses.Should().Contain(r => r.Headers.Contains("X-RateLimit-Limit") || r.Headers.Contains("X-RateLimit-Remaining") || r.Headers.Contains("X-RateLimit-Reset"));
         }
     }
 }

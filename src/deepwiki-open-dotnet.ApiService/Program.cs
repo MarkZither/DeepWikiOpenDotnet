@@ -171,12 +171,19 @@ public class Program
         builder.Services.AddHttpClient<DeepWiki.Rag.Core.Providers.OllamaProvider>((sp, client) =>
         {
             var cfg = sp.GetRequiredService<IConfiguration>();
-            // Prefer the configured embedding section (Embedding:Ollama:Endpoint). Fall back to legacy key 'Ollama:Endpoint' for compatibility.
-            var endpoint = cfg.GetValue<string>("Embedding:Ollama:Endpoint") ?? cfg.GetValue<string>("Ollama:Endpoint") ?? "http://localhost:11434";
+            var endpoint = cfg.GetValue<string>("Embedding:Ollama:Endpoint") ?? "http://localhost:11434";
             client.BaseAddress = new Uri(endpoint);
         });
         builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
-            sp.GetRequiredService<DeepWiki.Rag.Core.Providers.OllamaProvider>());
+        {
+            var cfg = sp.GetRequiredService<IConfiguration>();
+            var model = cfg.GetValue<string>("Generation:Ollama:ModelId") 
+                ?? cfg.GetValue<string>("Ollama:GenerationModel") 
+                ?? "gemma3";
+            var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(DeepWiki.Rag.Core.Providers.OllamaProvider));
+            var logger = sp.GetRequiredService<ILogger<DeepWiki.Rag.Core.Providers.OllamaProvider>>();
+            return new DeepWiki.Rag.Core.Providers.OllamaProvider(httpClient, logger, model);
+        });
 
         // Register embedding service via factory pattern
         // Configuration: Set "Embedding:Provider" to "openai", "foundry", or "ollama" in appsettings.json

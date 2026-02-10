@@ -30,9 +30,12 @@ public class GenerationController : ControllerBase
     {
         if (!ModelState.IsValid)
         {
-            // Return validations to the client as JSON with 400 status
+            // Return a structured ErrorResponse for invalid requests
             Response.StatusCode = 400;
-            var json = JsonSerializer.Serialize(ModelState);
+            Response.ContentType = "application/json";
+            var detail = string.Join("; ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage));
+            var err = new DeepWiki.ApiService.Models.ErrorResponse { Detail = detail };
+            var json = JsonSerializer.Serialize(err);
             await Response.WriteAsync(json + "\n");
             await Response.Body.FlushAsync();
             return;
@@ -42,7 +45,11 @@ public class GenerationController : ControllerBase
         if (session == null)
         {
             Response.StatusCode = 404;
-            await Response.WriteAsync("Session not found");
+            Response.ContentType = "application/json";
+            var err = new DeepWiki.ApiService.Models.ErrorResponse { Detail = "Session not found" };
+            var json = JsonSerializer.Serialize(err);
+            await Response.WriteAsync(json + "\n");
+            await Response.Body.FlushAsync();
             return;
         }
 

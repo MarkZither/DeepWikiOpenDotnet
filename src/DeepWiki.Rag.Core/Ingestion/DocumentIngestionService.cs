@@ -116,8 +116,14 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
                 // Convert to DocumentDto with metadata enrichment
                 var documentDto = await CreateDocumentDtoAsync(doc, request, cancellationToken);
 
+                // Respect cancellation after expensive preparatory work
+                cancellationToken.ThrowIfCancellationRequested();
+
                 // Upsert to vector store
                 await UpsertAsync(documentDto, cancellationToken);
+
+                // Respect cancellation after upsert
+                cancellationToken.ThrowIfCancellationRequested();
 
                 // Count chunks (single document = 1 chunk for now, chunking handled by ChunkAndEmbedAsync)
                 totalChunks++;

@@ -170,6 +170,8 @@ curl -X POST http://localhost:5000/api/generation/stream \
     done
 ```
 
+Tip: A ready-to-run example script is available at `specs/001-streaming-rag-service/examples/curl-demo.sh`.
+
 **Output**:
 ```
 Session: f47ac10b-58cc-4372-a567-0e02b2c3d479

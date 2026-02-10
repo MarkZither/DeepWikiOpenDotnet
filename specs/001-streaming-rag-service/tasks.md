@@ -137,15 +137,15 @@
 
 ### Implementation for User Story 2
 
-- [ ] T040 [US2] Create curl demo script in specs/001-streaming-rag-service/examples/curl-demo.sh based on quickstart.md scenarios
-- [ ] T041 [US2] Add validation in GenerationController to return 400 for missing sessionId or empty prompt with structured ErrorResponse
-- [ ] T042 [US2] Implement proper content-type handling in GenerationController to ensure application/x-ndjson is set for streaming responses
-- [ ] T043 [US2] Add example NDJSON responses in OpenAPI spec (contracts/generation-service.yaml) for documentation
-- [ ] T044 [US2] Create bash script example in quickstart.md for parsing NDJSON stream with jq (already documented, validate implementation)
-- [ ] T045 [US2] Add validation for topK range (1-20) in GenerationController with 400 error for out-of-range values
-- [ ] T046 [US2] Implement filter parsing in GenerationService to pass retrieval filters to IVectorStore.QueryAsync
-- [ ] T047 [US2] Add HTTP response header validation to ensure X-RateLimit-* headers are included in responses
-- [ ] T048 [US2] Document error response codes (400, 404, 429) in contracts/generation-service.yaml with examples
+- [X] T040 [US2] Create curl demo script in specs/001-streaming-rag-service/examples/curl-demo.sh based on quickstart.md scenarios
+- [X] T041 [US2] Add validation in GenerationController to return 400 for missing sessionId or empty prompt with structured ErrorResponse
+- [X] T042 [US2] Implement proper content-type handling in GenerationController to ensure application/x-ndjson is set for streaming responses
+- [X] T043 [US2] Add example NDJSON responses in OpenAPI spec (contracts/generation-service.yaml) for documentation
+- [X] T044 [US2] Create bash script example in quickstart.md for parsing NDJSON stream with jq (already documented, validate implementation)
+- [X] T045 [US2] Add validation for topK range (1-20) in GenerationController with 400 error for out-of-range values
+- [X] T046 [US2] Implement filter parsing in GenerationService to pass retrieval filters to IVectorStore.QueryAsync
+- [X] T047 [US2] Add HTTP response header validation to ensure X-RateLimit-* headers are included in responses
+- [X] T048 [US2] Document error response codes (400, 404, 429) in contracts/generation-service.yaml with examples
 
 **Checkpoint**: User Story 2 complete - curl/fetch compatibility validated, proper error handling, filter support
 

@@ -46,6 +46,9 @@ namespace DeepWiki.ApiService.Tests.Controllers
 
             await controller.StreamGeneration(req);
 
+            // Content-Type should be NDJSON for streaming responses
+            ctx.Response.ContentType.Should().Be("application/x-ndjson");
+
             ms.Seek(0, SeekOrigin.Begin);
             var text = new StreamReader(ms).ReadToEnd();
             var lines = text.Split('\n', System.StringSplitOptions.RemoveEmptyEntries);
@@ -85,6 +88,85 @@ namespace DeepWiki.ApiService.Tests.Controllers
             var err = JsonSerializer.Deserialize<DeepWiki.Data.Abstractions.Models.GenerationDelta>(lines[0]);
             err!.Type.Should().Be("error");
             ((JsonElement)err.Metadata!).GetProperty("code").GetString().Should().Be("internal_error");
+        }
+
+        [Fact]
+        public async Task StreamGeneration_Returns_BadRequest_When_ModelState_Invalid()
+        {
+            var sessionManager = new DeepWiki.Rag.Core.Services.SessionManager();
+            var svc = new TestGenerationService();
+            var controller = new GenerationController(svc, sessionManager);
+
+            var session = sessionManager.CreateSession();
+
+            var ctx = new DefaultHttpContext();
+            var ms = new MemoryStream();
+            ctx.Response.Body = ms;
+            controller.ControllerContext = new ControllerContext { HttpContext = ctx };
+
+            // Simulate model validation error (empty prompt)
+            var req = new PromptRequest { SessionId = session.SessionId, Prompt = "" };
+            controller.ModelState.AddModelError("Prompt", "Prompt cannot be empty");
+
+            await controller.StreamGeneration(req);
+
+            ms.Seek(0, SeekOrigin.Begin);
+            var text = new StreamReader(ms).ReadToEnd();
+            var err = JsonSerializer.Deserialize<DeepWiki.ApiService.Models.ErrorResponse>(text.Trim());
+            err!.Detail.Should().Contain("Prompt cannot be empty");
+            ctx.Response.StatusCode.Should().Be(400);
+            ctx.Response.ContentType.Should().Be("application/json");
+        }
+
+        [Fact]
+        public async Task StreamGeneration_Returns_404_When_Session_Not_Found()
+        {
+            var sessionManager = new DeepWiki.Rag.Core.Services.SessionManager();
+            var svc = new TestGenerationService();
+            var controller = new GenerationController(svc, sessionManager);
+
+            var ctx = new DefaultHttpContext();
+            var ms = new MemoryStream();
+            ctx.Response.Body = ms;
+            controller.ControllerContext = new ControllerContext { HttpContext = ctx };
+
+            var req = new PromptRequest { SessionId = "nonexistent", Prompt = "hello" };
+
+            await controller.StreamGeneration(req);
+
+            ms.Seek(0, SeekOrigin.Begin);
+            var text = new StreamReader(ms).ReadToEnd();
+            var err = JsonSerializer.Deserialize<DeepWiki.ApiService.Models.ErrorResponse>(text.Trim());
+            err!.Detail.Should().Contain("Session not found");
+            ctx.Response.StatusCode.Should().Be(404);
+            ctx.Response.ContentType.Should().Be("application/json");
+        }
+
+        [Fact]
+        public async Task StreamGeneration_Returns_BadRequest_For_TopK_Out_Of_Range()
+        {
+            var sessionManager = new DeepWiki.Rag.Core.Services.SessionManager();
+            var svc = new TestGenerationService();
+            var controller = new GenerationController(svc, sessionManager);
+
+            var session = sessionManager.CreateSession();
+
+            var ctx = new DefaultHttpContext();
+            var ms = new MemoryStream();
+            ctx.Response.Body = ms;
+            controller.ControllerContext = new ControllerContext { HttpContext = ctx };
+
+            var req = new PromptRequest { SessionId = session.SessionId, Prompt = "hello", TopK = 100 };
+            controller.ModelState.AddModelError("TopK", "TopK must be between 1 and 20");
+
+            await controller.StreamGeneration(req);
+
+            ms.Seek(0, SeekOrigin.Begin);
+            var text = new StreamReader(ms).ReadToEnd();
+            var err = JsonSerializer.Deserialize<DeepWiki.ApiService.Models.ErrorResponse>(text.Trim());
+            err!.Detail.Should().Contain("TopK must be between 1 and 20");
+            ctx.Response.StatusCode.Should().Be(400);
+            ctx.Response.ContentType.Should().Be("application/json");
         }
         [Fact]
         public async Task CancelGeneration_Returns_Ok()
