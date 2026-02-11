@@ -163,7 +163,20 @@ public class Program
         // Session manager and generation service
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.SessionManager>();
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Observability.GenerationMetrics>();
-        builder.Services.AddScoped<DeepWiki.Data.Abstractions.IGenerationService, DeepWiki.Rag.Core.Services.GenerationService>();
+        builder.Services.AddScoped<DeepWiki.Data.Abstractions.IGenerationService>((sp) =>
+        {
+            var cfg = sp.GetRequiredService<IConfiguration>();
+            var provider = sp.GetRequiredService<DeepWiki.Rag.Core.Providers.IModelProvider>();
+            var sessionManager = sp.GetRequiredService<DeepWiki.Rag.Core.Services.SessionManager>();
+            var metrics = sp.GetRequiredService<DeepWiki.Rag.Core.Observability.GenerationMetrics>();
+            var logger = sp.GetRequiredService<ILogger<DeepWiki.Rag.Core.Services.GenerationService>>();
+            var vectorStore = sp.GetService<DeepWiki.Data.Abstractions.IVectorStore>();
+            var embeddingService = sp.GetService<DeepWiki.Data.Abstractions.IEmbeddingService>();
+            var stallTimeoutSeconds = cfg.GetValue<int?>("Generation:Ollama:StallTimeoutSeconds") ?? 300;
+            return new DeepWiki.Rag.Core.Services.GenerationService(
+                provider, sessionManager, metrics, logger, vectorStore, embeddingService, 
+                TimeSpan.FromSeconds(stallTimeoutSeconds));
+        });
 
         // Register Ollama provider as a typed HttpClient and map the interface to it.
         // Using the concrete typed client ensures the concrete type can be resolved directly
@@ -173,6 +186,8 @@ public class Program
             var cfg = sp.GetRequiredService<IConfiguration>();
             var endpoint = cfg.GetValue<string>("Embedding:Ollama:Endpoint") ?? "http://localhost:11434";
             client.BaseAddress = new Uri(endpoint);
+            // Set a long timeout for local Ollama models which can take minutes to process
+            client.Timeout = TimeSpan.FromMinutes(10);
         });
         builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
         {
@@ -180,9 +195,10 @@ public class Program
             var model = cfg.GetValue<string>("Generation:Ollama:ModelId") 
                 ?? cfg.GetValue<string>("Ollama:GenerationModel") 
                 ?? "gemma3";
+            var stallTimeoutSeconds = cfg.GetValue<int?>("Generation:Ollama:StallTimeoutSeconds") ?? 300; // 5 minutes default
             var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(DeepWiki.Rag.Core.Providers.OllamaProvider));
             var logger = sp.GetRequiredService<ILogger<DeepWiki.Rag.Core.Providers.OllamaProvider>>();
-            return new DeepWiki.Rag.Core.Providers.OllamaProvider(httpClient, logger, model);
+            return new DeepWiki.Rag.Core.Providers.OllamaProvider(httpClient, logger, model, TimeSpan.FromSeconds(stallTimeoutSeconds));
         });
 
         // Register embedding service via factory pattern

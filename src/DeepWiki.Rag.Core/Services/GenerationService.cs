@@ -32,7 +32,7 @@ public class GenerationService : IGenerationService
         _metrics = metrics;
         _vectorStore = vectorStore;
         _embeddingService = embeddingService;
-        _providerStallTimeout = providerStallTimeout ?? TimeSpan.FromSeconds(30);
+        _providerStallTimeout = providerStallTimeout ?? TimeSpan.FromMinutes(5);
     }
 
     public async IAsyncEnumerable<GenerationDelta> GenerateAsync(string sessionId, string promptText, int topK = 5, Dictionary<string, string>? filters = null, string? idempotencyKey = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -149,6 +149,7 @@ public class GenerationService : IGenerationService
             }
         });
 
+        Task? stallMonitor = null;
         try
         {
             var normalizer = new DeepWiki.Rag.Core.Streaming.StreamNormalizer(prompt.PromptId, "assistant");
@@ -157,7 +158,7 @@ public class GenerationService : IGenerationService
             var lastTokenTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var lastTokenTime = DateTime.UtcNow;
 
-            var stallMonitor = Task.Run(async () =>
+            stallMonitor = Task.Run(async () =>
             {
                 while (!cancellationToken.IsCancellationRequested && !cts.IsCancellationRequested)
                 {
@@ -217,13 +218,6 @@ public class GenerationService : IGenerationService
                 }
             }
 
-            // Cancel monitor task if still running
-            if (!stallMonitor.IsCompleted)
-            {
-                try { cts.Cancel(); } catch { }
-                try { await stallMonitor; } catch { }
-            }
-
             // Ensure producer completed successfully
             if (producer.IsFaulted)
                 await producer; // will rethrow
@@ -237,6 +231,19 @@ public class GenerationService : IGenerationService
         }
         finally
         {
+            // Ensure background tasks are cancelled and completed
+            try { cts.Cancel(); } catch { }
+            
+            if (stallMonitor != null && !stallMonitor.IsCompleted)
+            {
+                try { await stallMonitor; } catch { }
+            }
+            
+            if (!producer.IsCompleted)
+            {
+                try { await producer; } catch { }
+            }
+            
             _promptCancellations.TryRemove(prompt.PromptId, out _);
             cts.Dispose();
         }

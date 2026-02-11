@@ -19,7 +19,7 @@ public class OllamaProvider : IModelProvider
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _model = !string.IsNullOrWhiteSpace(model) ? model : throw new ArgumentException("Model cannot be empty", nameof(model));
-        _stallTimeout = stallTimeout ?? TimeSpan.FromSeconds(30);
+        _stallTimeout = stallTimeout ?? TimeSpan.FromMinutes(5);
     }
 
     public string Name => "Ollama";
@@ -43,6 +43,7 @@ public class OllamaProvider : IModelProvider
         if (string.IsNullOrWhiteSpace(promptText))
             throw new ArgumentException("promptText cannot be empty", nameof(promptText));
 
+        var startTime = DateTime.UtcNow;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(_stallTimeout);
 
@@ -53,14 +54,28 @@ public class OllamaProvider : IModelProvider
             system = systemPrompt,
             stream = true
         };
+        
+        // Use SendAsync with ResponseHeadersRead to enable true streaming
+        // (PostAsJsonAsync buffers the entire response, which hangs on streaming endpoints)
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/generate")
+        {
+            Content = JsonContent.Create(request)
+        };
+        
         HttpResponseMessage resp;
         try
         {
-            resp = await _httpClient.PostAsJsonAsync("/api/generate", request, cts.Token).ConfigureAwait(false);
+            resp = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException ex)
         {
-            throw new TimeoutException("Ollama provider stalled or request timed out");
+            // Distinguish between timeout and user cancellation by checking elapsed time
+            var elapsed = DateTime.UtcNow - startTime;
+            if (elapsed >= _stallTimeout.Subtract(TimeSpan.FromSeconds(1))) // Allow 1 second tolerance
+            {
+                throw new TimeoutException($"Ollama provider timed out after {elapsed.TotalSeconds:F1}s", ex);
+            }
+            throw; // User cancelled, rethrow as-is
         }
 
         resp.EnsureSuccessStatusCode();
@@ -83,9 +98,15 @@ public class OllamaProvider : IModelProvider
                     {
                         read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cts.Token).ConfigureAwait(false);
                     }
-                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                    catch (OperationCanceledException ex)
                     {
-                        throw new TimeoutException("Ollama provider stalled while streaming");
+                        // Distinguish between timeout and user cancellation by checking elapsed time
+                        var elapsed = DateTime.UtcNow - startTime;
+                        if (elapsed >= _stallTimeout.Subtract(TimeSpan.FromSeconds(1))) // Allow 1 second tolerance
+                        {
+                            throw new TimeoutException($"Ollama provider timed out after {elapsed.TotalSeconds:F1}s while streaming", ex);
+                        }
+                        throw; // User cancelled, rethrow as-is
                     }
 
                     if (read == 0)
@@ -108,9 +129,9 @@ public class OllamaProvider : IModelProvider
                             using var doc = JsonDocument.Parse(lineBytes);
                             var root = doc.RootElement;
 
-                            if (root.TryGetProperty("token", out var tokenProp))
+                            if (root.TryGetProperty("response", out var responseProp))
                             {
-                                var text = tokenProp.GetString() ?? string.Empty;
+                                var text = responseProp.GetString() ?? string.Empty;
                                 await channel.Writer.WriteAsync(new GenerationDelta
                                 {
                                     PromptId = string.Empty,
@@ -120,7 +141,8 @@ public class OllamaProvider : IModelProvider
                                     Text = text
                                 }, cts.Token);
                             }
-                            else if (root.TryGetProperty("type", out var typeProp) && typeProp.GetString() == "done")
+                            
+                            if (root.TryGetProperty("done", out var doneProp) && doneProp.GetBoolean())
                             {
                                 await channel.Writer.WriteAsync(new GenerationDelta
                                 {
@@ -131,7 +153,8 @@ public class OllamaProvider : IModelProvider
                                     Text = null
                                 }, cts.Token);
                             }
-                            else if (root.TryGetProperty("error", out var errorProp))
+                            
+                            if (root.TryGetProperty("error", out var errorProp))
                             {
                                 await channel.Writer.WriteAsync(new GenerationDelta
                                 {
@@ -168,9 +191,9 @@ public class OllamaProvider : IModelProvider
                     {
                         using var doc = JsonDocument.Parse(leftover.ToArray());
                         var root = doc.RootElement;
-                        if (root.TryGetProperty("token", out var tokenProp))
+                        if (root.TryGetProperty("response", out var responseProp))
                         {
-                            var text = tokenProp.GetString() ?? string.Empty;
+                            var text = responseProp.GetString() ?? string.Empty;
                             await channel.Writer.WriteAsync(new GenerationDelta
                             {
                                 PromptId = string.Empty,
@@ -210,7 +233,20 @@ public class OllamaProvider : IModelProvider
         }
         finally
         {
-            // nothing extra
+            // Ensure the producer task is cancelled and completed before we exit
+            cts.Cancel();
+            try
+            {
+                await producer.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when we cancel
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Producer task failed during cleanup");
+            }
         }
     }
 }
