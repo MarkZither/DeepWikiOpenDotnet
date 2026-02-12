@@ -38,20 +38,18 @@ namespace DeepWiki.Rag.Core.Tests.Services
             var sessionManager = new DeepWiki.Rag.Core.Services.SessionManager();
             var metricsFactory = new SimpleMeterFactory();
             var gm = new DeepWiki.Rag.Core.Observability.GenerationMetrics(metricsFactory);
-            var service = new DeepWiki.Rag.Core.Services.GenerationService(provider, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance);
+            var service = new DeepWiki.Rag.Core.Services.GenerationService(new[] { provider }, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance);
 
             var session = sessionManager.CreateSession();
 
-            // Act & Assert
-            var ex = await Assert.ThrowsAsync<Exception>(async () =>
+            // Act: consume stream and expect an error delta to be emitted when all providers fail
+            var foundError = false;
+            await foreach (var d in service.GenerateAsync(session.SessionId, "prompt", cancellationToken: CancellationToken.None))
             {
-                await foreach (var d in service.GenerateAsync(session.SessionId, "prompt", cancellationToken: CancellationToken.None))
-                {
-                    // consume
-                }
-            });
+                if (d.Type == "error") { foundError = true; break; }
+            }
 
-            Assert.Equal("boom", ex.Message);
+            foundError.Should().BeTrue();
         }
 
         [Fact]
@@ -62,7 +60,7 @@ namespace DeepWiki.Rag.Core.Tests.Services
             var sessionManager = new DeepWiki.Rag.Core.Services.SessionManager();
             var metricsFactory = new SimpleMeterFactory();
             var gm = new DeepWiki.Rag.Core.Observability.GenerationMetrics(metricsFactory);
-            var service = new DeepWiki.Rag.Core.Services.GenerationService(provider, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance);
+            var service = new DeepWiki.Rag.Core.Services.GenerationService(new[] { provider }, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance);
 
             var session = sessionManager.CreateSession();
             using var cts = new CancellationTokenSource();
@@ -127,7 +125,7 @@ namespace DeepWiki.Rag.Core.Tests.Services
             var vectorStore = new FakeVectorStore();
             var embeddingService = new FakeEmbeddingService();
 
-            var service = new DeepWiki.Rag.Core.Services.GenerationService(provider, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance, vectorStore, embeddingService, TimeSpan.FromMilliseconds(500));
+            var service = new DeepWiki.Rag.Core.Services.GenerationService(new[] { provider }, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance, vectorStore, embeddingService, TimeSpan.FromMilliseconds(500));
 
             var session = sessionManager.CreateSession();
 
@@ -160,7 +158,7 @@ namespace DeepWiki.Rag.Core.Tests.Services
             var gm = new DeepWiki.Rag.Core.Observability.GenerationMetrics(metricsFactory);
             var embeddingService = new FakeEmbeddingService();
 
-            var service = new DeepWiki.Rag.Core.Services.GenerationService(provider, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance, vectorStore, embeddingService);
+            var service = new DeepWiki.Rag.Core.Services.GenerationService(new[] { provider }, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance, vectorStore, embeddingService);
 
             var session = sessionManager.CreateSession();
 
@@ -202,7 +200,7 @@ namespace DeepWiki.Rag.Core.Tests.Services
             var gm = new DeepWiki.Rag.Core.Observability.GenerationMetrics(metricsFactory);
 
             // use very short stall timeout so test completes quickly
-            var service = new DeepWiki.Rag.Core.Services.GenerationService(provider, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance, null, null, TimeSpan.FromMilliseconds(200));
+            var service = new DeepWiki.Rag.Core.Services.GenerationService(new[] { provider }, sessionManager, gm, Microsoft.Extensions.Logging.Abstractions.NullLogger<DeepWiki.Rag.Core.Services.GenerationService>.Instance, null, null, TimeSpan.FromMilliseconds(200));
 
             var session = sessionManager.CreateSession();
 

@@ -172,6 +172,45 @@ curl -X POST http://localhost:5000/api/generation/stream \
 
 Tip: A ready-to-run example script is available at `specs/001-streaming-rag-service/examples/curl-demo.sh`.
 
+#### Test helper: `scripts/test-ollama-openai.sh`
+A convenience script is provided to validate the OpenAI provider against an Ollama (or OpenAI‑compatible) endpoint. Behavior:
+
+- Probes for a running API on the provided URL, `http://localhost:5000`, or `http://localhost:5484` and will *use* the running service if found.
+- If no service is found and `--no-start` is **not** passed, the script will start the API locally (dotnet run) with `OpenAI:BaseUrl` set to the supplied Ollama URL.
+- If `--no-start` is passed the script only probes and fails if no API is running.
+
+Usage examples:
+
+- Run against an already-running API (no start):
+
+```bash
+./scripts/test-ollama-openai.sh --no-start
+```
+
+- Start the API (if needed) and test OpenAI→Ollama streaming:
+
+```bash
+./scripts/test-ollama-openai.sh http://localhost:11434 http://localhost:5000
+```
+
+- Force the script to use a specific API port (probe first, start only if not in use):
+
+```bash
+./scripts/test-ollama-openai.sh http://localhost:11434 http://localhost:5484
+```
+
+**Output** (example):
+```
+Using session: f47ac10b-58cc-4372-a567-0e02b2c3d479
+Running streaming prompt (OpenAI -> Ollama)...
+Hello from Ollama!
+-- Generation complete --
+```
+
+**Notes**:
+- Configure `OpenAI:BaseUrl` and `OpenAI:Provider` in `appsettings.json` to point the OpenAI provider at Ollama for persistent setups.
+- The script is intended for local testing and CI smoke tests; it is not required for normal production use.
+
 **Output**:
 ```
 Session: f47ac10b-58cc-4372-a567-0e02b2c3d479

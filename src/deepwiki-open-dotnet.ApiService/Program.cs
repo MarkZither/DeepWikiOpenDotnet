@@ -77,7 +77,12 @@ public class Program
             builder.Configuration.GetSection(VectorStoreOptions.SectionName));
 
         // Register data layer services based on VectorStore:Provider configuration
-        var vectorStoreProvider = builder.Configuration.GetValue<string>("VectorStore:Provider") ?? "postgres";
+        var vectorStoreProvider = builder.Configuration.GetValue<string>("VectorStore:Provider");
+        if (string.IsNullOrWhiteSpace(vectorStoreProvider))
+        {
+            throw new InvalidOperationException(
+                "VectorStore:Provider is not configured. Set 'VectorStore:Provider' to 'postgres' or 'sqlserver' in appsettings.json or environment variables. See VECTOR_STORE_SETUP.md for configuration examples.");
+        }
         var dataLayerRegistered = false;
         
         if (vectorStoreProvider.Equals("postgres", StringComparison.OrdinalIgnoreCase))
@@ -130,26 +135,33 @@ public class Program
             var regLogger = sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()?.CreateLogger("Startup.VectorStoreRegistration");
 
             var factory = sp.GetRequiredService<DeepWiki.Rag.Core.VectorStore.VectorStoreFactory>();
-            var provider = builder.Configuration.GetValue<string>("VectorStore:Provider") ?? "postgres";
+            var provider = builder.Configuration.GetValue<string>("VectorStore:Provider");
+            if (string.IsNullOrWhiteSpace(provider))
+            {
+                throw new InvalidOperationException(
+                    "VectorStore:Provider is not configured. Set 'VectorStore:Provider' to 'postgres' or 'sqlserver' in appsettings.json or environment variables. See VECTOR_STORE_SETUP.md for configuration examples.");
+            }
 
             regLogger?.LogInformation("Resolving IVectorStore for provider '{Provider}'. ProviderAvailable={ProviderAvailable}", provider, factory.IsProviderAvailable(provider));
-            
-            // If configured provider is not available, either throw or optionally fall back to NoOp
-            // New config: VectorStore:AllowNoOpFallback (bool). Default: false (throw) to fail fast when misconfigured.
+
+            // If configured provider is not available, fail fast — NoOp fallback is NOT supported.
             if (!factory.IsProviderAvailable(provider))
             {
-                var allowFallback = builder.Configuration.GetValue<bool?>("VectorStore:AllowNoOpFallback") ?? false;
-                var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<DeepWiki.Rag.Core.VectorStore.NoOpVectorStore>>();
-                var msg = $"Vector store provider '{provider}' not configured or not available. ";
-
-                if (!allowFallback)
+                var logger = sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()?.CreateLogger("Startup.VectorStoreRegistration");
+                var connString = provider.Equals("postgres", StringComparison.OrdinalIgnoreCase) 
+                    ? builder.Configuration.GetConnectionString("deepwikidb")
+                    : builder.Configuration.GetConnectionString("SqlServer");
+                var msg = $"Vector store provider '{provider}' is not available. ";
+                if (string.IsNullOrWhiteSpace(connString))
                 {
-                    logger?.LogError(msg + "Failing fast because VectorStore:AllowNoOpFallback is false. Configure the provider or set VectorStore:AllowNoOpFallback=true to allow NoOp fallback.");
-                    throw new InvalidOperationException(msg + "Configure VectorStore:Provider and required connection strings to enable vector storage, or set VectorStore:AllowNoOpFallback=true to permit NoOp fallback.");
+                    msg += $"Connection string not configured. Set 'ConnectionStrings:deepwikidb' (for postgres) or 'ConnectionStrings:SqlServer' (for sqlserver) in appsettings or user-secrets. See VECTOR_STORE_SETUP.md for configuration examples.";
                 }
-
-                logger?.LogWarning(msg + "Using NoOpVectorStore because VectorStore:AllowNoOpFallback=true.");
-                return new DeepWiki.Rag.Core.VectorStore.NoOpVectorStore();
+                else
+                {
+                    msg += $"Connection string is set but provider registration failed. Ensure the database is accessible and data layer extensions are registered.";
+                }
+                logger?.LogError(msg);
+                throw new InvalidOperationException(msg);
             }
 
             regLogger?.LogInformation("Creating IVectorStore implementation for provider '{Provider}'", provider);
@@ -163,43 +175,78 @@ public class Program
         // Session manager and generation service
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.SessionManager>();
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Observability.GenerationMetrics>();
+        builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.PromptCancellationRegistry>();
         builder.Services.AddScoped<DeepWiki.Data.Abstractions.IGenerationService>((sp) =>
         {
             var cfg = sp.GetRequiredService<IConfiguration>();
-            var provider = sp.GetRequiredService<DeepWiki.Rag.Core.Providers.IModelProvider>();
+            var providers = sp.GetServices<DeepWiki.Rag.Core.Providers.IModelProvider>();
+            // Respect configured provider ordering (Generation:Providers) if present; otherwise use registration order
+            var orderedProviders = DeepWiki.Rag.Core.Providers.ProviderOrderResolver.ResolveOrder(providers, cfg);
             var sessionManager = sp.GetRequiredService<DeepWiki.Rag.Core.Services.SessionManager>();
             var metrics = sp.GetRequiredService<DeepWiki.Rag.Core.Observability.GenerationMetrics>();
             var logger = sp.GetRequiredService<ILogger<DeepWiki.Rag.Core.Services.GenerationService>>();
             var vectorStore = sp.GetService<DeepWiki.Data.Abstractions.IVectorStore>();
             var embeddingService = sp.GetService<DeepWiki.Data.Abstractions.IEmbeddingService>();
             var stallTimeoutSeconds = cfg.GetValue<int?>("Generation:Ollama:StallTimeoutSeconds") ?? 300;
+            var failureThreshold = cfg.GetValue<int?>("Generation:ProviderFailureThreshold") ?? 3;
+            var breakDurationSec = cfg.GetValue<int?>("Generation:ProviderCircuitBreakSeconds") ?? 30;
+            var registry = sp.GetRequiredService<DeepWiki.Rag.Core.Services.PromptCancellationRegistry>();
             return new DeepWiki.Rag.Core.Services.GenerationService(
-                provider, sessionManager, metrics, logger, vectorStore, embeddingService, 
-                TimeSpan.FromSeconds(stallTimeoutSeconds));
+                orderedProviders, sessionManager, metrics, logger, vectorStore, embeddingService, 
+                TimeSpan.FromSeconds(stallTimeoutSeconds), failureThreshold, TimeSpan.FromSeconds(breakDurationSec), registry);
         });
 
         // Register Ollama provider as a typed HttpClient and map the interface to it.
-        // Using the concrete typed client ensures the concrete type can be resolved directly
-        // (some consumers or DI validation may request the concrete type).
-        builder.Services.AddHttpClient<DeepWiki.Rag.Core.Providers.OllamaProvider>((sp, client) =>
+        // Only register if configured in Generation:Providers list
+        var configuredProviders = builder.Configuration.GetSection("Generation:Providers").Get<string[]>() ?? Array.Empty<string>();
+        if (configuredProviders.Any(p => p.Equals("Ollama", StringComparison.OrdinalIgnoreCase)))
         {
-            var cfg = sp.GetRequiredService<IConfiguration>();
-            var endpoint = cfg.GetValue<string>("Embedding:Ollama:Endpoint") ?? "http://localhost:11434";
-            client.BaseAddress = new Uri(endpoint);
-            // Set a long timeout for local Ollama models which can take minutes to process
-            client.Timeout = TimeSpan.FromMinutes(10);
-        });
-        builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
+            builder.Services.AddHttpClient<DeepWiki.Rag.Core.Providers.OllamaProvider>((sp, client) =>
+            {
+                var cfg = sp.GetRequiredService<IConfiguration>();
+                var endpoint = cfg.GetValue<string>("Embedding:Ollama:Endpoint") ?? "http://localhost:11434";
+                client.BaseAddress = new Uri(endpoint);
+                // Set a long timeout for local Ollama models which can take minutes to process
+                client.Timeout = TimeSpan.FromMinutes(10);
+            });
+            builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
+            {
+                var cfg = sp.GetRequiredService<IConfiguration>();
+                var model = cfg.GetValue<string>("Generation:Ollama:ModelId") 
+                    ?? cfg.GetValue<string>("Ollama:GenerationModel") 
+                    ?? "gemma3";
+                var stallTimeoutSeconds = cfg.GetValue<int?>("Generation:Ollama:StallTimeoutSeconds") ?? 300; // 5 minutes default
+                var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(DeepWiki.Rag.Core.Providers.OllamaProvider));
+                var logger = sp.GetRequiredService<ILogger<DeepWiki.Rag.Core.Providers.OllamaProvider>>();
+                return new DeepWiki.Rag.Core.Providers.OllamaProvider(httpClient, logger, model, TimeSpan.FromSeconds(stallTimeoutSeconds));
+            });
+        }
+
+        // Register OpenAI provider (HTTP client based) so it can be pointed at OpenAI-compatible endpoints
+        // Only register if configured in Generation:Providers list
+        if (configuredProviders.Any(p => p.Equals("OpenAI", StringComparison.OrdinalIgnoreCase)))
         {
-            var cfg = sp.GetRequiredService<IConfiguration>();
-            var model = cfg.GetValue<string>("Generation:Ollama:ModelId") 
-                ?? cfg.GetValue<string>("Ollama:GenerationModel") 
-                ?? "gemma3";
-            var stallTimeoutSeconds = cfg.GetValue<int?>("Generation:Ollama:StallTimeoutSeconds") ?? 300; // 5 minutes default
-            var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(DeepWiki.Rag.Core.Providers.OllamaProvider));
-            var logger = sp.GetRequiredService<ILogger<DeepWiki.Rag.Core.Providers.OllamaProvider>>();
-            return new DeepWiki.Rag.Core.Providers.OllamaProvider(httpClient, logger, model, TimeSpan.FromSeconds(stallTimeoutSeconds));
-        });
+            builder.Services.AddHttpClient("OpenAIProvider", (sp, client) =>
+            {
+                var cfg = sp.GetRequiredService<IConfiguration>();
+                var baseUrl = cfg.GetValue<string>("OpenAI:BaseUrl");
+                if (!string.IsNullOrWhiteSpace(baseUrl)) client.BaseAddress = new Uri(baseUrl);
+                // Allow long-running requests for local models
+                client.Timeout = TimeSpan.FromMinutes(10);
+            });
+
+            builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
+            {
+                var cfg = sp.GetRequiredService<IConfiguration>();
+                var apiKey = cfg.GetValue<string>("OpenAI:ApiKey") ?? cfg.GetValue<string>("OpenAI__ApiKey");
+                var providerType = cfg.GetValue<string>("OpenAI:Provider") ?? "openai";
+                var modelId = cfg.GetValue<string>("OpenAI:ModelId") ?? "phi4-mini";
+                var logger = sp.GetRequiredService<ILogger<DeepWiki.Rag.Core.Providers.OpenAIProvider>>();
+                var clientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                var client = clientFactory.CreateClient("OpenAIProvider");
+                return new DeepWiki.Rag.Core.Providers.OpenAIProvider(client, apiKey, providerType, modelId, logger);
+            });
+        }
 
         // Register embedding service via factory pattern
         // Configuration: Set "Embedding:Provider" to "openai", "foundry", or "ollama" in appsettings.json
@@ -402,7 +449,43 @@ using (var scope = app.Services.CreateScope())
         // Map API controllers
         app.MapControllers();
 
+        // Optionally expose Prometheus-compatible /metrics endpoint for scraping when enabled in configuration
+        var promEnabled = app.Configuration.GetValue<bool?>("OpenTelemetry:Prometheus:Enabled") ?? false;
+        if (promEnabled)
+        {
+            app.MapGet("/metrics", (IServiceProvider sp) =>
+            {
+                var gm = sp.GetService<DeepWiki.Rag.Core.Observability.GenerationMetrics>();
+                var txt = gm?.ExportPrometheusMetrics() ?? "# no metrics exported\n";
+                return Results.Text(txt, "text/plain");
+            });
+        }
+
         app.MapDefaultEndpoints();
+
+        // Graceful shutdown: cancel in-flight prompts when application is stopping
+        var lifetime = app.Lifetime;
+        lifetime.ApplicationStopping.Register(() =>
+        {
+            try
+            {
+                // Use the global prompt registry to cancel any in-flight prompt streams.
+                var registry = app.Services.GetService<DeepWiki.Rag.Core.Services.PromptCancellationRegistry>();
+                if (registry != null)
+                {
+                    var activeCount = registry.ActivePromptIds().Count;
+                    if (activeCount > 0)
+                    {
+                        app.Logger.LogInformation("Cancelling {Count} in-flight prompt(s) during shutdown", activeCount);
+                    }
+                    registry.CancelAll();
+                }
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogError(ex, "Error while cancelling in-flight prompts during shutdown");
+            }
+        });
 
         app.Run();
     }

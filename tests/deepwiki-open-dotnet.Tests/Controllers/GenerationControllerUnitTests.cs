@@ -195,6 +195,8 @@ namespace DeepWiki.ApiService.Tests.Controllers
             {
                 return Task.CompletedTask;
             }
+
+            public Task GracefulShutdownAsync() => Task.CompletedTask;
         }
 
         private class ThrowingService : IGenerationService
@@ -213,6 +215,7 @@ namespace DeepWiki.ApiService.Tests.Controllers
             }
 
             public Task CancelAsync(string sessionId, string promptId) => Task.CompletedTask;
+            public Task GracefulShutdownAsync() => Task.CompletedTask;
         }
     }
 }

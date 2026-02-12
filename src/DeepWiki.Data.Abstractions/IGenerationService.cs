@@ -34,4 +34,9 @@ public interface IGenerationService
     /// Attempts to cancel an in-flight prompt for the given session.
     /// </summary>
     Task CancelAsync(string sessionId, string promptId);
+
+    /// <summary>
+    /// Gracefully shutdown generation service by cancelling in-flight prompts and emitting final deltas.
+    /// </summary>
+    Task GracefulShutdownAsync();
 }

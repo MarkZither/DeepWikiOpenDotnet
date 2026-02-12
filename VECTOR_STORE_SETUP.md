@@ -1,14 +1,10 @@
 # Configuration Guide: Enabling Real Vector Store
 
-⚠️ **IMPORTANT**: By default, the API uses `NoOpVectorStore` which doesn't persist data.
-To actually store and search documents, you need to configure a real vector store.
+⚠️ **IMPORTANT**: The API requires a configured vector store (Postgres or SQL Server). Startup will fail if `VectorStore:Provider` is unset or the configured provider is unavailable. Configure a real vector store before starting the API.
 
 ## Current Status
 
-Without configuration:
-- ✅ Ingestion endpoint accepts requests (returns 200 OK)
-- ❌ Documents are NOT persisted (NoOpVectorStore discards them)
-- ❌ Query endpoint returns empty results
+Without a configured vector store the service will not start — you must configure `VectorStore:Provider` and the corresponding connection string (see examples below).
 
 ## Option 1: SQL Server 2025 (Recommended for Production)
 

@@ -50,9 +50,14 @@ public class GenerationMetrics
     /// </summary>
     /// <param name="elapsedMs">Time in milliseconds from prompt submission to first token.</param>
     /// <param name="provider">Provider name (e.g., "Ollama", "OpenAI").</param>
+    private long _totalTokens = 0;
+    private long _totalErrors = 0;
+    private double _lastTtfMs = 0;
+
     public void RecordTimeToFirstToken(double elapsedMs, string provider)
     {
         _ttfHistogram.Record(elapsedMs, new KeyValuePair<string, object?>("provider", provider));
+        _lastTtfMs = elapsedMs;
     }
 
     /// <summary>
@@ -63,6 +68,7 @@ public class GenerationMetrics
     public void RecordTokens(long tokenCount, string provider)
     {
         _tokenCounter.Add(tokenCount, new KeyValuePair<string, object?>("provider", provider));
+        System.Threading.Interlocked.Add(ref _totalTokens, tokenCount);
     }
 
     /// <summary>
@@ -85,8 +91,26 @@ public class GenerationMetrics
         _errorCounter.Add(1,
             new KeyValuePair<string, object?>("error_type", errorType),
             new KeyValuePair<string, object?>("provider", provider));
+        System.Threading.Interlocked.Increment(ref _totalErrors);
     }
 
+    /// <summary>
+    /// Exports a minimal Prometheus-format text snapshot suitable for tests.
+    /// </summary>
+    public string ExportPrometheusMetrics()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("# HELP generation_tokens_total Total tokens generated");
+        sb.AppendLine("# TYPE generation_tokens_total counter");
+        sb.AppendLine($"generation_tokens_total {_totalTokens}");
+        sb.AppendLine("# HELP generation_errors_total Total generation errors");
+        sb.AppendLine("# TYPE generation_errors_total counter");
+        sb.AppendLine($"generation_errors_total {_totalErrors}");
+        sb.AppendLine("# HELP generation_ttf_last_ms Last recorded time-to-first-token (ms)");
+        sb.AppendLine("# TYPE generation_ttf_last_ms gauge");
+        sb.AppendLine($"generation_ttf_last_ms {_lastTtfMs}");
+        return sb.ToString();
+    }
     /// <summary>
     /// Creates a stopwatch for measuring time-to-first-token.
     /// Call RecordTimeToFirstToken with the elapsed time when first token arrives.

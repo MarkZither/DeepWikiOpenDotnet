@@ -11,11 +11,13 @@ public class GenerationController : ControllerBase
 {
     private readonly IGenerationService _generationService;
     private readonly DeepWiki.Rag.Core.Services.SessionManager _sessionManager;
+    private readonly IEnumerable<DeepWiki.Rag.Core.Providers.IModelProvider> _providers;
 
-    public GenerationController(IGenerationService generationService, DeepWiki.Rag.Core.Services.SessionManager sessionManager)
+    public GenerationController(IGenerationService generationService, DeepWiki.Rag.Core.Services.SessionManager sessionManager, IEnumerable<DeepWiki.Rag.Core.Providers.IModelProvider>? providers = null)
     {
         _generationService = generationService;
         _sessionManager = sessionManager;
+        _providers = providers ?? Enumerable.Empty<DeepWiki.Rag.Core.Providers.IModelProvider>();
     }
 
     [HttpPost("session")]
@@ -84,6 +86,27 @@ public class GenerationController : ControllerBase
             await Response.WriteAsync(json + "\n");
             await Response.Body.FlushAsync();
         }
+    }
+
+    [HttpGet("health")]
+    public async Task<IActionResult> Health()
+    {
+        var statuses = new Dictionary<string, bool>();
+        foreach (var p in _providers)
+        {
+            try
+            {
+                var avail = await p.IsAvailableAsync(HttpContext.RequestAborted);
+                statuses[p.Name] = avail;
+            }
+            catch
+            {
+                statuses[p.Name] = false;
+            }
+        }
+
+        var overall = statuses.Values.All(v => v) ? "Healthy" : (statuses.Values.Any(v => v) ? "Degraded" : "Unhealthy");
+        return Ok(new { status = overall, providers = statuses });
     }
 
     [HttpPost("cancel")]

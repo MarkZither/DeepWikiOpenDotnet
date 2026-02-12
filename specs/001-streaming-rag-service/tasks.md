@@ -159,30 +159,30 @@
 
 ### Test Tasks for User Story 3 (TDD - Write First) 🧪
 
-- [ ] T049a 🧪 [P] [US3] Write OpenAIProvider unit tests in tests/DeepWiki.Rag.Core.Tests/Providers/OpenAIProviderTests.cs (SDK streaming, delta mapping, sequence tracking, health check, connection failure)
-- [ ] T053a 🧪 [US3] Write provider selection tests in tests/DeepWiki.Rag.Core.Tests/Services/ProviderSelectionTests.cs (ordered fallback, circuit breaker logic, availability tracking, provider stall handling)
-- [ ] T054a 🧪 [US3] Write circuit breaker tests in tests/DeepWiki.Rag.Core.Tests/Services/CircuitBreakerTests.cs (repeated failures trigger circuit open, timeout before retry, successful request closes circuit)
-- [ ] T059a 🧪 [US3] Write metrics export validation test in tests/deepwiki-open-dotnet.Tests/Integration/PrometheusExportTests.cs (verify OpenTelemetry exports to Prometheus format, TTF/tokens/errors visible)
-- [ ] T060a 🧪 [P] [US3] Write health check endpoint tests in tests/deepwiki-open-dotnet.Tests/Integration/HealthCheckTests.cs (provider availability reported, degraded status when provider down)
+- [X] T049a 🧪 [P] [US3] Write OpenAIProvider unit tests in tests/DeepWiki.Rag.Core.Tests/Providers/OpenAIProviderTests.cs (SDK streaming, delta mapping, sequence tracking, health check, connection failure)
+- [X] T053a 🧪 [US3] Write provider selection tests in tests/DeepWiki.Rag.Core.Tests/Services/ProviderSelectionTests.cs (ordered fallback, circuit breaker logic, availability tracking, provider stall handling)
+- [X] T054a 🧪 [US3] Write circuit breaker tests in tests/DeepWiki.Rag.Core.Tests/Services/Services/CircuitBreakerTests.cs (repeated failures trigger circuit open, timeout before retry, successful request closes circuit)
+- [X] T059a 🧪 [US3] Write metrics export validation test in tests/deepwiki-open-dotnet.Tests/Integration/PrometheusExportTests.cs (verify OpenTelemetry exports to Prometheus format, TTF/tokens/errors visible)
+- [X] T060a 🧪 [P] [US3] Write health check endpoint tests in tests/deepwiki-open-dotnet.Tests/Integration/HealthCheckTests.cs (provider availability reported, degraded status when provider down)
 
 ### Implementation Tasks for User Story 3
 
-- [ ] T049 [P] [US3] Implement OpenAIProvider class in src/DeepWiki.Rag.Core/Providers/OpenAIProvider.cs with SDK streaming integration (tests T049a must pass)
-- [ ] T050 [US3] Implement OpenAIProvider.StreamAsync using ChatClient.CompleteChatStreamingAsync with delta mapping and sequence tracking (tests T049a must pass)
-- [ ] T051 [US3] Implement OpenAIProvider.IsAvailableAsync health check with API connectivity test (tests T049a must pass)
-- [ ] T052 [US3] Add provider selection configuration in appsettings.json with ordered provider list (e.g., ["Ollama", "OpenAI"])
-- [ ] T053 [US3] Implement provider selection logic in GenerationService to try providers in order and fallback on failure (tests T053a must pass)
-- [ ] T054 [US3] Add circuit breaker logic in GenerationService to skip unavailable providers temporarily after repeated failures (tests T054a must pass)
-- [ ] T055 [US3] Implement error delta emission in GenerationService for provider timeout (30s stall) with structured metadata (tests T023a, T053a must pass)
-- [ ] T056 [US3] Implement error delta emission in GenerationService for provider connection failures with structured metadata (tests T023a, T053a must pass)
-- [ ] T057 [US3] Add cancellation cleanup logic in SessionManager to mark prompts as Cancelled and emit final done delta (tests T016a must pass)
-- [ ] T058 [US3] Implement Retry-After header calculation in rate limiting middleware for 429 responses (tests T034a must pass)
-- [ ] T059 [US3] Add Prometheus metrics export configuration in src/deepwiki-open-dotnet.ServiceDefaults/Extensions.cs for GenerationMetrics (tests T059a must pass)
-- [ ] T060 [US3] Create health check endpoint in GenerationController (GET /api/generation/health) reporting provider availability (tests T060a must pass)
-- [ ] T061 [US3] Add per-session token count tracking in SessionManager and Prompt entity (tests T016a must pass)
-- [ ] T062 [US3] Implement error rate counter in GenerationMetrics categorized by error type (timeout, unavailable, cancelled) (tests T017a must pass)
-- [ ] T063 [US3] Add logging for provider selection, fallback, and availability changes using ILogger
-- [ ] T064 [US3] Implement graceful shutdown handling in GenerationService to emit done deltas for in-flight prompts on app shutdown (tests T023a must pass)
+- [X] T049 [P] [US3] Implement OpenAIProvider class in src/DeepWiki.Rag.Core/Providers/OpenAIProvider.cs with SDK streaming integration (tests T049a must pass)
+- [X] T050 [US3] Implement OpenAIProvider.StreamAsync using ChatClient.CompleteChatStreamingAsync with delta mapping and sequence tracking (tests T049a must pass)
+- [X] T051 [US3] Implement OpenAIProvider.IsAvailableAsync health check with API connectivity test (tests T049a must pass)
+- [X] T052 [US3] Add provider selection configuration in appsettings.json with ordered provider list (e.g., ["Ollama", "OpenAI"])  
+- [X] T053 [US3] Implement provider selection logic in GenerationService to try providers in order and fallback on failure (tests T053a must pass)
+- [X] T054 [US3] Add circuit breaker logic in GenerationService to skip unavailable providers temporarily after repeated failures (tests T054a must pass)
+- [X] T055 [US3] Implement error delta emission in GenerationService for provider timeout (30s stall) with structured metadata (tests T023a, T053a must pass)
+- [X] T056 [US3] Implement error delta emission in GenerationService for provider connection failures with structured metadata (tests T023a, T053a must pass)
+- [X] T057 [US3] Add cancellation cleanup logic in SessionManager to mark prompts as Cancelled and emit final done delta (tests T016a must pass)
+- [X] T058 [US3] Implement Retry-After header calculation in rate limiting middleware for 429 responses (tests T034a must pass)
+- [X] T059 [US3] Add Prometheus metrics export configuration in src/deepwiki-open-dotnet.ServiceDefaults/Extensions.cs for GenerationMetrics (tests T059a must pass)
+- [X] T060 [US3] Create health check endpoint in GenerationController (GET /api/generation/health) reporting provider availability (tests T060a must pass)
+- [X] T061 [US3] Add per-session token count tracking in SessionManager and Prompt entity (tests T016a must pass)
+- [X] T062 [US3] Implement error rate counter in GenerationMetrics categorized by error type (timeout, unavailable, cancelled) (tests T017a must pass)
+- [X] T063 [US3] Add logging for provider selection, fallback, and availability changes using ILogger
+- [X] T064 [US3] Implement graceful shutdown handling in GenerationService to emit done deltas for in-flight prompts on app shutdown (tests T023a must pass)
 
 **Checkpoint**: User Story 3 complete - provider switchover, error handling, comprehensive observability, ops readiness (all tests passing)
 

@@ -12,7 +12,7 @@ namespace DeepWiki.Rag.Core.Services;
 
 public class GenerationService : IGenerationService
 {
-    private readonly IModelProvider _provider;
+    private readonly IList<IModelProvider> _providers;
     private readonly SessionManager _sessionManager;
     private readonly ILogger<GenerationService> _logger;
     private readonly DeepWiki.Data.Abstractions.IVectorStore? _vectorStore;
@@ -20,19 +20,28 @@ public class GenerationService : IGenerationService
 
     private readonly ConcurrentDictionary<string, List<GenerationDelta>> _idempotencyCache = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _promptCancellations = new();
+    private readonly PromptCancellationRegistry? _promptRegistry;
+    // Circuit breaker state: failure counts and open-until timestamps per provider name
+    private readonly ConcurrentDictionary<string, int> _failureCounts = new();
+    private readonly ConcurrentDictionary<string, DateTime> _circuitOpenUntil = new();
+    private readonly int _failureThreshold;
+    private readonly TimeSpan _circuitBreakDuration;
 
     private readonly DeepWiki.Rag.Core.Observability.GenerationMetrics _metrics;
     private readonly TimeSpan _providerStallTimeout;
 
-    public GenerationService(IModelProvider provider, SessionManager sessionManager, DeepWiki.Rag.Core.Observability.GenerationMetrics metrics, ILogger<GenerationService> logger, DeepWiki.Data.Abstractions.IVectorStore? vectorStore = null, DeepWiki.Data.Abstractions.IEmbeddingService? embeddingService = null, TimeSpan? providerStallTimeout = null)
+    public GenerationService(IEnumerable<IModelProvider> providers, SessionManager sessionManager, DeepWiki.Rag.Core.Observability.GenerationMetrics metrics, ILogger<GenerationService> logger, DeepWiki.Data.Abstractions.IVectorStore? vectorStore = null, DeepWiki.Data.Abstractions.IEmbeddingService? embeddingService = null, TimeSpan? providerStallTimeout = null, int failureThreshold = 3, TimeSpan? circuitBreakDuration = null, PromptCancellationRegistry? promptRegistry = null)
     {
-        _provider = provider;
+        _providers = providers.ToList();
         _sessionManager = sessionManager;
         _logger = logger;
         _metrics = metrics;
         _vectorStore = vectorStore;
         _embeddingService = embeddingService;
         _providerStallTimeout = providerStallTimeout ?? TimeSpan.FromMinutes(5);
+        _failureThreshold = failureThreshold;
+        _circuitBreakDuration = circuitBreakDuration ?? TimeSpan.FromSeconds(30);
+        _promptRegistry = promptRegistry;
     }
 
     public async IAsyncEnumerable<GenerationDelta> GenerateAsync(string sessionId, string promptText, int topK = 5, Dictionary<string, string>? filters = null, string? idempotencyKey = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -58,7 +67,8 @@ public class GenerationService : IGenerationService
         // Create linked cancellation source so controller can cancel by calling CancelAsync
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _promptCancellations[prompt.PromptId] = cts;
-
+        // Also register globally so the host can cancel all in-flight prompts on shutdown
+        try { _promptRegistry?.Register(prompt.PromptId, cts); } catch { }
         var recorded = new List<GenerationDelta>();
 
         // Use a producer task to consume the provider stream and write into a channel.
@@ -116,36 +126,81 @@ public class GenerationService : IGenerationService
 
         var producer = Task.Run(async () =>
         {
-            try
-            {
-                await foreach (var delta in _provider.StreamAsync(promptText, systemPrompt, cts.Token))
-                {
-                    var outDelta = new GenerationDelta
-                    {
-                        PromptId = prompt.PromptId,
-                        Type = delta.Type,
-                        Seq = delta.Seq,
-                        Text = delta.Text,
-                        Role = delta.Role,
-                        Metadata = delta.Metadata
-                    };
+            Exception? lastEx = null;
 
-                    await channel.Writer.WriteAsync(outDelta, cts.Token);
+            foreach (var provider in _providers)
+            {
+                // Skip provider if circuit is open
+                if (_circuitOpenUntil.TryGetValue(provider.Name, out var until) && until > DateTime.UtcNow)
+                {
+                    _logger.LogWarning("Skipping provider {Provider} due to open circuit until {Until}", provider.Name, until);
+                    continue;
                 }
 
-                channel.Writer.Complete();
+                try
+                {
+                    var isAvail = await provider.IsAvailableAsync(cts.Token);
+                    if (!isAvail)
+                    {
+                        _logger.LogWarning("Provider {Provider} is not available", provider.Name);
+                        RegisterFailure(provider.Name);
+                        continue;
+                    }
+
+                    await foreach (var delta in provider.StreamAsync(promptText, systemPrompt, cts.Token))
+                    {
+                        var outDelta = new GenerationDelta
+                        {
+                            PromptId = prompt.PromptId,
+                            Type = delta.Type,
+                            Seq = delta.Seq,
+                            Text = delta.Text,
+                            Role = delta.Role,
+                            // Attach provider information so downstream consumers (metrics/health) can attribute events
+                            Metadata = new { provider = provider.Name, original = delta.Metadata }
+                        };
+
+                        await channel.Writer.WriteAsync(outDelta, cts.Token);
+                    }
+
+                    // success -> reset failure count
+                    ResetFailures(provider.Name);
+
+                    channel.Writer.Complete();
+                    return;
+                }
+                catch (OperationCanceledException ex)
+                {
+                    _logger.LogInformation(ex, "Generation canceled for prompt {PromptId} by provider {Provider}", prompt.PromptId, provider.Name);
+                    _sessionManager.UpdatePromptStatus(sessionId, prompt.PromptId, PromptStatus.Cancelled, recorded.Count);
+                    channel.Writer.Complete(ex);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Provider {Provider} failed during generation", provider.Name);
+                    RegisterFailure(provider.Name);
+                    lastEx = ex;
+                    // try next provider
+                }
             }
-            catch (OperationCanceledException ex)
+
+            // If reached here, no provider succeeded
+            if (lastEx != null)
             {
-                _logger.LogInformation(ex, "Generation canceled for prompt {PromptId}", prompt.PromptId);
-                _sessionManager.UpdatePromptStatus(sessionId, prompt.PromptId, PromptStatus.Cancelled, recorded.Count);
-                channel.Writer.Complete(ex);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Provider failed during generation");
+                _logger.LogError(lastEx, "All providers failed for prompt {PromptId}", prompt.PromptId);
                 _sessionManager.UpdatePromptStatus(sessionId, prompt.PromptId, PromptStatus.Error, recorded.Count);
-                channel.Writer.Complete(ex);
+                try
+                {
+                    var err = new GenerationDelta { PromptId = prompt.PromptId, Type = "error", Seq = recorded.Count, Role = "assistant", Metadata = new { code = "provider_error", message = "All providers failed" } };
+                    channel.Writer.TryWrite(err);
+                    channel.Writer.TryComplete();
+                }
+                catch { }
+            }
+            else
+            {
+                channel.Writer.TryComplete();
             }
         });
 
@@ -202,10 +257,12 @@ public class GenerationService : IGenerationService
                             if (first)
                             {
                                 first = false;
-                                _metrics.RecordTimeToFirstToken(timer.Elapsed.TotalMilliseconds, _provider.Name);
+                                var providerNameForMetrics = GetProviderNameFromMetadata(nd.Metadata) ?? "unknown";
+                                _metrics.RecordTimeToFirstToken(timer.Elapsed.TotalMilliseconds, providerNameForMetrics);
                             }
 
-                            _metrics.RecordTokens(1, _provider.Name);
+                            var providerName = GetProviderNameFromMetadata(nd.Metadata) ?? "unknown";
+                            _metrics.RecordTokens(1, providerName);
                             yield return nd;
                         }
                     }
@@ -245,6 +302,7 @@ public class GenerationService : IGenerationService
             }
             
             _promptCancellations.TryRemove(prompt.PromptId, out _);
+            try { _promptRegistry?.Unregister(prompt.PromptId); } catch { }
             cts.Dispose();
         }
     }
@@ -259,4 +317,55 @@ public class GenerationService : IGenerationService
         _sessionManager.UpdatePromptStatus(sessionId, promptId, PromptStatus.Cancelled);
         return Task.CompletedTask;
     }
+
+    public Task GracefulShutdownAsync()
+    {
+        foreach (var kv in _promptCancellations)
+        {
+            try { kv.Value.Cancel(); } catch { }
+        }
+        return Task.CompletedTask;
+    }
+
+    private void RegisterFailure(string providerName)
+    {
+        _failureCounts.AddOrUpdate(providerName, 1, (_, cur) => cur + 1);
+        if (_failureCounts.TryGetValue(providerName, out var cnt) && cnt >= _failureThreshold)
+        {
+            _circuitOpenUntil[providerName] = DateTime.UtcNow.Add(_circuitBreakDuration);
+            _logger.LogWarning("Circuit opened for provider {Provider} due to {Count} failures. Open until {Until}", providerName, cnt, _circuitOpenUntil[providerName]);
+        }
+    }
+
+    private void ResetFailures(string providerName)
+    {
+        _failureCounts.TryRemove(providerName, out _);
+        _circuitOpenUntil.TryRemove(providerName, out _);
+    }
+
+    private string? GetProviderNameFromMetadata(object? metadata)
+    {
+        if (metadata == null) return null;
+        try
+        {
+            var prop = metadata.GetType().GetProperty("provider");
+            if (prop != null)
+            {
+                return prop.GetValue(metadata)?.ToString();
+            }
+
+            var prop2 = metadata.GetType().GetProperty("Provider");
+            if (prop2 != null)
+            {
+                return prop2.GetValue(metadata)?.ToString();
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }
+

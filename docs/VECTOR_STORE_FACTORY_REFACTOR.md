@@ -40,7 +40,7 @@ Current implementation (in `VectorStoreFactory`) has several issues:
 
 - `VectorStoreFactory` injected with `IEnumerable<IVectorStoreProvider>`, `IOptions<VectorStoreOptions>`, `IConfiguration`, and `ILoggerFactory`.
   - Select provider by name, call `IsAvailable`, then `Create`.
-  - Fallback behavior: explicit (either `NoOpVectorStore` or throw depending on `VectorStore:AllowNoOpFallback`).
+  - Fallback behavior: strict — the application will fail startup if the configured provider is not available. `AllowNoOpFallback` is not supported.
 
 - `AddVectorStoreProvider<TProvider>(IServiceCollection)` extension helper to register providers.
 
@@ -119,7 +119,7 @@ public class VectorStoreFactory
 3. Register providers in `Program.cs` (e.g., `services.AddSingleton<IVectorStoreProvider, PostgresVectorStoreProvider>();`).
 4. Update `VectorStoreFactory` to consume `IEnumerable<IVectorStoreProvider>` and `IOptions<VectorStoreOptions>`.
 5. Add unit tests for provider selection and fallback behavior.
-6. Keep current behaviour intact by default (NoOp fallback) and use feature toggle `VectorStore:AllowNoOpFallback` if desired.
+6. Enforce strict behavior: fail startup when provider unavailable. Remove `VectorStore:AllowNoOpFallback` toggle.
 7. Optional: add a health check and an admin diagnostic endpoint listing selected provider and availability checks.
 
 > Note: Implement steps in small PRs with tests for each change to keep the changeset reviewable and safe.
@@ -138,8 +138,7 @@ public class VectorStoreFactory
 
 - Unit tests for `VectorStoreFactory`:
   - Correct provider selected when present and available.
-  - `NoOpVectorStore` returned when provider not available and fallback allowed.
-  - Throw or fail startup when provider not available and fallback disabled.
+  - Throw or fail startup when provider not available (NoOp fallback is not supported).
 - Integration test: register Postgres provider and confirm `Create()` returns `PostgresVectorStoreAdapter` when `ConnectionString` is present.
 
 ---

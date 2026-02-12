@@ -20,9 +20,9 @@ namespace DeepWiki.Rag.Core.Tests.Providers
         {
             // Arrange: fake HTTP client that returns NDJSON body
             var ndjson = new StringBuilder();
-            ndjson.AppendLine(JsonSerializer.Serialize(new { token = "Hello" }));
-            ndjson.AppendLine(JsonSerializer.Serialize(new { token = " world" }));
-            ndjson.AppendLine(JsonSerializer.Serialize(new { type = "done" }));
+            ndjson.AppendLine(JsonSerializer.Serialize(new { response = "Hello" }));
+            ndjson.AppendLine(JsonSerializer.Serialize(new { response = " world" }));
+            ndjson.AppendLine(JsonSerializer.Serialize(new { done = true }));
 
             var handler = new FakeHandler(ndjson.ToString(), HttpStatusCode.OK);
             var client = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
@@ -72,7 +72,7 @@ namespace DeepWiki.Rag.Core.Tests.Providers
                 }
             });
 
-            ex.Message.Should().Contain("stalled");
+            ex.Message.Should().Contain("timed out");
         }
 
         private class FakeHandler : HttpMessageHandler
