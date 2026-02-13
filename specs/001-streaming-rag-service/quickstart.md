@@ -394,12 +394,191 @@ public async Task StreamGeneration_ValidRequest_ReturnsNDJSONStream()
 
 **Resolution**: Stream normalizer buffers incomplete sequences (handled automatically)
 
+## SignalR Hub (Optional Enhancement)
+
+**Task T071**: SignalR provides richer bidirectional communication for TypeScript and .NET clients.
+
+### SignalR vs HTTP NDJSON
+
+| Feature | HTTP NDJSON | SignalR |
+|---------|-------------|---------|
+| **Transport** | HTTP/1.1 streaming | WebSockets (preferred), Server-Sent Events, Long Polling |
+| **Client Libraries** | None (curl/fetch) | `@microsoft/signalr` (TypeScript), `Microsoft.AspNetCore.SignalR.Client` (.NET) |
+| **Bidirectional** | No | Yes (server can push events to client) |
+| **Reconnection** | Manual | Automatic with backoff |
+| **Best For** | CLI tools, scripts, simple clients | Web UIs, real-time dashboards, TypeScript/.NET apps |
+
+### TypeScript SignalR Client Example
+
+**Installation**:
+```bash
+npm install @microsoft/signalr
+```
+
+**Usage**:
+```typescript
+import { HubConnectionBuilder, HubConnection } from '@microsoft/signalr';
+
+async function streamRAGPrompt() {
+  // Connect to hub
+  const connection: HubConnection = new HubConnectionBuilder()
+    .withUrl("http://localhost:5000/hubs/generation")
+    .withAutomaticReconnect()
+    .build();
+
+  await connection.start();
+  console.log("SignalR connected");
+
+  // Create session
+  const sessionResponse = await connection.invoke("StartSession", {
+    owner: "typescript-client",
+    context: { environment: "development" }
+  });
+  
+  console.log("Session created:", sessionResponse.sessionId);
+
+  // Stream prompt and collect deltas
+  connection.stream("SendPrompt", {
+    sessionId: sessionResponse.sessionId,
+    prompt: "Explain vector embeddings in C#",
+    topK: 10,
+    idempotencyKey: crypto.randomUUID()
+  }).subscribe({
+    next: (delta) => {
+      // Handle each token delta
+      if (delta.type === "token") {
+        process.stdout.write(delta.text); // Print token by token
+      } else if (delta.type === "done") {
+        console.log("\nGeneration complete:", delta.metadata);
+      } else if (delta.type === "error") {
+        console.error("\nError:", delta.metadata);
+      }
+    },
+    complete: () => {
+      console.log("\nStream completed");
+    },
+    error: (err) => {
+      console.error("Stream error:", err);
+    }
+  });
+
+  // Optional: Cancel prompt (call this from another handler)
+  // await connection.invoke("Cancel", {
+  //   sessionId: sessionResponse.sessionId,
+  //   promptId: "prompt-id-from-delta"
+  // });
+}
+
+streamRAGPrompt().catch(console.error);
+```
+
+### C# SignalR Client Example
+
+**Installation**:
+```bash
+dotnet add package Microsoft.AspNetCore.SignalR.Client
+```
+
+**Usage**:
+```csharp
+using Microsoft.AspNetCore.SignalR.Client;
+using DeepWiki.Data.Abstractions.Models;
+
+var connection = new HubConnectionBuilder()
+    .WithUrl("http://localhost:5000/hubs/generation")
+    .WithAutomaticReconnect()
+    .Build();
+
+await connection.StartAsync();
+Console.WriteLine("SignalR connected");
+
+// Create session
+var sessionResponse = await connection.InvokeAsync<SessionResponse>(
+    "StartSession", 
+    new SessionRequest { Owner = "csharp-client" });
+
+Console.WriteLine($"Session created: {sessionResponse.SessionId}");
+
+// Stream prompt
+var stream = connection.StreamAsync<GenerationDelta>(
+    "SendPrompt",
+    new PromptRequest
+    {
+        SessionId = sessionResponse.SessionId,
+        Prompt = "Explain vector embeddings in C#",
+        TopK = 10,
+        IdempotencyKey = Guid.NewGuid().ToString()
+    });
+
+await foreach (var delta in stream)
+{
+    if (delta.Type == "token")
+    {
+        Console.Write(delta.Text); // Print token by token
+    }
+    else if (delta.Type == "done")
+    {
+        Console.WriteLine($"\nGeneration complete: {delta.Metadata}");
+    }
+}
+
+await connection.StopAsync();
+```
+
+### Health Check for SignalR Hub
+
+**Verify hub is registered**:
+```bash
+curl http://localhost:5000/hubs/generation
+```
+
+**Expected Response**: `404` (hub only accepts WebSocket connections, not GET requests)
+
+**Check hub connectivity with JavaScript**:
+```javascript
+// Quick health check in browser console or Node.js
+const { HubConnectionBuilder } = require('@microsoft/signalr');
+
+const connection = new HubConnectionBuilder()
+  .withUrl("http://localhost:5000/hubs/generation")
+  .build();
+
+connection.start()
+  .then(() => {
+    console.log("✓ SignalR hub available");
+    return connection.stop();
+  })
+  .catch(err => {
+    console.error("✗ SignalR hub unavailable:", err.message);
+  });
+```
+
+### SignalR Configuration
+
+**CORS Origins** (edit `appsettings.json`):
+```json
+{
+  "SignalR": {
+    "AllowedOrigins": [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://localhost:8080",
+      "https://your-frontend-domain.com"
+    ]
+  }
+}
+```
+
+**Default origins**: `localhost:3000` (React), `localhost:5173` (Vite), `localhost:8080` (Vue)
+
+---
+
 ## Next Steps
 
 1. **Integration**: Integrate with VS Code extension client (see `extensions/copilot-private`)
 2. **Monitoring**: Set up Grafana dashboards for TTF, token throughput, error rates
 3. **Load Testing**: Run k6 or Locust to validate rate limits and concurrency handling
-4. **Optional**: Try SignalR hub for richer bidirectional communication (see SignalR docs)
+4. **SignalR Clients**: Try TypeScript or C# SignalR clients for richer bidirectional communication
 
 ## References
 

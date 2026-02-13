@@ -194,17 +194,17 @@
 
 ### Test Tasks for SignalR 🧪
 
-- [ ] T065a 🧪 [P] Write SignalR contract parity tests in tests/deepwiki-open-dotnet.Tests/Integration/SignalRParityTests.cs (HTTP NDJSON vs SignalR delta sequences match for same input, schema validation)
+- [X] T065a 🧪 [P] Write SignalR contract parity tests in tests/deepwiki-open-dotnet.Tests/Integration/SignalRParityTests.cs (HTTP NDJSON vs SignalR delta sequences match for same input, schema validation)
 
 ### Implementation Tasks for SignalR
 
-- [ ] T065 [P] Create GenerationHub SignalR hub class in src/deepwiki-open-dotnet.ApiService/Hubs/GenerationHub.cs
-- [ ] T066 [P] Implement GenerationHub.StartSession method (tests T065a must pass)
-- [ ] T067 [P] Implement GenerationHub.SendPrompt streaming method returning IAsyncEnumerable<GenerationDelta> (tests T065a must pass)
-- [ ] T068 [P] Implement GenerationHub.Cancel method (tests T065a must pass)
-- [ ] T069 Add SignalR endpoint registration in src/deepwiki-open-dotnet.ApiService/Program.cs with hub route /hubs/generation
-- [ ] T070 Add SignalR CORS policy configuration for local development and internal origins
-- [ ] T071 Document SignalR usage in quickstart.md with TypeScript client example and add health check curl example
+- [X] T065 [P] Create GenerationHub SignalR hub class in src/deepwiki-open-dotnet.ApiService/Hubs/GenerationHub.cs
+- [X] T066 [P] Implement GenerationHub.StartSession method (tests T065a must pass)
+- [X] T067 [P] Implement GenerationHub.SendPrompt streaming method returning IAsyncEnumerable<GenerationDelta> (tests T065a must pass)
+- [X] T068 [P] Implement GenerationHub.Cancel method (tests T065a must pass)
+- [X] T069 Add SignalR endpoint registration in src/deepwiki-open-dotnet.ApiService/Program.cs with hub route /hubs/generation
+- [X] T070 Add SignalR CORS policy configuration for local development and internal origins
+- [X] T071 Document SignalR usage in quickstart.md with TypeScript client example and add health check curl example
 
 **Checkpoint**: SignalR hub available as convenience transport with contract parity (tests passing)
 

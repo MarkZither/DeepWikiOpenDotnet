@@ -26,6 +26,25 @@ public class Program
         builder.Services.AddProblemDetails();
         builder.Services.AddControllers();
 
+        // Task T069: Add SignalR for bidirectional streaming communication
+        builder.Services.AddSignalR();
+
+        // Task T070: Configure CORS for SignalR hub (local development and internal origins)
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("SignalRPolicy", policy =>
+            {
+                var cfg = builder.Configuration;
+                var allowedOrigins = cfg.GetSection("SignalR:AllowedOrigins").Get<string[]>() 
+                    ?? new[] { "http://localhost:3000", "http://localhost:5173", "http://localhost:8080" };
+                
+                policy.WithOrigins(allowedOrigins)
+                      .AllowAnyHeader()
+                      .AllowAnyMethod()
+                      .AllowCredentials(); // Required for SignalR
+            });
+        });
+
         // SECURITY: Add rate limiting to prevent API abuse
         builder.Services.AddRateLimiter(options =>
         {
@@ -403,6 +422,9 @@ using (var scope = app.Services.CreateScope())
             }
         });
 
+        // Task T070: Enable CORS for SignalR connections
+        app.UseCors("SignalRPolicy");
+
         // SECURITY: Enable rate limiting middleware
         app.UseRateLimiter();
 
@@ -448,6 +470,9 @@ using (var scope = app.Services.CreateScope())
 
         // Map API controllers
         app.MapControllers();
+
+        // Task T069: Map SignalR hub for streaming generation
+        app.MapHub<DeepWiki.ApiService.Hubs.GenerationHub>("/hubs/generation");
 
         // Optionally expose Prometheus-compatible /metrics endpoint for scraping when enabled in configuration
         var promEnabled = app.Configuration.GetValue<bool?>("OpenTelemetry:Prometheus:Enabled") ?? false;
