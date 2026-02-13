@@ -81,21 +81,25 @@ public class OpenAIProvider : IModelProvider
         request.Content = new StringContent(JsonSerializer.Serialize(body));
         request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
+        // Send Authorization header only if API key is provided
+        // (Ollama and other local OpenAI-compatible servers often don't require authentication)
         if (!string.IsNullOrEmpty(_apiKey))
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
 
-        // If this is a true OpenAI deployment we require an API key; Ollama or other local
-        // OpenAI-compatible servers may not require an API key (allow empty when providerType=="ollama").
-        if (string.Equals(_providerType, "openai", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(_apiKey))
-            throw new InvalidOperationException("OpenAI provider is not configured (API key missing)");
-
         using var resp = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        resp.EnsureSuccessStatusCode();
+        
+        if (!resp.IsSuccessStatusCode)
+        {
+            var errorBody = await resp.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("OpenAI provider returned status {StatusCode}: {ErrorBody}", resp.StatusCode, errorBody);
+            throw new HttpRequestException($"OpenAI provider returned status {resp.StatusCode}: {errorBody}");
+        }
 
         var stream = await resp.Content.ReadAsStreamAsync(cancellationToken);
         using var reader = new System.IO.StreamReader(stream);
 
         int seq = 0;
+        bool yieldedAnyTokens = false;
         while (!cancellationToken.IsCancellationRequested)
         {
             var line = await reader.ReadLineAsync();
@@ -135,7 +139,7 @@ public class OpenAIProvider : IModelProvider
                 }
                 catch (JsonException ex)
                 {
-                    _logger.LogWarning(ex, "Failed to parse streaming payload from OpenAI provider");
+                    _logger.LogWarning(ex, "Failed to parse streaming payload from OpenAI provider: {Line}", line);
                 }
             }
             else
@@ -153,11 +157,15 @@ public class OpenAIProvider : IModelProvider
                         }
                     }
                 }
-                catch (JsonException) { }
+                catch (JsonException ex)
+                {
+                    _logger.LogDebug(ex, "Failed to parse non-data-prefixed line as JSON: {Line}", line);
+                }
             }
 
             if (!string.IsNullOrEmpty(tokenText))
             {
+                yieldedAnyTokens = true;
                 yield return new GenerationDelta { PromptId = string.Empty, Type = "token", Text = tokenText, Role = "assistant", Seq = seq++ };
             }
 
@@ -166,6 +174,13 @@ public class OpenAIProvider : IModelProvider
                 yield return new GenerationDelta { PromptId = string.Empty, Type = "done", Role = "assistant", Seq = seq++ };
                 yield break;
             }
+        }
+
+        // If we exit the loop without yielding any tokens, the stream may be malformed or empty
+        if (!yieldedAnyTokens)
+        {
+            _logger.LogWarning("OpenAI provider stream ended without yielding any tokens. Check BaseUrl={BaseUrl}, Provider={Provider}, Model={Model}", _http.BaseAddress, _providerType, _modelId);
+            throw new InvalidOperationException($"OpenAI provider stream ended without yielding any tokens. Check configuration: BaseUrl={_http.BaseAddress}, Provider={_providerType}, Model={_modelId}");
         }
     }
 }
