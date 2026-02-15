@@ -1,0 +1,32 @@
+{
+  "version": "1.1",
+  "label": "Generation Service — TTF / tokens / errors (Studio)",
+  "description": "Dashboard Studio JSON for Generation service metrics (TTF, tokens/sec, tokens_total, errors)",
+  "panels": [
+    {
+      "title": "TTF (ms) by provider",
+      "type": "chart",
+      "query": "| mstats avg(_value) WHERE metric_name=\"generation.ttf\" earliest=-30m@h by provider span=1m | timechart avg(_value) as \"TTF (ms)\" by provider"
+    },
+    {
+      "title": "Tokens / sec (throughput)",
+      "type": "chart",
+      "query": "| mstats avg(_value) WHERE metric_name=\"generation.tokens_per_second\" earliest=-30m@h by provider span=1m | timechart avg(_value) as \"tokens/s\" by provider"
+    },
+    {
+      "title": "Total tokens (counter)",
+      "type": "chart",
+      "query": "| mstats sum(_value) WHERE metric_name=\"generation.tokens\" earliest=-24h by provider | timechart sum(_value) as \"tokens_total\" by provider"
+    },
+    {
+      "title": "Error rate by type",
+      "type": "chart",
+      "query": "| mstats sum(_value) WHERE metric_name=\"generation.errors\" earliest=-6h by error_type,provider | chart sum(_value) as errors by error_type, provider"
+    },
+    {
+      "title": "Recent error events",
+      "type": "table",
+      "query": "index=main OR index=errors \"provider failed\" OR \"provider_error\" | table _time, host, source, sourcetype, _raw"
+    }
+  ]
+}

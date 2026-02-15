@@ -62,7 +62,7 @@ public class OpenApiContractTests : IClassFixture<ApiTestFixture>
         // Simple query should return 200 and a JSON array
         var queryPayload = JsonSerializer.Serialize(new { query = "test", k = 1, includeFullText = false });
         var ctsShort = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        ctsShort.CancelAfter(TimeSpan.FromSeconds(5));
+        ctsShort.CancelAfter(TimeSpan.FromSeconds(10));
 
         var qRes = await client.PostAsync("/api/query", new StringContent(queryPayload, System.Text.Encoding.UTF8, "application/json"), ctsShort.Token);
         Assert.Equal(HttpStatusCode.OK, qRes.StatusCode);

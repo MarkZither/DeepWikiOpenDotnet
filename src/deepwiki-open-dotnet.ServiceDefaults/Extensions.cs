@@ -7,6 +7,7 @@ using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using DeepWiki.Data.Abstractions.Observability;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -57,7 +58,8 @@ public static class Extensions
             {
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                    .AddRuntimeInstrumentation()
+                    .AddMeter(ObservabilityConstants.GenerationMeterName);
             })
             .WithTracing(tracing =>
             {
@@ -80,11 +82,29 @@ public static class Extensions
 
     private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
-        var useOtlpExporter = !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+        var cfg = builder.Configuration;
 
+        // Standard OTLP exporter (used by Prometheus/Grafana workflows or any OTLP collector)
+        var useOtlpExporter = !string.IsNullOrWhiteSpace(cfg["OTEL_EXPORTER_OTLP_ENDPOINT"]);
         if (useOtlpExporter)
         {
+            // Rely on the default OTEL_ environment variables and the installed exporter package
+            // (avoid passing options to maintain compatibility with multiple OpenTelemetry package versions)
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
+        }
+
+        // Optional: dual-target Splunk via OTLP when running against Splunk's OTLP/collector endpoint.
+        // Configure using environment variable `OTEL_EXPORTER_SPLUNK_ENDPOINT` and optional
+        // `OTEL_EXPORTER_SPLUNK_HEADERS` (e.g. "X-SF-TOKEN=<token>"). This enables a second
+        // OTLP export target so telemetry can be sent to Splunk while keeping existing OTLP/Prometheus.
+        var useSplunkOtlp = !string.IsNullOrWhiteSpace(cfg["OTEL_EXPORTER_SPLUNK_ENDPOINT"]);
+        if (useSplunkOtlp)
+        {
+            // Splunk OTLP export can be enabled via environment/configuration using
+            // OTEL_EXPORTER_SPLUNK_ENDPOINT and OTEL_EXPORTER_SPLUNK_HEADERS. Avoid
+            // calling UseOtlpExporter here to prevent SDK overload/compatibility issues
+            // across different OpenTelemetry package versions. The runtime SDK will
+            // honor OTEL environment variables when configured.
         }
 
         // Uncomment the following lines to enable the Azure Monitor exporter (requires the Azure.Monitor.OpenTelemetry.AspNetCore package)

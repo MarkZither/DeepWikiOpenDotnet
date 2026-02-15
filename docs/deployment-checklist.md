@@ -33,6 +33,13 @@ Complete pre-deployment verification for Development, Staging, and Production en
 - [ ] Logging level set to Debug for development
 - [ ] CORS configured if needed
 - [ ] Health check endpoint accessible at `/health`
+- [ ] **Ollama service running** on `http://localhost:11434` (or configured endpoint)
+- [ ] **Ollama model pulled**: `ollama pull vicuna-13b` (or configured model)
+- [ ] **Generation service configured** in `appsettings.json`:
+  - `Generation:Providers` list (e.g., `["Ollama", "OpenAI"]`)
+  - `Generation:Ollama:ModelId` set
+  - `Generation:OpenAI:ApiKey` configured (if using OpenAI fallback)
+- [ ] **Rate limiting configured**: `RateLimit:PermitLimit` and `RateLimit:WindowSeconds`
 
 ### Code & Build
 
@@ -48,6 +55,16 @@ Complete pre-deployment verification for Development, Staging, and Production en
 - [ ] Can search vectors: `POST /api/search` with embedding
 - [ ] Health check returns Healthy: `GET /health`
 - [ ] Logs show successful startup
+- [ ] **RAG Generation endpoints accessible**:
+  - [ ] Create session: `POST /api/generation/session`
+  - [ ] Stream generation: `POST /api/generation/stream` (returns NDJSON)
+  - [ ] Cancel generation: `POST /api/generation/cancel`
+  - [ ] Health check: `GET /api/generation/health` (shows provider status)
+- [ ] **Ollama provider responds**: Verify TTF <500ms on local Ollama
+- [ ] **Rate limiting enforced**: Test exceeding 100 req/min returns 429
+- [ ] **Cancellation works**: Submit prompt, cancel, verify <200ms response
+- [ ] **Metrics exported**: Check OpenTelemetry endpoint for TTF/tokens/errors
+- [ ] **Splunk OTLP**: If using Splunk, set `OTEL_EXPORTER_SPLUNK_ENDPOINT` and optional `OTEL_EXPORTER_SPLUNK_HEADERS`; verify metrics appear in Splunk using the queries in `docs/observability/splunk-dashboard.md` (podman-compose works with the existing compose files)
 - [ ] No unhandled exceptions in logs
 
 ### Sign-Off

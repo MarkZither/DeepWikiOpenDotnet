@@ -13,6 +13,9 @@ A production-grade, test-first data access layer for the DeepWiki knowledge base
 - **Optimistic Concurrency**: Built-in conflict detection using `UpdatedAt` timestamps
 - **Bulk Operations**: Efficient batch upserts with automatic transaction management
 - **Health Checks**: Integrated health check endpoints with database version validation
+- **Streaming RAG Service**: Token-by-token generation with retrieval augmentation, HTTP/SignalR streaming, and provider fallback (Ollama/OpenAI)
+
+> **New**: Check out the [Streaming RAG Service Quick Start](specs/001-streaming-rag-service/quickstart.md) and [API Contracts](specs/001-streaming-rag-service/contracts/) for code generation with semantic retrieval.
 
 ### 🏗️ Architecture
 
@@ -158,6 +161,12 @@ See [PostgreSQL Setup Guide](docs/postgres-setup.md) for advanced options.
 - [Deployment Checklist](docs/deployment-checklist.md) - Dev, staging, and production readiness
 - [Troubleshooting](docs/troubleshooting.md) - 10+ common issues and solutions
 - [Health Checks](docs/health-checks.md) - Monitoring and validation endpoints
+
+### Streaming RAG Service
+- **[Quick Start Guide](specs/001-streaming-rag-service/quickstart.md)** - Curl examples, test scenarios, and integration patterns
+- **[API Contracts](specs/001-streaming-rag-service/contracts/)** - OpenAPI specs and JSON schemas for generation endpoints
+- [Implementation Plan](specs/001-streaming-rag-service/plan.md) - Architecture and design decisions
+- [Data Model](specs/001-streaming-rag-service/data-model.md) - Session, Prompt, and GenerationDelta schemas
 
 ### Architecture & Implementation
 - [SQL Server Implementation](docs/sql-server-setup.md) - HNSW indexing and query optimization

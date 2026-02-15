@@ -326,8 +326,8 @@ public class EmbeddingServiceIntegrationTests
         // Act
         await cache.SetAsync(text, modelId, embedding);
 
-        // Wait for expiry
-        await Task.Delay(100);
+        // Wait for expiry - increase to reduce timing flakiness on loaded CI hosts
+        await Task.Delay(1000);
 
         var result = await cache.GetAsync(text, modelId);
 

@@ -744,6 +744,7 @@ namespace Sample.Project.File{index}
     private sealed class InMemoryVectorStore : IVectorStore
     {
         private readonly Dictionary<Guid, DocumentDto> _documents = [];
+        private readonly Dictionary<Guid, float[]> _normalizedEmbeddings = new();
         private readonly object _lock = new();
 
         public List<DocumentDto> GetAllDocuments()
@@ -760,9 +761,15 @@ namespace Sample.Project.File{index}
             Dictionary<string, string>? filters = null,
             CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Normalize query once
+            var queryNorm = Normalize(embedding);
+
+            List<(DocumentDto Doc, float Score)> scores;
             lock (_lock)
             {
-                var query = _documents.Values.AsEnumerable();
+                var docs = _documents.Values.AsEnumerable();
 
                 // Apply filters
                 if (filters is not null)
@@ -770,32 +777,40 @@ namespace Sample.Project.File{index}
                     if (filters.TryGetValue("repoUrl", out var repoFilter))
                     {
                         var pattern = repoFilter.Replace("%", "");
-                        query = query.Where(d => d.RepoUrl.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+                        docs = docs.Where(d => d.RepoUrl.Contains(pattern, StringComparison.OrdinalIgnoreCase));
                     }
                     if (filters.TryGetValue("filePath", out var fileFilter))
                     {
                         var pattern = fileFilter.Replace("%", "");
-                        query = query.Where(d => d.FilePath.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+                        docs = docs.Where(d => d.FilePath.Contains(pattern, StringComparison.OrdinalIgnoreCase));
                     }
                 }
 
-                // Calculate similarities and sort
-                var results = query
-                    .Select(d => new VectorQueryResult
-                    {
-                        Document = d,
-                        SimilarityScore = CalculateCosineSimilarity(embedding, d.Embedding)
-                    })
-                    .OrderByDescending(r => r.SimilarityScore)
-                    .Take(k)
-                    .ToList();
+                // Compute dot product against pre-normalized embeddings
+                scores = docs.Select(d =>
+                {
+                    if (!_normalizedEmbeddings.TryGetValue(d.Id, out var storedNorm) || storedNorm is null || storedNorm.Length == 0)
+                        return (d, 0f);
 
-                return Task.FromResult<IReadOnlyList<VectorQueryResult>>(results);
+                    var dot = DotProduct(queryNorm, storedNorm);
+                    return (d, dot);
+                }).ToList();
             }
+
+            var top = scores
+                .OrderByDescending(s => s.Score)
+                .Take(k)
+                .Select(s => new VectorQueryResult { Document = s.Doc, SimilarityScore = s.Score })
+                .ToList()
+                .AsReadOnly();
+
+            return Task.FromResult<IReadOnlyList<VectorQueryResult>>(top);
         }
 
         public Task UpsertAsync(DocumentDto document, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             lock (_lock)
             {
                 // Check for existing by RepoUrl+FilePath
@@ -805,10 +820,21 @@ namespace Sample.Project.File{index}
                 if (existing is not null)
                 {
                     _documents.Remove(existing.Id);
+                    _normalizedEmbeddings.Remove(existing.Id);
                     document.Id = existing.Id; // Preserve ID on update
                 }
 
                 _documents[document.Id] = document;
+
+                // Precompute normalized embedding for fast querying
+                if (document.Embedding is not null && document.Embedding.Length > 0)
+                {
+                    _normalizedEmbeddings[document.Id] = Normalize(document.Embedding);
+                }
+                else
+                {
+                    _normalizedEmbeddings[document.Id] = Array.Empty<float>();
+                }
             }
             return Task.CompletedTask;
         }
@@ -832,16 +858,30 @@ namespace Sample.Project.File{index}
             if (a is null || b is null || a.Length != b.Length || a.Length == 0)
                 return 0f;
 
-            float dot = 0, magA = 0, magB = 0;
-            for (var i = 0; i < a.Length; i++)
-            {
-                dot += a[i] * b[i];
-                magA += a[i] * a[i];
-                magB += b[i] * b[i];
-            }
+            // Fallback to dot of normalized vectors
+            var na = Normalize(a);
+            var nb = Normalize(b);
+            return DotProduct(na, nb);
+        }
 
-            var magnitude = Math.Sqrt(magA) * Math.Sqrt(magB);
-            return magnitude > 0 ? (float)(dot / magnitude) : 0f;
+        private static float[] Normalize(float[]? v)
+        {
+            if (v is null || v.Length == 0) return Array.Empty<float>();
+            var result = new float[v.Length];
+            double mag = 0;
+            for (var i = 0; i < v.Length; i++) mag += v[i] * v[i];
+            mag = Math.Sqrt(mag);
+            if (mag == 0) return Array.Empty<float>();
+            for (var i = 0; i < v.Length; i++) result[i] = (float)(v[i] / mag);
+            return result;
+        }
+
+        private static float DotProduct(float[] a, float[] b)
+        {
+            if (a is null || b is null || a.Length != b.Length) return 0f;
+            double sum = 0;
+            for (var i = 0; i < a.Length; i++) sum += (double)a[i] * b[i];
+            return (float)sum;
         }
     }
 

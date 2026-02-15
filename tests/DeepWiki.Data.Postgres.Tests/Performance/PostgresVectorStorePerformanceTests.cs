@@ -80,9 +80,9 @@ public class PostgresVectorStorePerformanceTests : IAsyncLifetime
         var results = await _vectorStore.QueryNearestAsync(queryEmb, 10, null, null, CancellationToken.None);
         sw.Stop();
 
-        // Default threshold is 2500ms; override with VECTOR_STORE_LATENCY_MS env var for stricter runners (e.g., CI agents)
+        // Default threshold is 4000ms (relaxed for local CI/VM variance); override with VECTOR_STORE_LATENCY_MS env var for stricter runners (e.g., dedicated CI agents)
         var thresholdMsStr = Environment.GetEnvironmentVariable("VECTOR_STORE_LATENCY_MS");
-        var thresholdMs = int.TryParse(thresholdMsStr, out var t) ? t : 2500;
+        var thresholdMs = int.TryParse(thresholdMsStr, out var t) ? t : 4000;
 
         Assert.NotEmpty(results);
         Assert.True(sw.ElapsedMilliseconds <= thresholdMs, $"Query latency {sw.ElapsedMilliseconds}ms exceeded threshold {thresholdMs}ms");

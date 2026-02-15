@@ -1,0 +1,255 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "deepwiki-rag-generation",
+    "title": "DeepWiki RAG Generation Metrics",
+    "tags": ["deepwiki", "rag", "generation", "llm"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "type": "graph",
+        "title": "Time To First Token (TTF)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(generation_ttf_seconds_bucket[5m]))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(generation_ttf_seconds_bucket[5m]))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(generation_ttf_seconds_bucket[5m]))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "s",
+            "label": "Time (seconds)",
+            "logBase": 1,
+            "show": true
+          },
+          {
+            "format": "short",
+            "logBase": 1,
+            "show": true
+          }
+        ],
+        "description": "Time from request to first token emitted. Target: <500ms (local Ollama), <1s (remote OpenAI)"
+      },
+      {
+        "id": 2,
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "type": "graph",
+        "title": "Token Generation Rate (tokens/sec)",
+        "targets": [
+          {
+            "expr": "rate(generation_tokens_total[5m])",
+            "legendFormat": "{{provider}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "short",
+            "label": "Tokens per second",
+            "logBase": 1,
+            "show": true
+          },
+          {
+            "format": "short",
+            "logBase": 1,
+            "show": true
+          }
+        ],
+        "description": "Token generation throughput. Target: >50 tokens/sec"
+      },
+      {
+        "id": 3,
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "type": "graph",
+        "title": "Total Tokens Generated",
+        "targets": [
+          {
+            "expr": "generation_tokens_total",
+            "legendFormat": "{{provider}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "short",
+            "label": "Token Count",
+            "logBase": 1,
+            "show": true
+          },
+          {
+            "format": "short",
+            "logBase": 1,
+            "show": true
+          }
+        ],
+        "description": "Cumulative token count by provider"
+      },
+      {
+        "id": 4,
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "type": "graph",
+        "title": "Error Rate by Type",
+        "targets": [
+          {
+            "expr": "rate(generation_errors_total[5m])",
+            "legendFormat": "{{error_type}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "short",
+            "label": "Errors per second",
+            "logBase": 1,
+            "show": true
+          },
+          {
+            "format": "short",
+            "logBase": 1,
+            "show": true
+          }
+        ],
+        "description": "Error rate categorized by type: timeout, unavailable, cancelled"
+      },
+      {
+        "id": 5,
+        "gridPos": { "h": 6, "w": 8, "x": 0, "y": 16 },
+        "type": "stat",
+        "title": "Active Sessions",
+        "targets": [
+          {
+            "expr": "generation_active_sessions",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "graphMode": "area",
+          "colorMode": "value"
+        },
+        "description": "Current number of active generation sessions"
+      },
+      {
+        "id": 6,
+        "gridPos": { "h": 6, "w": 8, "x": 8, "y": 16 },
+        "type": "stat",
+        "title": "Provider Health",
+        "targets": [
+          {
+            "expr": "up{job=\"deepwiki-rag\"}",
+            "legendFormat": "{{provider}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "graphMode": "none",
+          "colorMode": "background",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": 0, "color": "red" },
+              { "value": 1, "color": "green" }
+            ]
+          }
+        },
+        "description": "Provider availability status (1 = up, 0 = down)"
+      },
+      {
+        "id": 7,
+        "gridPos": { "h": 6, "w": 8, "x": 16, "y": 16 },
+        "type": "stat",
+        "title": "Request Rate",
+        "targets": [
+          {
+            "expr": "rate(generation_requests_total[5m])",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "graphMode": "area",
+          "colorMode": "value"
+        },
+        "description": "Generation requests per second"
+      },
+      {
+        "id": 8,
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+        "type": "table",
+        "title": "Recent Errors",
+        "targets": [
+          {
+            "expr": "topk(10, generation_errors_total)",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true
+              },
+              "indexByName": {},
+              "renameByName": {
+                "error_type": "Error Type",
+                "provider": "Provider",
+                "Value": "Count"
+              }
+            }
+          }
+        ],
+        "description": "Top 10 errors by count"
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "datasource",
+          "type": "datasource",
+          "query": "prometheus",
+          "current": {
+            "text": "Prometheus",
+            "value": "Prometheus"
+          }
+        }
+      ]
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["10s", "30s", "1m", "5m", "15m", "30m", "1h"]
+    }
+  }
+}

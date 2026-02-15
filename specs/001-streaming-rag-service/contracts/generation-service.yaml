@@ -1,0 +1,323 @@
+openapi: 3.1.0
+info:
+  title: DeepWiki Streaming RAG Generation API
+  description: |
+    Transport-agnostic streaming generation service for RAG (retrieval + generation).
+    Supports HTTP NDJSON baseline and optional SignalR hub for richer clients.
+  version: 1.0.0
+  contact:
+    name: DeepWiki Team
+servers:
+  - url: http://localhost:5000
+    description: Development server
+  - url: https://api.deepwiki.internal
+    description: Internal production server
+
+paths:
+  /api/generation/session:
+    post:
+      summary: Create a new generation session
+      description: Initialize a session for streaming generation requests
+      operationId: createSession
+      tags:
+        - Session Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionRequest'
+            examples:
+              basic:
+                value:
+                  owner: "internal-dev"
+                  context:
+                    environment: "development"
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+              examples:
+                success:
+                  value:
+                    sessionId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /api/generation/stream:
+    post:
+      summary: Stream generation with RAG retrieval
+      description: |
+        Submit a prompt and stream token deltas in NDJSON format.
+        Each line is a JSON object conforming to GenerationDelta schema.
+      operationId: streamGeneration
+      tags:
+        - Generation (HTTP Baseline)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+            examples:
+              simple:
+                value:
+                  sessionId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                  prompt: "Explain vector embeddings in C#"
+                  topK: 10
+              withIdempotency:
+                value:
+                  sessionId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                  prompt: "How does RAG work?"
+                  idempotencyKey: "client-req-001"
+                  topK: 5
+                  filters:
+                    repoUrl: "https://github.com/example/repo"
+      responses:
+        '200':
+          description: Streaming response (NDJSON)
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+                description: Line-delimited JSON stream of GenerationDelta objects
+              examples:
+                success:
+                  value: |
+                    {"promptId":"abc-123","type":"token","seq":0,"text":"Vector embeddings ","role":"assistant"}
+                    {"promptId":"abc-123","type":"token","seq":1,"text":"are dense numerical representations.","role":"assistant"}
+                    {"promptId":"abc-123","type":"done","seq":2,"role":"assistant","metadata":{"tokenCount":12}}
+                error:
+                  value: |
+                    {"promptId":"abc-123","type":"token","seq":0,"text":"Starting generation...","role":"assistant"}
+                    {"promptId":"abc-123","type":"error","seq":1,"role":"system","metadata":{"code":"provider_timeout","message":"Provider stalled"}}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /api/generation/cancel:
+    post:
+      summary: Cancel an in-flight prompt
+      description: Request cancellation of an active generation stream
+      operationId: cancelGeneration
+      tags:
+        - Generation (HTTP Baseline)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelRequest'
+            examples:
+              basic:
+                value:
+                  sessionId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                  promptId: "abc-123"
+      responses:
+        '204':
+          description: Cancellation acknowledged
+        '404':
+          description: Session or prompt not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Prompt already completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    SessionRequest:
+      type: object
+      properties:
+        owner:
+          type: string
+          nullable: true
+          description: Optional organization or repository identifier
+          examples: ["internal-dev", "org-123"]
+        context:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Optional session metadata for tracking
+          examples:
+            - environment: "development"
+              featureFlag: "streaming-v2"
+
+    SessionResponse:
+      type: object
+      required: [sessionId]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          description: Unique session identifier
+          examples: ["f47ac10b-58cc-4372-a567-0e02b2c3d479"]
+
+    PromptRequest:
+      type: object
+      required: [sessionId, prompt]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          description: Target session ID
+        prompt:
+          type: string
+          minLength: 1
+          description: User prompt text
+          examples: ["Explain vector embeddings in C#"]
+        idempotencyKey:
+          type: string
+          nullable: true
+          description: Optional retry-safe key (unique within session)
+          examples: ["client-req-001"]
+        topK:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+          description: Number of documents to retrieve for context
+        filters:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Optional retrieval filters (e.g., repoUrl, filePath)
+          examples:
+            - repoUrl: "https://github.com/example/repo"
+
+    CancelRequest:
+      type: object
+      required: [sessionId, promptId]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          description: Session identifier
+        promptId:
+          type: string
+          format: uuid
+          description: Prompt identifier to cancel
+
+    GenerationDelta:
+      type: object
+      required: [promptId, type, seq, role]
+      properties:
+        promptId:
+          type: string
+          format: uuid
+          description: Prompt identifier
+        type:
+          type: string
+          enum: [token, done, error]
+          description: Event type
+        seq:
+          type: integer
+          minimum: 0
+          description: Monotonic sequence number
+        text:
+          type: string
+          nullable: true
+          description: Token delta text (required for type=token)
+        role:
+          type: string
+          enum: [assistant, system, user]
+          description: Message role
+        metadata:
+          type: object
+          nullable: true
+          description: Optional metadata (provider data, error details)
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Error code identifier
+          examples: ["session_not_found", "invalid_request", "provider_timeout"]
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          nullable: true
+          description: Optional additional error context
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidPrompt:
+              value:
+                code: "invalid_request"
+                message: "Prompt text cannot be empty"
+            invalidTopK:
+              value:
+                code: "invalid_request"
+                message: "TopK must be between 1 and 20"
+
+    RateLimitExceeded:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+          description: Request limit per time window
+          example: 100
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+          description: Remaining requests in current window
+          example: 0
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Unix timestamp when limit resets
+          example: 1675872000
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds until retry allowed
+          example: 60
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            rateLimited:
+              value:
+                code: "rate_limit_exceeded"
+                message: "Too many requests from this IP. Retry after 60 seconds."
+
+  securitySchemes:
+    # No authentication for MVP (internal-only deployment)
+    # Future: Add API key or bearer token scheme
+
+tags:
+  - name: Session Management
+    description: Create and manage generation sessions
+  - name: Generation (HTTP Baseline)
+    description: HTTP NDJSON streaming endpoints (baseline transport)
