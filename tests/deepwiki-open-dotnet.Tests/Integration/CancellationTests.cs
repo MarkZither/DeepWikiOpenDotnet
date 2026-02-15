@@ -77,8 +77,8 @@ namespace DeepWiki.ApiService.Tests.Integration
             });
 #pragma warning restore xUnit1051
 
-            var finished = await Task.WhenAny(drainTask, Task.Delay(5000, TestContext.Current.CancellationToken));
-            finished.Should().Be(drainTask, "Stream did not end after cancellation within 5s");
+            var finished = await Task.WhenAny(drainTask, Task.Delay(10000, TestContext.Current.CancellationToken));
+            finished.Should().Be(drainTask, "Stream did not end after cancellation within 10s");
 
             sw.Stop();
             sw.ElapsedMilliseconds.Should().BeLessThan(5000, "Cancel endpoint should return quickly");

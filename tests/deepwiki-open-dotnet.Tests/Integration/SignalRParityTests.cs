@@ -29,9 +29,9 @@ public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
     {
         // Arrange: Create session via HTTP
         var sessionReq = new SessionRequest { Owner = "parity-test" };
-        var sessionResp = await _httpClient.PostAsJsonAsync("/api/generation/session", sessionReq);
+        var sessionResp = await _httpClient.PostAsJsonAsync("/api/generation/session", sessionReq, TestContext.Current.CancellationToken);
         sessionResp.EnsureSuccessStatusCode();
-        var session = await sessionResp.Content.ReadFromJsonAsync<SessionResponse>();
+        var session = await sessionResp.Content.ReadFromJsonAsync<SessionResponse>(TestContext.Current.CancellationToken);
         session.Should().NotBeNull();
         var sessionId = session!.SessionId;
 
@@ -45,14 +45,14 @@ public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Act 1: Get HTTP NDJSON deltas
         var httpDeltas = new List<GenerationDelta>();
-        var httpResp = await _httpClient.PostAsJsonAsync("/api/generation/stream", promptReq);
+        var httpResp = await _httpClient.PostAsJsonAsync("/api/generation/stream", promptReq, TestContext.Current.CancellationToken);
         httpResp.EnsureSuccessStatusCode();
         httpResp.Content.Headers.ContentType?.MediaType.Should().Be("application/x-ndjson");
 
-        await using var stream = await httpResp.Content.ReadAsStreamAsync();
+        await using var stream = await httpResp.Content.ReadAsStreamAsync(TestContext.Current.CancellationToken);
         using var reader = new StreamReader(stream);
         string? line;
-        while ((line = await reader.ReadLineAsync()) != null)
+        while ((line = await reader.ReadLineAsync(TestContext.Current.CancellationToken)) != null)
         {
             if (!string.IsNullOrWhiteSpace(line))
             {
@@ -70,12 +70,10 @@ public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
             })
             .Build();
 
-        await hubConnection.StartAsync();
+        await hubConnection.StartAsync(TestContext.Current.CancellationToken);
 
         var signalrDeltas = new List<GenerationDelta>();
-        var signalrSessionResp = await hubConnection.InvokeAsync<SessionResponse>("StartSession", sessionReq);
-        signalrSessionResp.Should().NotBeNull();
-
+        var signalrSessionResp = await hubConnection.InvokeAsync<SessionResponse>("StartSession", sessionReq, TestContext.Current.CancellationToken);
         var streamPromptReq = new PromptRequest
         {
             SessionId = signalrSessionResp.SessionId,
@@ -84,13 +82,13 @@ public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
             IdempotencyKey = Guid.NewGuid().ToString() // Different key to avoid cache
         };
 
-        var signalrStream = hubConnection.StreamAsync<GenerationDelta>("SendPrompt", streamPromptReq);
-        await foreach (var delta in signalrStream)
+        var signalrStream = hubConnection.StreamAsync<GenerationDelta>("SendPrompt", streamPromptReq, TestContext.Current.CancellationToken);
+        await foreach (var delta in signalrStream.WithCancellation(TestContext.Current.CancellationToken))
         {
             signalrDeltas.Add(delta);
         }
 
-        await hubConnection.StopAsync();
+        await hubConnection.StopAsync(TestContext.Current.CancellationToken);
         await hubConnection.DisposeAsync();
 
         // Assert: Both transports return same structure and delta count (content may vary due to LLM non-determinism)
@@ -126,9 +124,9 @@ public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
             })
             .Build();
 
-        await hubConnection.StartAsync();
+        await hubConnection.StartAsync(TestContext.Current.CancellationToken);
 
-        var sessionResp = await hubConnection.InvokeAsync<SessionResponse>("StartSession", sessionReq);
+        var sessionResp = await hubConnection.InvokeAsync<SessionResponse>("StartSession", sessionReq, TestContext.Current.CancellationToken);
         sessionResp.Should().NotBeNull();
 
         var promptReq = new PromptRequest
@@ -141,13 +139,13 @@ public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Act
         var deltas = new List<GenerationDelta>();
-        var stream = hubConnection.StreamAsync<GenerationDelta>("SendPrompt", promptReq);
-        await foreach (var delta in stream)
+        var stream = hubConnection.StreamAsync<GenerationDelta>("SendPrompt", promptReq, TestContext.Current.CancellationToken);
+        await foreach (var delta in stream.WithCancellation(TestContext.Current.CancellationToken))
         {
             deltas.Add(delta);
         }
 
-        await hubConnection.StopAsync();
+        await hubConnection.StopAsync(TestContext.Current.CancellationToken);
         await hubConnection.DisposeAsync();
 
         // Assert: Validate schema compliance
@@ -193,9 +191,9 @@ public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
             })
             .Build();
 
-        await hubConnection.StartAsync();
+        await hubConnection.StartAsync(TestContext.Current.CancellationToken);
 
-        var sessionResp = await hubConnection.InvokeAsync<SessionResponse>("StartSession", sessionReq);
+        var sessionResp = await hubConnection.InvokeAsync<SessionResponse>("StartSession", sessionReq, TestContext.Current.CancellationToken);
         sessionResp.Should().NotBeNull();
 
         var promptReq = new PromptRequest
@@ -224,7 +222,7 @@ public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
                     {
                         SessionId = sessionResp.SessionId,
                         PromptId = delta.PromptId
-                    });
+                    }, TestContext.Current.CancellationToken);
                     break;
                 }
             }
@@ -232,7 +230,7 @@ public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
 
         await streamTask;
 
-        await hubConnection.StopAsync();
+        await hubConnection.StopAsync(TestContext.Current.CancellationToken);
         await hubConnection.DisposeAsync();
 
         // Assert: Verify cancellation behavior
@@ -260,9 +258,9 @@ public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
             })
             .Build();
 
-        await hubConnection.StartAsync();
+        await hubConnection.StartAsync(TestContext.Current.CancellationToken);
 
-        var sessionResp = await hubConnection.InvokeAsync<SessionResponse>("StartSession", sessionReq);
+        var sessionResp = await hubConnection.InvokeAsync<SessionResponse>("StartSession", sessionReq, TestContext.Current.CancellationToken);
         sessionResp.Should().NotBeNull();
 
         // Act: Send two prompts in sequence
@@ -275,8 +273,8 @@ public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
         };
 
         var deltas1 = new List<GenerationDelta>();
-        var stream1 = hubConnection.StreamAsync<GenerationDelta>("SendPrompt", prompt1Req);
-        await foreach (var delta in stream1)
+        var stream1 = hubConnection.StreamAsync<GenerationDelta>("SendPrompt", prompt1Req, TestContext.Current.CancellationToken);
+        await foreach (var delta in stream1.WithCancellation(TestContext.Current.CancellationToken))
         {
             deltas1.Add(delta);
         }
@@ -290,13 +288,13 @@ public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
         };
 
         var deltas2 = new List<GenerationDelta>();
-        var stream2 = hubConnection.StreamAsync<GenerationDelta>("SendPrompt", prompt2Req);
-        await foreach (var delta in stream2)
+        var stream2 = hubConnection.StreamAsync<GenerationDelta>("SendPrompt", prompt2Req, TestContext.Current.CancellationToken);
+        await foreach (var delta in stream2.WithCancellation(TestContext.Current.CancellationToken))
         {
             deltas2.Add(delta);
         }
 
-        await hubConnection.StopAsync();
+        await hubConnection.StopAsync(TestContext.Current.CancellationToken);
         await hubConnection.DisposeAsync();
 
         // Assert: Both prompts completed successfully

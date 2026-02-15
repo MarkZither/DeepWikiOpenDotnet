@@ -23,6 +23,9 @@ public class SqlServerFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         // Start the container with retries - sometimes Docker images take time or transient failures occur
+        // Stagger container startups slightly to reduce burst load on Docker during full-suite runs
+        await Task.Delay(1500);
+
         var startSw = System.Diagnostics.Stopwatch.StartNew();
         var startMax = TimeSpan.FromMinutes(7);
         var startAttempt = 0;
@@ -39,8 +42,8 @@ public class SqlServerFixture : IAsyncLifetime
                 if (startSw.Elapsed > startMax)
                     throw;
 
-                // Backoff with cap (up to 10s)
-                var delayMs = Math.Min(1000 * startAttempt, 10000);
+                // Backoff with cap (up to 60s)
+                var delayMs = Math.Min(2000 * startAttempt, 60000);
                 await Task.Delay(delayMs);
             }
         }
@@ -51,8 +54,9 @@ public class SqlServerFixture : IAsyncLifetime
         var attempt = 0;
         var connBuilder = new SqlConnectionStringBuilder(ConnectionString)
         {
-            ConnectTimeout = 60 // make connect attempts more patient
-        };
+                ConnectTimeout = 180, // increase connect timeout to be more tolerant on constrained CI
+                Pooling = false // do not use connection pooling for startup readiness checks to avoid pool exhaustion under heavy parallel test load
+            };
 
         while (true)
         {
@@ -71,8 +75,8 @@ public class SqlServerFixture : IAsyncLifetime
                 if (sw.Elapsed > maxWait)
                     throw;
 
-                // Exponential backoff with cap (up to 10s)
-                var delayMs = Math.Min(1000 * attempt, 10000);
+                // Exponential backoff with larger cap (up to 60s)
+                var delayMs = Math.Min(2000 * attempt, 60000);
                 await Task.Delay(delayMs);
             }
         }
@@ -87,6 +91,8 @@ public class SqlServerFixture : IAsyncLifetime
                     CREATE DATABASE DeepWikiTest;
                     ALTER DATABASE DeepWikiTest SET TRUSTWORTHY ON;
                 ";
+                // Increase command timeout for potentially slow container startup
+                command.CommandTimeout = 120;
                 await command.ExecuteNonQueryAsync();
             }
         }
@@ -95,7 +101,8 @@ public class SqlServerFixture : IAsyncLifetime
         var testDbConnectionString = new SqlConnectionStringBuilder(ConnectionString)
         {
             InitialCatalog = "DeepWikiTest",
-            ConnectTimeout = 60
+            ConnectTimeout = 180,
+            Pooling = false
         }.ConnectionString;
 
         var dbReadySw = System.Diagnostics.Stopwatch.StartNew();
@@ -118,7 +125,7 @@ public class SqlServerFixture : IAsyncLifetime
                 if (dbReadySw.Elapsed > dbMaxWait)
                     throw;
 
-                var delayMs = Math.Min(1000 * attempt, 10000);
+                var delayMs = Math.Min(2000 * attempt, 60000);
                 await Task.Delay(delayMs);
             }
         }
@@ -147,7 +154,7 @@ public class SqlServerFixture : IAsyncLifetime
         var testConnectionString = new SqlConnectionStringBuilder(ConnectionString)
         {
             InitialCatalog = "DeepWikiTest",
-            ConnectTimeout = 60
+            ConnectTimeout = 180
         }.ConnectionString;
 
         var options = new DbContextOptionsBuilder<SqlServerVectorDbContext>()

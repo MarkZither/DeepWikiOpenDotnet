@@ -142,6 +142,14 @@ public class SessionManager
     }
 
     /// <summary>
+    /// Gets all active sessions (for monitoring/cleanup).
+    /// </summary>
+    public IReadOnlyDictionary<string, Session> GetActiveSessions()
+    {
+        return _sessions;
+    }
+
+    /// <summary>
     /// Cleans up expired sessions (should be called periodically by background task).
     /// </summary>
     public void CleanupExpiredSessions()
@@ -163,3 +171,4 @@ public class SessionManager
         }
     }
 }
+

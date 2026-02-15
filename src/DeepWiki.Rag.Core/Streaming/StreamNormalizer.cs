@@ -4,11 +4,21 @@ using DeepWiki.Data.Abstractions.Models;
 
 namespace DeepWiki.Rag.Core.Streaming;
 
+/// <summary>
+/// Normalizes streaming token chunks into sequenced GenerationDelta events.
+/// Optimized for memory efficiency - processes chunks on-the-fly without buffering entire response.
+/// Handles UTF-8 decoding across chunk boundaries and deduplicates consecutive identical tokens.
+/// </summary>
 public class StreamNormalizer
 {
     private readonly string _promptId;
     private readonly string _role;
 
+    /// <summary>
+    /// Creates a new StreamNormalizer for the given prompt and role.
+    /// </summary>
+    /// <param name="promptId">Prompt identifier for delta events.</param>
+    /// <param name="role">Role identifier (e.g., "assistant").</param>
     public StreamNormalizer(string promptId, string role)
     {
         _promptId = promptId;
@@ -16,9 +26,12 @@ public class StreamNormalizer
     }
 
     /// <summary>
-    /// Normalize incoming byte chunks into a sequence of GenerationDelta token events.
+    /// Normalizes incoming byte chunks into a sequence of GenerationDelta token events.
     /// Deduplicates consecutive identical text chunks and ensures UTF-8 safety across chunk boundaries.
+    /// Memory-optimized: yields results immediately without buffering the entire response.
     /// </summary>
+    /// <param name="chunks">Stream of byte chunks from provider (processed on-the-fly).</param>
+    /// <returns>Async enumerable of normalized GenerationDelta events.</returns>
     public IEnumerable<GenerationDelta> Normalize(IEnumerable<byte[]> chunks)
     {
         if (chunks == null)

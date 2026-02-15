@@ -63,6 +63,12 @@ public class OpenAIProvider : IModelProvider
 
     public async IAsyncEnumerable<GenerationDelta> StreamAsync(string promptText, string? systemPrompt = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        // If configured as a real OpenAI provider, an API key is required — fail fast when missing so callers get a clear error
+        if (string.Equals(_providerType, "openai", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI provider is not configured (missing API key).");
+        }
+
         // Build OpenAI chat completion request body compatible with OpenAI streaming
         using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/chat/completions");
 

@@ -71,8 +71,14 @@ public class GenerationService : IGenerationService
         try { _promptRegistry?.Register(prompt.PromptId, cts); } catch { }
         var recorded = new List<GenerationDelta>();
 
-        // Use a producer task to consume the provider stream and write into a channel.
-        var channel = System.Threading.Channels.Channel.CreateUnbounded<GenerationDelta>();
+        // Use a bounded channel with backpressure to prevent memory bloat if consumer is slow.
+        // BoundedChannelFullMode.Wait causes the provider to wait if the buffer fills, applying backpressure.
+        // Capacity of 100 deltas provides reasonable buffering while preventing unbounded memory growth.
+        var channelOptions = new System.Threading.Channels.BoundedChannelOptions(100)
+        {
+            FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait
+        };
+        var channel = System.Threading.Channels.Channel.CreateBounded<GenerationDelta>(channelOptions);
 
         // Build RAG system prompt if vector store + embedding service available and topK > 0
         string? systemPrompt = null;
@@ -311,7 +317,12 @@ public class GenerationService : IGenerationService
     {
         if (_promptCancellations.TryGetValue(promptId, out var cts))
         {
-            cts.Cancel();
+            try { cts.Cancel(); } catch { }
+        }
+        else if (_promptRegistry != null)
+        {
+            // Try to cancel via the global registry (covers other request scopes)
+            try { _promptRegistry.TryCancel(promptId); } catch { }
         }
 
         _sessionManager.UpdatePromptStatus(sessionId, promptId, PromptStatus.Cancelled);

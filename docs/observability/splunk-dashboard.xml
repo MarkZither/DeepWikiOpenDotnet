@@ -1,0 +1,57 @@
+<dashboard>
+  <label>Generation Service — TTF / tokens / errors</label>
+  <description>Splunk panels for Generation service metrics: time-to-first-token (TTF), tokens/sec, total tokens, error rates and recent error events.</description>
+
+  <row>
+    <panel>
+      <title>TTF (ms) — p50 / p95 by provider</title>
+      <chart>
+        <searchString>| mstats avg(_value) WHERE metric_name="generation.ttf" earliest=-30m@h by provider span=1m
+| timechart avg(_value) as "TTF (ms)" by provider</searchString>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Tokens / sec (throughput)</title>
+      <chart>
+        <searchString>| mstats avg(_value) WHERE metric_name="generation.tokens_per_second" earliest=-30m@h by provider span=1m
+| timechart avg(_value) as "tokens/s" by provider</searchString>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Total tokens (counter)</title>
+      <chart>
+        <searchString>| mstats sum(_value) WHERE metric_name="generation.tokens" earliest=-24h by provider
+| timechart sum(_value) as "tokens_total" by provider</searchString>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Error rate by type</title>
+      <chart>
+        <searchString>| mstats sum(_value) WHERE metric_name="generation.errors" earliest=-6h by error_type,provider
+| chart sum(_value) as errors by error_type, provider</searchString>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Recent error events (log view)</title>
+      <table>
+        <searchString>index=main OR index=errors "provider failed" OR "provider_error" | table _time, host, source, sourcetype, _raw</searchString>
+      </table>
+    </panel>
+
+    <panel>
+      <title>Active sessions / in‑flight prompts (log panel)</title>
+      <table>
+        <searchString>| mstats latest(_value) WHERE metric_name="deepwiki.sessions_active" earliest=-30m@h by host
+| timechart latest(_value) as "active_sessions" by host</searchString>
+      </table>
+    </panel>
+  </row>
+</dashboard>

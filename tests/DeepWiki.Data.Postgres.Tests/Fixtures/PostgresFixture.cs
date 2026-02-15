@@ -27,12 +27,46 @@ public class PostgresFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        await _container.StartAsync();
-        
-        // Apply migrations to create the schema and pgvector extension
-        using (var context = CreateDbContext())
+        // Retry starting the container to handle transient Docker/testcontainers issues in CI
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var maxWait = TimeSpan.FromMinutes(3);
+        var attempt = 0;
+        while (true)
         {
-            await context.Database.MigrateAsync();
+            try
+            {
+                await _container.StartAsync();
+                break;
+            }
+            catch (Exception)
+            {
+                attempt++;
+                if (sw.Elapsed > maxWait)
+                    throw;
+
+                await Task.Delay(Math.Min(1000 * attempt, 10000));
+            }
+        }
+
+        // Apply migrations to create the schema and pgvector extension (retry on transient failures)
+        var migrateAttempts = 0;
+        while (true)
+        {
+            try
+            {
+                using (var context = CreateDbContext())
+                {
+                    await context.Database.MigrateAsync();
+                }
+                break;
+            }
+            catch (Exception)
+            {
+                migrateAttempts++;
+                if (migrateAttempts > 5)
+                    throw;
+                await Task.Delay(Math.Min(500 * migrateAttempts, 5000));
+            }
         }
     }
 

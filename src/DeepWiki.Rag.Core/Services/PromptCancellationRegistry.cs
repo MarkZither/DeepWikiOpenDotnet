@@ -31,4 +31,19 @@ public sealed class PromptCancellationRegistry
     }
 
     public IReadOnlyCollection<string> ActivePromptIds() => _map.Keys.ToList().AsReadOnly();
+
+    /// <summary>
+    /// Attempt to cancel a specific prompt by id. Returns true when a matching
+    /// CancellationTokenSource was found and cancellation was requested.
+    /// </summary>
+    public bool TryCancel(string promptId)
+    {
+        if (string.IsNullOrEmpty(promptId)) return false;
+        if (_map.TryGetValue(promptId, out var cts))
+        {
+            try { cts.Cancel(); } catch { }
+            return true;
+        }
+        return false;
+    }
 }
