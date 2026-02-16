@@ -3,8 +3,8 @@
 @inject ChatStateService ChatState
 @namespace deepwiki_open_dotnet.Web.Components.Shared
 
-<MudTextField @bind-Value="InputText" Id="chat-input" Placeholder="Ask a question..." Class="w-100" Immediate="true" />
-<MudButton Id="send-btn" Color="Color.Primary" Disabled="@IsDisabled" OnClick="OnSendClicked">Send</MudButton>
+<MudTextField @bind-Value="InputText" id="chat-input" Placeholder="Ask a question..." Class="w-100" Immediate="true" />
+<MudButton id="send-btn" Color="Color.Primary" Disabled="@IsDisabled" OnClick="OnSendClicked">Send</MudButton>
 
 @code {
     private string InputText { get; set; } = string.Empty;

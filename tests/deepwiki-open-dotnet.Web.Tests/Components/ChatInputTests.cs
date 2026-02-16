@@ -1,5 +1,6 @@
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using MudBlazor.Services;
 using deepwiki_open_dotnet.Web.Components.Shared;
 using deepwiki_open_dotnet.Web.Services;
 using Xunit;
@@ -12,6 +13,7 @@ public class ChatInputTests
     public void ChatInput_Should_Have_Input_And_Send_Button()
     {
         using var ctx = new BunitContext();
+        ctx.Services.AddMudServices();
         ctx.Services.AddSingleton<ChatStateService>();
 
         var cut = ctx.Render<ChatInput>();

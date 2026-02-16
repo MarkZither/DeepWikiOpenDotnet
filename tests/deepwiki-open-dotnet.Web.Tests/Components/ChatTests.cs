@@ -1,5 +1,6 @@
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using MudBlazor.Services;
 using deepwiki_open_dotnet.Web.Components.Pages;
 using deepwiki_open_dotnet.Web.Services;
 using Xunit;
@@ -12,6 +13,8 @@ public class ChatTests
     public void Chat_Renders_Input_And_MessageList()
     {
         using var ctx = new BunitContext();
+        ctx.Services.AddMudServices();
+        ctx.Services.AddSingleton(new Markdig.MarkdownPipelineBuilder().Build());
         ctx.Services.AddSingleton<ChatStateService>();
 
         var cut = ctx.Render<Chat>();
