@@ -63,11 +63,11 @@
 
 ### Tests for User Story 1 ⚠️ Write FIRST, ensure they FAIL
 
-- [ ] T018 [P] [US1] Create test for ChatStateService message management in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatStateServiceTests.cs` (add message, clear messages, state changed events)
-- [ ] T019 [P] [US1] Create test for NdJsonStreamParser in `tests/deepwiki-open-dotnet.Web.Tests/Services/NdJsonStreamParserTests.cs` (parse valid NDJSON, handle malformed JSON, handle empty lines)
-- [ ] T020 [P] [US1] Create test for ChatApiClient streaming in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatApiClientTests.cs` (successful stream, error handling, cancellation)
-- [ ] T021 [P] [US1] Create bUnit test for Chat.razor basic rendering in `tests/deepwiki-open-dotnet.Web.Tests/Components/ChatTests.cs` (renders input field, message list)
-- [ ] T022 [P] [US1] Create bUnit test for ChatInput component in `tests/deepwiki-open-dotnet.Web.Tests/Components/ChatInputTests.cs` (submit on click, disabled during generation, prevent empty submission)
+- [X] T018 [P] [US1] Create test for ChatStateService message management in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatStateServiceTests.cs` (add message, clear messages, state changed events)
+- [X] T019 [P] [US1] Create test for NdJsonStreamParser in `tests/deepwiki-open-dotnet.Web.Tests/Services/NdJsonStreamParserTests.cs` (parse valid NDJSON, handle malformed JSON, handle empty lines)
+- [X] T020 [P] [US1] Create test for ChatApiClient streaming in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatApiClientTests.cs` (successful stream, error handling, cancellation)
+- [X] T021 [P] [US1] Create bUnit test for Chat.razor basic rendering in `tests/deepwiki-open-dotnet.Web.Tests/Components/ChatTests.cs` (renders input field, message list)
+- [X] T022 [P] [US1] Create bUnit test for ChatInput component in `tests/deepwiki-open-dotnet.Web.Tests/Components/ChatInputTests.cs` (submit on click, disabled during generation, prevent empty submission)
 
 ### Implementation for User Story 1
 
