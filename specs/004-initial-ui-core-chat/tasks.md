@@ -24,11 +24,11 @@
 
 **Purpose**: Project initialization and test infrastructure
 
-- [ ] T001 Create test project `tests/deepwiki-open-dotnet.Web.Tests/` with xUnit and bUnit dependencies
-- [ ] T002 [P] Add MudBlazor 7.x package to `src/deepwiki-open-dotnet.Web/Program.cs`
-- [ ] T003 [P] Create Models directory `src/deepwiki-open-dotnet.Web/Models/`
-- [ ] T004 [P] Create Services directory `src/deepwiki-open-dotnet.Web/Services/`
-- [ ] T005 [P] Create test fixtures directory `tests/deepwiki-open-dotnet.Web.Tests/Fixtures/`
+- [X] T001 Create test project `tests/deepwiki-open-dotnet.Web.Tests/` with xUnit and bUnit dependencies
+- [X] T002 [P] Add MudBlazor 7.x package to `src/deepwiki-open-dotnet.Web/Program.cs`
+- [X] T003 [P] Create Models directory `src/deepwiki-open-dotnet.Web/Models/`
+- [X] T004 [P] Create Services directory `src/deepwiki-open-dotnet.Web/Services/`
+- [X] T005 [P] Create test fixtures directory `tests/deepwiki-open-dotnet.Web.Tests/Fixtures/`
 
 ---
 

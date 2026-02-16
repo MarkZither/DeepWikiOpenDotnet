@@ -1,5 +1,6 @@
 using deepwiki_open_dotnet.Web;
 using deepwiki_open_dotnet.Web.Components;
+using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +11,8 @@ builder.AddRedisOutputCache("cache");
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddMudServices();
 
 builder.Services.AddHttpClient<WeatherApiClient>(client =>
     {
