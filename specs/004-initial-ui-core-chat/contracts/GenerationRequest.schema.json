@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GenerationRequest",
+  "description": "Request payload for POST /api/generation/stream",
+  "type": "object",
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Session ID for multi-turn conversation tracking"
+    },
+    "query": {
+      "type": "string",
+      "description": "User's current question or message",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "collection_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Optional list of document collection IDs to search. Empty = all collections"
+    },
+    "context": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ContextMessage"
+      },
+      "description": "Previous messages in the conversation for multi-turn context",
+      "maxItems": 10
+    }
+  },
+  "required": ["query", "session_id"],
+  "definitions": {
+    "ContextMessage": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": ["user", "assistant"],
+          "description": "Message author role"
+        },
+        "content": {
+          "type": "string",
+          "description": "Message text content"
+        }
+      },
+      "required": ["role", "content"]
+    }
+  }
+}

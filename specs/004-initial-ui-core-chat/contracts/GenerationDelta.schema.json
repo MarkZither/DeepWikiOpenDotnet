@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GenerationDelta",
+  "description": "NDJSON line streamed from /api/generation/stream containing partial or complete generation data",
+  "type": "object",
+  "properties": {
+    "delta": {
+      "type": "string",
+      "description": "Incremental text fragment of the AI response"
+    },
+    "finish_reason": {
+      "type": "string",
+      "enum": ["stop", "length", "error"],
+      "description": "Reason for stream completion"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional metadata about sources and citations",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SourceCitation"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "SourceCitation": {
+      "type": "object",
+      "properties": {
+        "document_id": {
+          "type": "string",
+          "description": "Unique identifier for the source document"
+        },
+        "title": {
+          "type": "string",
+          "description": "Document title"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to the source document"
+        },
+        "relevance_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Similarity score from vector search"
+        }
+      },
+      "required": ["document_id", "title"]
+    }
+  }
+}

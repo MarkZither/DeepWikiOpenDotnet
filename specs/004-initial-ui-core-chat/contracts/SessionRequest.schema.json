@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SessionRequest",
+  "description": "Request payload for POST /api/generation/session to create a new chat session",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Optional user identifier for session tracking"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional key-value metadata for the session",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  }
+}
