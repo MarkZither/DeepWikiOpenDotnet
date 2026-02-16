@@ -20,6 +20,11 @@ builder.Services.AddScoped<ChatStateService>();
 builder.Services.AddSingleton<NdJsonStreamParser>();
 builder.Services.AddHttpClient<ChatApiClient>(client => client.BaseAddress = new("https+http://apiservice"));
 
+// Markdown rendering pipeline for ChatMessage (Markdig)
+builder.Services.AddSingleton(new Markdig.MarkdownPipelineBuilder()
+    .UseAdvancedExtensions()
+    .Build());
+
 builder.Services.AddHttpClient<WeatherApiClient>(client =>
     {
         // This URL uses "https+http://" to indicate HTTPS is preferred over HTTP.

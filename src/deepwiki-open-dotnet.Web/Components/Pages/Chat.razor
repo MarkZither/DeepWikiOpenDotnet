@@ -1,8 +1,135 @@
-@namespace deepwiki_open_dotnet.Web.Components.Pages
+@page "/chat"
+@using deepwiki_open_dotnet.Web.Models
+@using deepwiki_open_dotnet.Web.Services
+@using MudBlazor
+@inject ChatStateService ChatState
+@inject ChatApiClient ChatApi
+@inject NdJsonStreamParser Parser
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject Markdig.MarkdownPipeline MarkdownPipeline
 
-<div class="chat-page-stub">
-    <!-- Minimal stub page for test-first bUnit tests (real UI in T025) -->
-    <div class="scope-indicator">Searching: All Documents</div>
-    <div class="message-list"></div>
-    <deepwiki_open_dotnet.Web.Components.Shared.ChatInput />
+<div class="chat-page">
+    <div class="chat-header d-flex align-items-center mb-2">
+        <h5 class="me-auto">Chat</h5>
+        @if (ChatState.IsGenerating)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Secondary" Class="w-25" />
+        }
+    </div>
+
+    <div class="message-list" style="max-height:60vh; overflow:auto;" id="message-list">
+        @foreach (var m in ChatState.Messages)
+        {
+            <Shared.ChatMessage Message="m" />
+        }
+    </div>
+
+    <div class="mt-3">
+        <Shared.ChatInput OnSubmit="HandleSubmit" />
+    </div>
 </div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        ChatState.StateChanged += OnStateChanged;
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        ChatState.StateChanged -= OnStateChanged;
+    }
+
+    private async Task HandleSubmit(string userInput)
+    {
+        // Add user message
+        ChatState.AddMessage(new ChatMessageModel { Role = MessageRole.User, Text = userInput });
+
+        // Add assistant placeholder
+        ChatState.AddMessage(new ChatMessageModel { Role = MessageRole.Assistant, Text = string.Empty, IsStreaming = true });
+
+        ChatState.IsGenerating = true;
+        var cts = new CancellationTokenSource();
+
+        try
+        {
+            var request = new GenerationRequestDto
+            {
+                SessionId = Guid.Empty,
+                Prompt = userInput
+            };
+
+            var resp = await ChatApi.StreamGenerationAsync(request, cts.Token).ConfigureAwait(false);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var err = $"API returned {(int)resp.StatusCode} {resp.ReasonPhrase}";
+                UpdateLastWithError(err);
+                Snackbar.Add(err, Severity.Error);
+                return;
+            }
+
+            await using var stream = await resp.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
+
+            await foreach (var delta in Parser.ParseAsync(stream, cts.Token))
+            {
+                if (!string.IsNullOrEmpty(delta.Text))
+                {
+                    ChatState.UpdateLastMessage(m => m.Text += delta.Text);
+                    // scroll to latest
+                    var last = ChatState.Messages.LastOrDefault();
+                    if (last is not null)
+                        await JS.InvokeVoidAsync("chat.scrollIntoViewById", $"message-{last.Id}");
+                }
+
+                if (delta.Type == "error")
+                {
+                    UpdateLastWithError(delta.Error ?? "Unknown error");
+                    Snackbar.Add(delta.Error ?? "Stream error", Severity.Error);
+                    break;
+                }
+
+                if (delta.Done == true)
+                {
+                    ChatState.UpdateLastMessage(m => m.IsStreaming = false);
+
+                    if (delta.Metadata?.Sources is not null)
+                    {
+                        var sources = delta.Metadata.Sources.Select(s => new SourceCitation
+                        {
+                            Title = s.Title ?? string.Empty,
+                            Url = s.RepoUrl ?? s.FilePath,
+                            Excerpt = s.Excerpt,
+                            Score = s.Score
+                        }).ToList();
+
+                        ChatState.UpdateLastMessage(m => { m.Sources.AddRange(sources); });
+                    }
+
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            UpdateLastWithError("Generation canceled");
+            Snackbar.Add("Generation canceled", Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            UpdateLastWithError(ex.Message);
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            ChatState.IsGenerating = false;
+        }
+    }
+
+    private void UpdateLastWithError(string msg)
+    {
+        ChatState.UpdateLastMessage(m => { m.IsStreaming = false; m.ErrorMessage = msg; });
+    }
+}

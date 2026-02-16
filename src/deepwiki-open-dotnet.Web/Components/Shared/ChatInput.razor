@@ -1,7 +1,26 @@
+@using deepwiki_open_dotnet.Web.Services
+@using MudBlazor
+@inject ChatStateService ChatState
 @namespace deepwiki_open_dotnet.Web.Components.Shared
 
-<div class="chat-input-stub">
-    <!-- Minimal stub: real behavior implemented in T023 -->
-    <input id="chat-input" />
-    <button id="send-btn">Send</button>
-</div>
+<MudTextField @bind-Value="InputText" Id="chat-input" Placeholder="Ask a question..." Class="w-100" Immediate="true" />
+<MudButton Id="send-btn" Color="Color.Primary" Disabled="@IsDisabled" OnClick="OnSendClicked">Send</MudButton>
+
+@code {
+    private string InputText { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> OnSubmit { get; set; }
+
+    private bool IsDisabled => ChatState.IsGenerating;
+
+    private async Task OnSendClicked()
+    {
+        if (string.IsNullOrWhiteSpace(InputText))
+            return; // prevent empty submissions
+
+        // raise event for parent to handle (Chat.razor will send to API)
+        await OnSubmit.InvokeAsync(InputText);
+        InputText = string.Empty;
+    }
+}

@@ -24,7 +24,7 @@ public class NdJsonStreamParserTests
 
         Assert.Equal(2, list.Count);
         Assert.Equal("Hello", list[0].Text);
-        Assert.True(list[1].Done.HasValue && list[1].Done.Value);
+        Assert.True(list[1].Done == true);
     }
 
     [Fact]

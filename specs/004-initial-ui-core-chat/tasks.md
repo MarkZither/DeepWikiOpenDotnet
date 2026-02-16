@@ -71,13 +71,13 @@
 
 ### Implementation for User Story 1
 
-- [ ] T023 [P] [US1] Create ChatInput.razor component in `src/deepwiki-open-dotnet.Web/Components/Shared/ChatInput.razor` with MudTextField, send button, disabled state binding to ChatStateService.IsGenerating
-- [ ] T024 [P] [US1] Create ChatMessage.razor component in `src/deepwiki-open-dotnet.Web/Components/Shared/ChatMessage.razor` with MudPaper, role-based styling (user vs assistant), markdown rendering via Markdig
-- [ ] T025 [US1] Create Chat.razor page in `src/deepwiki-open-dotnet.Web/Components/Pages/Chat.razor` with ChatInput, message list, MudProgressLinear for streaming indicator
-- [ ] T026 [US1] Implement streaming logic in Chat.razor.cs: inject ChatApiClient and ChatStateService, handle message submission, consume NDJSON stream via NdJsonStreamParser, update ChatStateService on each token
-- [ ] T027 [US1] Add auto-scroll to latest message using JSInterop scrollIntoView in Chat.razor
-- [ ] T028 [US1] Add error handling display in Chat.razor for API failures (toast or inline error message)
-- [ ] T029 [US1] Add chat navigation link to `src/deepwiki-open-dotnet.Web/Components/Layout/NavMenu.razor` with icon and "Chat" label
+- [X] T023 [P] [US1] Create ChatInput.razor component in `src/deepwiki-open-dotnet.Web/Components/Shared/ChatInput.razor` with MudTextField, send button, disabled state binding to ChatStateService.IsGenerating
+- [X] T024 [P] [US1] Create ChatMessage.razor component in `src/deepwiki-open-dotnet.Web/Components/Shared/ChatMessage.razor` with MudPaper, role-based styling (user vs assistant), markdown rendering via Markdig
+- [X] T025 [US1] Create Chat.razor page in `src/deepwiki-open-dotnet.Web/Components/Pages/Chat.razor` with ChatInput, message list, MudProgressLinear for streaming indicator
+- [X] T026 [US1] Implement streaming logic in Chat.razor.cs: inject ChatApiClient and ChatStateService, handle message submission, consume NDJSON stream via NdJsonStreamParser, update ChatStateService on each token
+- [X] T027 [US1] Add auto-scroll to latest message using JSInterop scrollIntoView in Chat.razor
+- [X] T028 [US1] Add error handling display in Chat.razor for API failures (toast or inline error message)
+- [X] T029 [US1] Add chat navigation link to `src/deepwiki-open-dotnet.Web/Components/Layout/NavMenu.razor` with icon and "Chat" label
 
 **Checkpoint**: At this point, User Story 1 should be fully functional - users can chat with AI and see streaming responses
 

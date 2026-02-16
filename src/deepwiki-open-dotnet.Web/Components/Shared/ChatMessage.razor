@@ -1,0 +1,42 @@
+@using deepwiki_open_dotnet.Web.Models
+@using Markdig
+@inject MarkdownPipeline MarkdownPipeline
+@using MudBlazor
+
+<MudPaper Class="pa-3 mb-2 @RoleClass" Elevation="1" Id="@MessageId">
+    <div class="message-header d-flex align-items-center mb-2">
+        <div class="me-2 avatar-placeholder">@RoleLabel</div>
+        <div class="text-muted small">@Message.Timestamp.ToLocalTime().ToString("t")</div>
+    </div>
+
+    <div class="message-body markdown-content">
+        @((MarkupString)Markdown.ToHtml(Message.Text ?? string.Empty, MarkdownPipeline))
+    </div>
+
+    @if (Message.Sources?.Count > 0)
+    {
+        <div class="mt-2 source-citations small text-muted">
+            <strong>Sources:</strong>
+            <ul>
+                @foreach (var s in Message.Sources)
+                {
+                    <li><a href="@s.Url" target="_blank">@s.Title</a> <span class="text-muted">(@s.Score)</span></li>
+                }
+            </ul>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Message.ErrorMessage))
+    {
+        <div class="mt-2 text-danger small">Error: @Message.ErrorMessage</div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter]
+    public ChatMessageModel Message { get; set; } = default!;
+
+    private string RoleClass => Message.Role == MessageRole.User ? "message-user text-end" : "message-assistant text-start";
+    private string RoleLabel => Message.Role == MessageRole.User ? "You" : "Assistant";
+    private string MessageId => $"message-{Message.Id}";
+}
