@@ -1,6 +1,7 @@
 using deepwiki_open_dotnet.Web;
 using deepwiki_open_dotnet.Web.Components;
 using MudBlazor.Services;
+using deepwiki_open_dotnet.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,11 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddMudServices();
+
+// UI/chat foundation services (Phase 2)
+builder.Services.AddScoped<ChatStateService>();
+builder.Services.AddSingleton<NdJsonStreamParser>();
+builder.Services.AddHttpClient<ChatApiClient>(client => client.BaseAddress = new("https+http://apiservice"));
 
 builder.Services.AddHttpClient<WeatherApiClient>(client =>
     {

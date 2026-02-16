@@ -38,18 +38,18 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T006 Create `MessageRole` enum in `src/deepwiki-open-dotnet.Web/Models/MessageRole.cs`
-- [ ] T007 [P] Create `SourceCitation` model in `src/deepwiki-open-dotnet.Web/Models/SourceCitation.cs`
-- [ ] T008 [P] Create `ChatMessageModel` in `src/deepwiki-open-dotnet.Web/Models/ChatMessageModel.cs`
-- [ ] T009 [P] Create `GenerationDeltaDto` in `src/deepwiki-open-dotnet.Web/Models/GenerationDeltaDto.cs`
-- [ ] T010 [P] Create `SessionRequestDto` in `src/deepwiki-open-dotnet.Web/Models/SessionRequestDto.cs`
-- [ ] T011 [P] Create `SessionResponseDto` in `src/deepwiki-open-dotnet.Web/Models/SessionResponseDto.cs`
-- [ ] T012 [P] Create `GenerationRequestDto` in `src/deepwiki-open-dotnet.Web/Models/GenerationRequestDto.cs`
-- [ ] T013 [P] Create `ContextMessageDto` in `src/deepwiki-open-dotnet.Web/Models/ContextMessageDto.cs`
-- [ ] T014 Create `NdJsonStreamParser` service in `src/deepwiki-open-dotnet.Web/Services/NdJsonStreamParser.cs` with line-by-line parsing and error handling
-- [ ] T015 Create `ChatStateService` (scoped) in `src/deepwiki-open-dotnet.Web/Services/ChatStateService.cs` with Messages list, IsGenerating flag, SelectedCollectionIds, and StateChanged event
-- [ ] T016 Create `ChatApiClient` service in `src/deepwiki-open-dotnet.Web/Services/ChatApiClient.cs` with HttpClient for /api/generation/stream, /api/generation/session
-- [ ] T017 Register services in `src/deepwiki-open-dotnet.Web/Program.cs` (AddScoped<ChatStateService>, AddHttpClient<ChatApiClient>, AddSingleton<NdJsonStreamParser>)
+- [X] T006 Create `MessageRole` enum in `src/deepwiki-open-dotnet.Web/Models/MessageRole.cs`
+- [X] T007 [P] Create `SourceCitation` model in `src/deepwiki-open-dotnet.Web/Models/SourceCitation.cs`
+- [X] T008 [P] Create `ChatMessageModel` in `src/deepwiki-open-dotnet.Web/Models/ChatMessageModel.cs`
+- [X] T009 [P] Create `GenerationDeltaDto` in `src/deepwiki-open-dotnet.Web/Models/GenerationDeltaDto.cs`
+- [X] T010 [P] Create `SessionRequestDto` in `src/deepwiki-open-dotnet.Web/Models/SessionRequestDto.cs`
+- [X] T011 [P] Create `SessionResponseDto` in `src/deepwiki-open-dotnet.Web/Models/SessionResponseDto.cs`
+- [X] T012 [P] Create `GenerationRequestDto` in `src/deepwiki-open-dotnet.Web/Models/GenerationRequestDto.cs`
+- [X] T013 [P] Create `ContextMessageDto` in `src/deepwiki-open-dotnet.Web/Models/ContextMessageDto.cs`
+- [X] T014 Create `NdJsonStreamParser` service in `src/deepwiki-open-dotnet.Web/Services/NdJsonStreamParser.cs` with line-by-line parsing and error handling
+- [X] T015 Create `ChatStateService` (scoped) in `src/deepwiki-open-dotnet.Web/Services/ChatStateService.cs` with Messages list, IsGenerating flag, SelectedCollectionIds, and StateChanged event
+- [X] T016 Create `ChatApiClient` service in `src/deepwiki-open-dotnet.Web/Services/ChatApiClient.cs` with HttpClient for /api/generation/stream, /api/generation/session
+- [X] T017 Register services in `src/deepwiki-open-dotnet.Web/Program.cs` (AddScoped<ChatStateService>, AddHttpClient<ChatApiClient>, AddSingleton<NdJsonStreamParser>)
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
