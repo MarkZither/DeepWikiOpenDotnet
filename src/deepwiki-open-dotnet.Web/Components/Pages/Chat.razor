@@ -7,7 +7,6 @@
 @inject ChatApiClient ChatApi
 @inject NdJsonStreamParser Parser
 @inject IJSRuntime JS
-@inject ISnackbar Snackbar
 @inject Markdig.MarkdownPipeline MarkdownPipeline
 
 <div class="chat-page">
@@ -68,7 +67,6 @@
             {
                 var err = $"API returned {(int)resp.StatusCode} {resp.ReasonPhrase}";
                 UpdateLastWithError(err);
-                Snackbar.Add(err, Severity.Error);
                 return;
             }
 
@@ -88,7 +86,7 @@
                 if (delta.Type == "error")
                 {
                     UpdateLastWithError(delta.Error ?? "Unknown error");
-                    Snackbar.Add(delta.Error ?? "Stream error", Severity.Error);
+                    // inline error shown on message; no global toast in tests
                     break;
                 }
 
@@ -116,12 +114,10 @@
         catch (OperationCanceledException)
         {
             UpdateLastWithError("Generation canceled");
-            Snackbar.Add("Generation canceled", Severity.Warning);
         }
         catch (Exception ex)
         {
             UpdateLastWithError(ex.Message);
-            Snackbar.Add(ex.Message, Severity.Error);
         }
         finally
         {

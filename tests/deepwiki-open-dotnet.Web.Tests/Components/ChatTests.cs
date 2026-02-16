@@ -16,6 +16,8 @@ public class ChatTests
         ctx.Services.AddMudServices();
         ctx.Services.AddSingleton(new Markdig.MarkdownPipelineBuilder().Build());
         ctx.Services.AddSingleton<ChatStateService>();
+        ctx.Services.AddSingleton<deepwiki_open_dotnet.Web.Services.NdJsonStreamParser>();
+        ctx.Services.AddSingleton(new deepwiki_open_dotnet.Web.Services.ChatApiClient(new System.Net.Http.HttpClient { BaseAddress = new Uri("https+http://apiservice") }));
 
         var cut = ctx.Render<Chat>();
 
