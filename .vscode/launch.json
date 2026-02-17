@@ -25,6 +25,19 @@
             }
         },
         {
+            "name": "Attach to running AppHost",
+            "type": "coreclr",
+            "request": "attach",
+            "processId": "${command:pickProcess}"
+        },
+        {
+            "name": "Attach to AppHost (show PID first)",
+            "type": "coreclr",
+            "request": "attach",
+            "preLaunchTask": "show-apphost-pid",
+            "processId": "${command:pickProcess}"
+        },
+        {
             "name": "Launch API with Scalar (Standalone)",
             "type": "coreclr",
             "request": "launch",
