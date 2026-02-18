@@ -1,4 +1,5 @@
 @page "/chat"
+@rendermode InteractiveServer
 @using deepwiki_open_dotnet.Web.Models
 @using deepwiki_open_dotnet.Web.Services
 @using deepwiki_open_dotnet.Web.Components.Shared
@@ -31,9 +32,16 @@
 </div>
 
 @code {
-    protected override void OnInitialized()
+    private Guid _sessionId = Guid.Empty;
+
+    protected override async Task OnInitializedAsync()
     {
         ChatState.StateChanged += OnStateChanged;
+        
+        // Create a session for this chat
+        var sessionReq = new SessionRequestDto { Owner = "web-user" };
+        var sessionResp = await ChatApi.CreateSessionAsync(sessionReq);
+        _sessionId = sessionResp.SessionId;
     }
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);
@@ -58,7 +66,7 @@
         {
             var request = new GenerationRequestDto
             {
-                SessionId = Guid.Empty,
+                SessionId = _sessionId,
                 Prompt = userInput
             };
 

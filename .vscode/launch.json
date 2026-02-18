@@ -56,6 +56,18 @@
                 "ASPNETCORE_URLS": "http://localhost:5000"
             },
             "console": "internalConsole"
+        },
+        {
+            "name": "Attach to Web (running in Aspire)",
+            "type": "coreclr",
+            "request": "attach",
+            "processName": "deepwiki-open-dotnet.Web"
+        },
+        {
+            "name": "Attach to ApiService (running in Aspire)",
+            "type": "coreclr",
+            "request": "attach",
+            "processName": "deepwiki-open-dotnet.ApiService"
         }
     ]
 }

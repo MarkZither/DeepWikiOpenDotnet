@@ -1,7 +1,10 @@
 var builder = DistributedApplication.CreateBuilder(args);
 builder.Configuration["Aspire:Dashboard:Port"] = "18888";
 
-var cache = builder.AddRedis("cache");
+#pragma warning disable ASPIRECERTIFICATES001
+var cache = builder.AddRedis("cache")
+.WithoutHttpsCertificate();
+#pragma warning restore ASPIRECERTIFICATES001
 
 // Add PostgreSQL with pgvector for vector store
 var postgres = builder.AddPostgres("postgres")

@@ -9,7 +9,21 @@
     </div>
 
     <div class="message-body markdown-content">
-        @((MarkupString)Markdig.Markdown.ToHtml(Message.Text ?? string.Empty, MarkdownPipeline))
+        @if (Message.IsStreaming && string.IsNullOrEmpty(Message.Text))
+        {
+            <div class="text-muted">
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                Thinking...
+            </div>
+        }
+        else
+        {
+            @((MarkupString)Markdig.Markdown.ToHtml(Message.Text ?? string.Empty, MarkdownPipeline))
+            @if (Message.IsStreaming)
+            {
+                <span class="text-muted">▊</span>
+            }
+        }
     </div>
 
     @if (Message.Sources?.Count > 0)
