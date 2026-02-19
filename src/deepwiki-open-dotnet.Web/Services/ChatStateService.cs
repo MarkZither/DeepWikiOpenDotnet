@@ -46,4 +46,12 @@ public class ChatStateService
 
         StateChanged?.Invoke();
     }
+
+    /// <summary>
+    /// Human-readable description of the current retrieval scope.
+    /// Returns "All Documents" when no collections are selected, or "N collections" otherwise.
+    /// </summary>
+    public string ScopeLabel => SelectedCollectionIds.Count == 0
+        ? "All Documents"
+        : $"{SelectedCollectionIds.Count} collections";
 }

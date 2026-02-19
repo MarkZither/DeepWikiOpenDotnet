@@ -27,6 +27,10 @@
     </div>
 
     <div class="mt-3">
+        <div class="scope-indicator mb-2 d-flex align-items-center">
+            <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" Class="me-1 text-muted" />
+            <span class="small text-muted">Searching: <strong>@ChatState.ScopeLabel</strong></span>
+        </div>
         <ChatInput OnSubmit="HandleSubmit" />
     </div>
 </div>
@@ -64,10 +68,15 @@
 
         try
         {
+            var collectionIds = ChatState.SelectedCollectionIds.Count > 0
+                ? new System.Collections.Generic.List<string>(ChatState.SelectedCollectionIds)
+                : null;
+
             var request = new GenerationRequestDto
             {
                 SessionId = _sessionId,
-                Prompt = userInput
+                Prompt = userInput,
+                CollectionIds = collectionIds
             };
 
             var resp = await ChatApi.StreamGenerationAsync(request, cts.Token).ConfigureAwait(false);
@@ -102,18 +111,9 @@
                 {
                     ChatState.UpdateLastMessage(m => m.IsStreaming = false);
 
-                    if (delta.Metadata?.Sources is not null)
-                    {
-                        var sources = delta.Metadata.Sources.Select(s => new SourceCitation
-                        {
-                            Title = s.Title ?? string.Empty,
-                            Url = s.RepoUrl ?? s.FilePath,
-                            Excerpt = s.Excerpt,
-                            Score = s.Score
-                        }).ToList();
-
+                    var sources = NdJsonStreamParser.MapToSourceCitations(delta.Metadata?.Sources);
+                    if (sources.Count > 0)
                         ChatState.UpdateLastMessage(m => { m.Sources.AddRange(sources); });
-                    }
 
                     break;
                 }

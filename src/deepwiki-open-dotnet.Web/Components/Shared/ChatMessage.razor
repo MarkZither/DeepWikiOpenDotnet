@@ -1,11 +1,20 @@
 @using deepwiki_open_dotnet.Web.Models
 @using Markdig
+@using MudBlazor
 @inject MarkdownPipeline MarkdownPipeline
 
 <div class="chat-message paper @RoleClass" id="@MessageId">
     <div class="message-header d-flex align-items-center mb-2">
         <div class="me-2 avatar-placeholder">@RoleLabel</div>
         <div class="text-muted small">@Message.Timestamp.ToLocalTime().ToString("t")</div>
+        @if (Message.Sources?.Count > 0)
+        {
+            <span class="grounded-badge badge ms-2"
+                  title="Document-grounded response"
+                  aria-label="Document-grounded response">
+                <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Small" Class="me-1" />Grounded
+            </span>
+        }
     </div>
 
     <div class="message-body markdown-content">
@@ -28,12 +37,20 @@
 
     @if (Message.Sources?.Count > 0)
     {
-        <div class="mt-2 source-citations small text-muted">
-            <strong>Sources:</strong>
-            <ul>
+        <div class="mt-2 source-citations small">
+            <div class="d-flex align-items-center mb-1 text-muted">
+                <MudIcon Icon="@Icons.Material.Filled.Source" Size="Size.Small" Class="me-1" />
+                <strong>Sources</strong>
+            </div>
+            <ul class="list-unstyled mb-0">
                 @foreach (var s in Message.Sources)
                 {
-                    <li><a href="@s.Url" target="_blank">@s.Title</a> <span class="text-muted">(@s.Score)</span></li>
+                    <li class="mb-1">
+                        <a href="@s.Url" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+                            <MudIcon Icon="@Icons.Material.Filled.Link" Size="Size.Small" Class="me-1" />@s.Title
+                        </a>
+                        <span class="text-muted ms-1">(@s.Score.ToString("F2"))</span>
+                    </li>
                 }
             </ul>
         </div>

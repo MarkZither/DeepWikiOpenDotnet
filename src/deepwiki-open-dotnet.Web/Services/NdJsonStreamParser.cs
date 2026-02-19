@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -56,5 +57,25 @@ public sealed class NdJsonStreamParser
             if (dto is not null)
                 yield return dto;
         }
+    }
+
+    /// <summary>
+    /// Maps a list of <see cref="SourceDocumentDto"/> from the NDJSON metadata payload
+    /// into <see cref="SourceCitation"/> models for display.
+    /// </summary>
+    public static List<SourceCitation> MapToSourceCitations(IEnumerable<SourceDocumentDto>? sources)
+    {
+        if (sources is null)
+            return new List<SourceCitation>();
+
+        return sources.Select(s => new SourceCitation
+        {
+            Title = s.Title ?? string.Empty,
+            Url = s.RepoUrl ?? s.FilePath,
+            RepoUrl = s.RepoUrl,
+            FilePath = s.FilePath,
+            Excerpt = s.Excerpt,
+            Score = s.Score
+        }).ToList();
     }
 }

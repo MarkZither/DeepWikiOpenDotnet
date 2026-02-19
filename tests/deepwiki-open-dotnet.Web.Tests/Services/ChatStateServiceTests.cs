@@ -48,4 +48,32 @@ public class ChatStateServiceTests
         Assert.Equal(2, svc.SelectedCollectionIds.Count);
         Assert.Contains("a", svc.SelectedCollectionIds);
     }
+
+    // T032 – US2: default scope indicator logic
+    [Fact]
+    public void ScopeLabel_Returns_AllDocuments_When_No_Collections_Selected()
+    {
+        var svc = new ChatStateService();
+
+        Assert.Equal("All Documents", svc.ScopeLabel);
+    }
+
+    [Fact]
+    public void ScopeLabel_Returns_CollectionCount_When_Collections_Selected()
+    {
+        var svc = new ChatStateService();
+        svc.SetSelectedCollections(new[] { "c1", "c2", "c3" });
+
+        Assert.Equal("3 collections", svc.ScopeLabel);
+    }
+
+    [Fact]
+    public void ScopeLabel_Returns_AllDocuments_After_Collections_Cleared()
+    {
+        var svc = new ChatStateService();
+        svc.SetSelectedCollections(new[] { "c1" });
+        svc.SetSelectedCollections(System.Array.Empty<string>());
+
+        Assert.Equal("All Documents", svc.ScopeLabel);
+    }
 }

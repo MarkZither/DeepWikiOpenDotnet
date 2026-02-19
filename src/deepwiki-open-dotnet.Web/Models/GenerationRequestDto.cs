@@ -15,6 +15,14 @@ public class GenerationRequestDto
     [JsonPropertyName("topK")]
     public int TopK { get; init; } = 10;
 
+    /// <summary>
+    /// Optional list of document collection IDs to restrict retrieval scope.
+    /// When null or empty the backend searches across all collections.
+    /// </summary>
+    [JsonPropertyName("collection_ids")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? CollectionIds { get; init; }
+
     [JsonPropertyName("filters")]
     public Dictionary<string, string>? Filters { get; init; }
 
