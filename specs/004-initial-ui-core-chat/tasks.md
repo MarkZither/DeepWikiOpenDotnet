@@ -91,17 +91,17 @@
 
 ### Tests for User Story 2 ⚠️ Write FIRST, ensure they FAIL
 
-- [ ] T030 [P] [US2] Create test for ChatApiClient with collection filters in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatApiClientTests.cs` (request includes collection_ids parameter)
-- [ ] T031 [P] [US2] Create bUnit test for ChatMessage with source citations in `tests/deepwiki-open-dotnet.Web.Tests/Components/ChatMessageTests.cs` (sources displayed, clickable links)
-- [ ] T032 [P] [US2] Create test for default scope indicator logic in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatStateServiceTests.cs` (when no collections selected, all documents indicator shown)
+- [X] T030 [P] [US2] Create test for ChatApiClient with collection filters in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatApiClientTests.cs` (request includes collection_ids parameter)
+- [X] T031 [P] [US2] Create bUnit test for ChatMessage with source citations in `tests/deepwiki-open-dotnet.Web.Tests/Components/ChatMessageTests.cs` (sources displayed, clickable links)
+- [X] T032 [P] [US2] Create test for default scope indicator logic in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatStateServiceTests.cs` (when no collections selected, all documents indicator shown)
 
 ### Implementation for User Story 2
 
-- [ ] T033 [US2] Update ChatApiClient.cs to include collection_ids in GenerationRequestDto when ChatStateService.SelectedCollectionIds is not empty
-- [ ] T034 [US2] Update ChatMessage.razor to display SourceCitation list below message text with title, URL, and relevance score
-- [ ] T035 [US2] Update NdJsonStreamParser.cs to parse metadata.sources from NDJSON stream and map to SourceCitation models
-- [ ] T036 [US2] Update Chat.razor to show scope indicator chip (e.g., "Searching: All Documents" or "Searching: 3 collections") above input field, bound to ChatStateService.SelectedCollectionIds
-- [ ] T037 [US2] Add visual distinction for document-grounded responses (icon or badge) in ChatMessage.razor when Sources.Count > 0
+- [X] T033 [US2] Update ChatApiClient.cs to include collection_ids in GenerationRequestDto when ChatStateService.SelectedCollectionIds is not empty
+- [X] T034 [US2] Update ChatMessage.razor to display SourceCitation list below message text with title, URL, and relevance score
+- [X] T035 [US2] Update NdJsonStreamParser.cs to parse metadata.sources from NDJSON stream and map to SourceCitation models
+- [X] T036 [US2] Update Chat.razor to show scope indicator chip (e.g., "Searching: All Documents" or "Searching: 3 collections") above input field, bound to ChatStateService.SelectedCollectionIds
+- [X] T037 [US2] Add visual distinction for document-grounded responses (icon or badge) in ChatMessage.razor when Sources.Count > 0
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently - chat works with source citations
 
@@ -171,6 +171,42 @@
 - [ ] T063 Update project README.md with quickstart instructions referencing `specs/004-initial-ui-core-chat/quickstart.md`
 - [ ] T064 Run through quickstart.md validation scenarios: basic chat, document query, collection selection, clear history
 - [ ] T065 [P] Performance validation: test 50+ message conversation per SC-002, verify no degradation
+
+---
+
+## Phase 8: User Story 5 - Document Management (Priority: P5)
+
+**Goal**: Enable users to browse the document library, ingest new documents into the vector store, and delete documents — backed by the existing `DocumentsController` API (`POST /api/documents/ingest`, `GET /api/documents`, `DELETE /api/documents/{id}`).
+
+**Independent Test**: Navigate to Documents page, submit an ingest form with RepoUrl + content, verify document appears in the list with chunk count; click delete, verify document removed.
+
+### Models for User Story 5 ⚠️ Create FIRST (no tests needed — pure DTOs)
+
+- [ ] T066 [P] [US5] Create `IngestDocumentDto` in `src/deepwiki-open-dotnet.Web/Models/IngestDocumentDto.cs` (RepoUrl, FilePath, Title, Text, optional Metadata as `JsonElement?`)
+- [ ] T067 [P] [US5] Create `IngestRequestDto` in `src/deepwiki-open-dotnet.Web/Models/IngestRequestDto.cs` (Documents list, ContinueOnError bool, BatchSize int)
+- [ ] T068 [P] [US5] Create `IngestResponseDto` in `src/deepwiki-open-dotnet.Web/Models/IngestResponseDto.cs` (SuccessCount, FailureCount, TotalChunks, DurationMs, IngestedDocumentIds, Errors list of IngestErrorDto)
+- [ ] T069 [P] [US5] Create `DocumentSummaryDto` in `src/deepwiki-open-dotnet.Web/Models/DocumentSummaryDto.cs` (Id Guid, RepoUrl, FilePath, Title, CreatedAt, UpdatedAt, TokenCount, FileType, IsCode bool)
+
+### Tests for User Story 5 ⚠️ Write FIRST, ensure they FAIL
+
+- [ ] T070 [P] [US5] Create `DocumentsApiClientTests.cs` in `tests/deepwiki-open-dotnet.Web.Tests/Services/DocumentsApiClientTests.cs` — test `IngestAsync` posts to `/api/documents/ingest` and deserializes `IngestResponseDto`
+- [ ] T071 [P] [US5] Add test to `DocumentsApiClientTests.cs` — `ListAsync` calls `GET /api/documents` with `page`, `pageSize`, `repoUrl` query params and deserializes `DocumentListResponseDto`
+- [ ] T072 [P] [US5] Add test to `DocumentsApiClientTests.cs` — `DeleteAsync` sends `DELETE /api/documents/{id}` and returns true on 204, false on 404
+- [ ] T073 [P] [US5] Create bUnit test for `DocumentLibrary.razor` in `tests/deepwiki-open-dotnet.Web.Tests/Components/DocumentLibraryTests.cs` (renders document rows, delete button per row, empty state message)
+- [ ] T074 [P] [US5] Create bUnit test for `IngestForm.razor` in `tests/deepwiki-open-dotnet.Web.Tests/Components/IngestFormTests.cs` (required field validation blocks submit, successful ingest shows MudAlert success, error response shows error alert)
+
+### Implementation for User Story 5
+
+- [ ] T075 [P] [US5] Create `DocumentsApiClient` service in `src/deepwiki-open-dotnet.Web/Services/DocumentsApiClient.cs` with `IngestAsync(IngestRequestDto)`, `ListAsync(page, pageSize, repoUrl?)`, `DeleteAsync(Guid)`, `GetAsync(Guid)`
+- [ ] T076 [P] [US5] Register `DocumentsApiClient` in `src/deepwiki-open-dotnet.Web/Program.cs` via `AddHttpClient<DocumentsApiClient>`
+- [ ] T077 [P] [US5] Create `IngestForm.razor` component in `src/deepwiki-open-dotnet.Web/Components/Shared/IngestForm.razor` with MudTextField fields for RepoUrl, FilePath, Title, and a MudTextField multiline for document text; MudProgressLinear while ingesting; MudAlert for success (shows SuccessCount + TotalChunks) and error feedback; `OnIngested` EventCallback to notify parent
+- [ ] T078 [US5] Create `DocumentLibrary.razor` page in `src/deepwiki-open-dotnet.Web/Components/Pages/DocumentLibrary.razor` with `@page "/documents"`, MudTable showing DocumentSummaryDto rows (Title, RepoUrl, FilePath, TokenCount, FileType, CreatedAt), MudTextField filter bound to `repoUrl` query param, pagination via MudTablePager
+- [ ] T079 [US5] Load documents in `DocumentLibrary.OnInitializedAsync` via `DocumentsApiClient.ListAsync`; reload on filter change and after ingest
+- [ ] T080 [US5] Wire delete button in `DocumentLibrary.razor` to `DocumentsApiClient.DeleteAsync` with MudDialog confirmation; refresh table on success; show MudSnackbar on error
+- [ ] T081 [US5] Embed `IngestForm` component in `DocumentLibrary.razor` inside a MudExpansionPanel labelled "Add Documents"; call reload on `OnIngested` event
+- [ ] T082 [US5] Add Documents navigation link to `src/deepwiki-open-dotnet.Web/Components/Layout/NavMenu.razor` with `Icons.Material.Filled.LibraryBooks` and "Documents" label
+
+**Checkpoint**: Users can browse all ingested documents, filter by repository, ingest new content, and delete documents — completing the document management lifecycle
 
 ---
 
@@ -300,14 +336,15 @@ With multiple developers after Foundational phase completes:
 
 ## Task Summary
 
-- **Total Tasks**: 65
+- **Total Tasks**: 82
 - **Setup Tasks**: 5
 - **Foundational Tasks**: 12 (CRITICAL - blocks all stories)
 - **User Story 1 Tasks**: 12 (5 tests + 7 implementation)
 - **User Story 2 Tasks**: 8 (3 tests + 5 implementation)
 - **User Story 3 Tasks**: 12 (5 tests + 7 implementation)
 - **User Story 4 Tasks**: 6 (2 tests + 4 implementation)
+- **User Story 5 Tasks**: 17 (4 models + 5 tests + 8 implementation)
 - **Polish Tasks**: 10
-- **Parallel Opportunities**: 35 tasks marked [P] across all phases
+- **Parallel Opportunities**: 35+ tasks marked [P] across all phases
 - **Independent Test Criteria**: Each user story has explicit test scenario
 - **Suggested MVP Scope**: Phases 1-3 only (User Story 1) = 29 tasks for working chat interface
