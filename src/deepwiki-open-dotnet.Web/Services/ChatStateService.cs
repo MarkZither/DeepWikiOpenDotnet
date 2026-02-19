@@ -8,12 +8,18 @@ namespace deepwiki_open_dotnet.Web.Services;
 public class ChatStateService
 {
     private readonly List<ChatMessageModel> _messages = new();
+    private readonly List<DocumentCollectionModel> _selectedCollectionModels = new();
 
     public IReadOnlyList<ChatMessageModel> Messages => _messages;
 
     public bool IsGenerating { get; set; }
 
     public HashSet<string> SelectedCollectionIds { get; } = new();
+
+    /// <summary>
+    /// Full collection models for the current selection (populated when selecting via DocumentCollectionModel overload).
+    /// </summary>
+    public IReadOnlyList<DocumentCollectionModel> SelectedCollectionModels => _selectedCollectionModels;
 
     public event Action? StateChanged;
 
@@ -38,8 +44,12 @@ public class ChatStateService
         StateChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Sets the selected collections by ID only (names not available, ScopeLabel shows count).
+    /// </summary>
     public void SetSelectedCollections(IEnumerable<string> ids)
     {
+        _selectedCollectionModels.Clear();
         SelectedCollectionIds.Clear();
         foreach (var id in ids.Where(i => !string.IsNullOrWhiteSpace(i)))
             SelectedCollectionIds.Add(id!);
@@ -48,10 +58,35 @@ public class ChatStateService
     }
 
     /// <summary>
-    /// Human-readable description of the current retrieval scope.
-    /// Returns "All Documents" when no collections are selected, or "N collections" otherwise.
+    /// Sets the selected collections from full models (ScopeLabel shows collection names).
     /// </summary>
-    public string ScopeLabel => SelectedCollectionIds.Count == 0
-        ? "All Documents"
-        : $"{SelectedCollectionIds.Count} collections";
+    public void SetSelectedCollections(IEnumerable<DocumentCollectionModel> collections)
+    {
+        var list = collections.ToList();
+        _selectedCollectionModels.Clear();
+        _selectedCollectionModels.AddRange(list);
+
+        SelectedCollectionIds.Clear();
+        foreach (var col in list)
+            SelectedCollectionIds.Add(col.Id);
+
+        StateChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Human-readable description of the current retrieval scope.
+    /// Shows collection names when selected via model overload, "N collections" when selected via ID,
+    /// or "All Documents" when nothing is selected.
+    /// </summary>
+    public string ScopeLabel
+    {
+        get
+        {
+            if (_selectedCollectionModels.Count > 0)
+                return string.Join(", ", _selectedCollectionModels.Select(c => c.Name));
+            if (SelectedCollectionIds.Count > 0)
+                return $"{SelectedCollectionIds.Count} collections";
+            return "All Documents";
+        }
+    }
 }

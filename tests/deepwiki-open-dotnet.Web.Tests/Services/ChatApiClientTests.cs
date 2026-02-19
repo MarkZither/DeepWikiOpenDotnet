@@ -120,4 +120,61 @@ public class ChatApiClientTests
         Assert.NotNull(capturedBody);
         Assert.DoesNotContain("collection_ids", capturedBody);
     }
+
+    // T040 – US3: GetCollectionsAsync fetches /api/documents and deserializes response
+    [Fact]
+    public async Task GetCollectionsAsync_Returns_Collections_From_Api()
+    {
+        var json = """
+            {
+              "collections": [
+                {"id": "col-1", "name": "Repo Alpha", "document_count": 10},
+                {"id": "col-2", "name": "Repo Beta",  "document_count": 5}
+              ],
+              "total_count": 2
+            }
+            """;
+
+        Uri? capturedUri = null;
+        var handler = new FakeHttpHandler((req, ct) =>
+        {
+            capturedUri = req.RequestUri;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            });
+        });
+
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https+http://apiservice") };
+        var api = new ChatApiClient(http);
+
+        var result = await api.GetCollectionsAsync();
+
+        Assert.NotNull(capturedUri);
+        Assert.Contains("/api/documents", capturedUri!.ToString());
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal(2, result.Collections.Count);
+        Assert.Equal("col-1", result.Collections[0].Id);
+        Assert.Equal("Repo Alpha", result.Collections[0].Name);
+        Assert.Equal(10, result.Collections[0].DocumentCount);
+        Assert.Equal("col-2", result.Collections[1].Id);
+    }
+
+    [Fact]
+    public async Task GetCollectionsAsync_Returns_Empty_On_Empty_Response()
+    {
+        var handler = new FakeHttpHandler((req, ct) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"collections":[],"total_count":0}""", Encoding.UTF8, "application/json")
+        }));
+
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https+http://apiservice") };
+        var api = new ChatApiClient(http);
+
+        var result = await api.GetCollectionsAsync();
+
+        Assert.Empty(result.Collections);
+        Assert.Equal(0, result.TotalCount);
+    }
 }

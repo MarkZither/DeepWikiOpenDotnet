@@ -76,4 +76,84 @@ public class ChatStateServiceTests
 
         Assert.Equal("All Documents", svc.ScopeLabel);
     }
+
+    // T042 – US3: collection selection via DocumentCollectionModel overload
+    [Fact]
+    public void SetSelectedCollections_Models_Populates_SelectedCollectionIds()
+    {
+        var svc = new ChatStateService();
+
+        svc.SetSelectedCollections(new[]
+        {
+            new deepwiki_open_dotnet.Web.Models.DocumentCollectionModel { Id = "id-1", Name = "Repo One", DocumentCount = 10 },
+            new deepwiki_open_dotnet.Web.Models.DocumentCollectionModel { Id = "id-2", Name = "Repo Two", DocumentCount = 5 }
+        });
+
+        Assert.Contains("id-1", svc.SelectedCollectionIds);
+        Assert.Contains("id-2", svc.SelectedCollectionIds);
+    }
+
+    [Fact]
+    public void SetSelectedCollections_Models_Fires_StateChanged()
+    {
+        var svc = new ChatStateService();
+        var fired = false;
+        svc.StateChanged += () => fired = true;
+
+        svc.SetSelectedCollections(new[]
+        {
+            new deepwiki_open_dotnet.Web.Models.DocumentCollectionModel { Id = "id-1", Name = "Repo One", DocumentCount = 2 }
+        });
+
+        Assert.True(fired);
+    }
+
+    [Fact]
+    public void SetSelectedCollections_Models_ScopeLabel_Shows_Names()
+    {
+        var svc = new ChatStateService();
+
+        svc.SetSelectedCollections(new[]
+        {
+            new deepwiki_open_dotnet.Web.Models.DocumentCollectionModel { Id = "id-1", Name = "Alpha", DocumentCount = 3 },
+            new deepwiki_open_dotnet.Web.Models.DocumentCollectionModel { Id = "id-2", Name = "Beta",  DocumentCount = 1 }
+        });
+
+        // ScopeLabel should show names, not the generic count
+        Assert.Contains("Alpha", svc.ScopeLabel);
+        Assert.Contains("Beta", svc.ScopeLabel);
+    }
+
+    [Fact]
+    public void SetSelectedCollections_EmptyModels_Clears_Selection_And_Returns_AllDocuments()
+    {
+        var svc = new ChatStateService();
+        svc.SetSelectedCollections(new[]
+        {
+            new deepwiki_open_dotnet.Web.Models.DocumentCollectionModel { Id = "id-1", Name = "Repo One", DocumentCount = 2 }
+        });
+
+        svc.SetSelectedCollections(System.Array.Empty<deepwiki_open_dotnet.Web.Models.DocumentCollectionModel>());
+
+        Assert.Empty(svc.SelectedCollectionIds);
+        Assert.Equal("All Documents", svc.ScopeLabel);
+    }
+
+    [Fact]
+    public void SetSelectedCollections_Models_Replaces_Previous_Selection()
+    {
+        var svc = new ChatStateService();
+        svc.SetSelectedCollections(new[]
+        {
+            new deepwiki_open_dotnet.Web.Models.DocumentCollectionModel { Id = "old-1", Name = "Old", DocumentCount = 1 }
+        });
+
+        svc.SetSelectedCollections(new[]
+        {
+            new deepwiki_open_dotnet.Web.Models.DocumentCollectionModel { Id = "new-1", Name = "New", DocumentCount = 2 }
+        });
+
+        Assert.DoesNotContain("old-1", svc.SelectedCollectionIds);
+        Assert.Contains("new-1", svc.SelectedCollectionIds);
+    }
 }

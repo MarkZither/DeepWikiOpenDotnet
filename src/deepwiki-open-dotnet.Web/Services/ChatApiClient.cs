@@ -29,4 +29,13 @@ public class ChatApiClient
     /// </summary>
     public Task<HttpResponseMessage> StreamGenerationAsync(GenerationRequestDto request, CancellationToken cancellationToken = default)
         => _httpClient.PostAsJsonAsync("/api/generation/stream", request, cancellationToken);
+
+    /// <summary>
+    /// Fetches available document collections from GET /api/documents.
+    /// </summary>
+    public async Task<DocumentListResponseDto> GetCollectionsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await _httpClient.GetFromJsonAsync<DocumentListResponseDto>("/api/documents", cancellationToken).ConfigureAwait(false);
+        return result ?? new DocumentListResponseDto();
+    }
 }

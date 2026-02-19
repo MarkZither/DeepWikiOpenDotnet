@@ -27,7 +27,9 @@
     </div>
 
     <div class="mt-3">
-        <div class="scope-indicator mb-2 d-flex align-items-center">
+        <DocumentScopeSelector />
+
+        <div class="scope-indicator my-2 d-flex align-items-center">
             <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" Class="me-1 text-muted" />
             <span class="small text-muted">Searching: <strong>@ChatState.ScopeLabel</strong></span>
         </div>

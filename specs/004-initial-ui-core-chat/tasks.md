@@ -115,21 +115,21 @@
 
 ### Tests for User Story 3 ⚠️ Write FIRST, ensure they FAIL
 
-- [ ] T038 [P] [US3] Create `DocumentCollectionModel` model in `src/deepwiki-open-dotnet.Web/Models/DocumentCollectionModel.cs`
-- [ ] T039 [P] [US3] Create `DocumentListResponseDto` in `src/deepwiki-open-dotnet.Web/Models/DocumentListResponseDto.cs`
-- [ ] T040 [P] [US3] Create test for ChatApiClient.GetCollectionsAsync in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatApiClientTests.cs` (fetches from /api/documents)
-- [ ] T041 [P] [US3] Create bUnit test for DocumentScopeSelector component in `tests/deepwiki-open-dotnet.Web.Tests/Components/DocumentScopeSelectorTests.cs` (loads collections, selection updates state)
-- [ ] T042 [P] [US3] Create test for ChatStateService collection selection in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatStateServiceTests.cs` (add/remove collection IDs, clear selections)
+- [X] T038 [P] [US3] Create `DocumentCollectionModel` model in `src/deepwiki-open-dotnet.Web/Models/DocumentCollectionModel.cs`
+- [X] T039 [P] [US3] Create `DocumentListResponseDto` in `src/deepwiki-open-dotnet.Web/Models/DocumentListResponseDto.cs`
+- [X] T040 [P] [US3] Create test for ChatApiClient.GetCollectionsAsync in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatApiClientTests.cs` (fetches from /api/documents)
+- [X] T041 [P] [US3] Create bUnit test for DocumentScopeSelector component in `tests/deepwiki-open-dotnet.Web.Tests/Components/DocumentScopeSelectorTests.cs` (loads collections, selection updates state)
+- [X] T042 [P] [US3] Create test for ChatStateService collection selection in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatStateServiceTests.cs` (add/remove collection IDs, clear selections)
 
 ### Implementation for User Story 3
 
-- [ ] T043 [US3] Add GetCollectionsAsync method to ChatApiClient.cs calling GET /api/documents and deserializing DocumentListResponseDto
-- [ ] T044 [US3] Add SetSelectedCollections method to ChatStateService.cs updating SelectedCollectionIds and triggering StateChanged event
-- [ ] T045 [P] [US3] Create DocumentScopeSelector.razor component in `src/deepwiki-open-dotnet.Web/Components/Shared/DocumentScopeSelector.razor` with MudAutocomplete multi-select
-- [ ] T046 [US3] Load collections in DocumentScopeSelector.OnInitializedAsync via ChatApiClient.GetCollectionsAsync
-- [ ] T047 [US3] Wire selection changes in DocumentScopeSelector to ChatStateService.SetSelectedCollections
-- [ ] T048 [US3] Add DocumentScopeSelector component to Chat.razor above the chat input area
-- [ ] T049 [US3] Update scope indicator in Chat.razor to show selected collection names when collections are selected (instead of "All Documents")
+- [X] T043 [US3] Add GetCollectionsAsync method to ChatApiClient.cs calling GET /api/documents and deserializing DocumentListResponseDto
+- [X] T044 [US3] Add SetSelectedCollections method to ChatStateService.cs updating SelectedCollectionIds and triggering StateChanged event
+- [X] T045 [P] [US3] Create DocumentScopeSelector.razor component in `src/deepwiki-open-dotnet.Web/Components/Shared/DocumentScopeSelector.razor` with MudAutocomplete multi-select
+- [X] T046 [US3] Load collections in DocumentScopeSelector.OnInitializedAsync via ChatApiClient.GetCollectionsAsync
+- [X] T047 [US3] Wire selection changes in DocumentScopeSelector to ChatStateService.SetSelectedCollections
+- [X] T048 [US3] Add DocumentScopeSelector component to Chat.razor above the chat input area
+- [X] T049 [US3] Update scope indicator in Chat.razor to show selected collection names when collections are selected (instead of "All Documents")
 
 **Checkpoint**: All user stories 1-3 should now be independently functional - full chat + document scope selection
 
