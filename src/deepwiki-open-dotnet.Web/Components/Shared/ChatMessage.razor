@@ -25,13 +25,14 @@
                 Thinking...
             </div>
         }
+        else if (Message.IsStreaming)
+        {
+            @* Render as plain text while streaming to avoid Markdig stack overflow on partial/large markdown *@
+            <span style="white-space:pre-wrap">@Message.Text</span><span class="text-muted">▊</span>
+        }
         else
         {
             @((MarkupString)Markdig.Markdown.ToHtml(Message.Text ?? string.Empty, MarkdownPipeline))
-            @if (Message.IsStreaming)
-            {
-                <span class="text-muted">▊</span>
-            }
         }
     </div>
 

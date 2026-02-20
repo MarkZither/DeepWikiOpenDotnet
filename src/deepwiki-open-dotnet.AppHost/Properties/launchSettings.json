@@ -12,7 +12,9 @@
         "DOTNET_ENVIRONMENT": "Development",
         "ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL": "https://localhost:21151",
         "ASPIRE_DASHBOARD_MCP_ENDPOINT_URL": "https://localhost:23271",
-        "ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:22178"
+        "ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:22178",
+        "DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP3SUPPORT": "false",
+        "Kestrel__EndpointDefaults__Protocols": "Http1AndHttp2"
       }
     },
     "http": {
@@ -25,7 +27,9 @@
         "DOTNET_ENVIRONMENT": "Development",
         "ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL": "http://localhost:19029",
         "ASPIRE_DASHBOARD_MCP_ENDPOINT_URL": "http://localhost:18124",
-        "ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL": "http://localhost:20280"
+        "ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL": "http://localhost:20280",
+        "DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP3SUPPORT": "false",
+        "Kestrel__EndpointDefaults__Protocols": "Http1AndHttp2"
       }
     }
   }

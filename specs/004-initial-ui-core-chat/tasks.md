@@ -143,15 +143,15 @@
 
 ### Tests for User Story 4 ⚠️ Write FIRST, ensure they FAIL
 
-- [ ] T050 [P] [US4] Create test for ChatStateService.ClearMessages in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatStateServiceTests.cs` (messages cleared, state event fired, collections preserved)
-- [ ] T051 [P] [US4] Create bUnit test for clear button in Chat.razor in `tests/deepwiki-open-dotnet.Web.Tests/Components/ChatTests.cs` (button click clears messages, input remains enabled)
+- [X] T050 [P] [US4] Create test for ChatStateService.ClearMessages in `tests/deepwiki-open-dotnet.Web.Tests/Services/ChatStateServiceTests.cs` (messages cleared, state event fired, collections preserved)
+- [X] T051 [P] [US4] Create bUnit test for clear button in Chat.razor in `tests/deepwiki-open-dotnet.Web.Tests/Components/ChatTests.cs` (button click clears messages, input remains enabled)
 
 ### Implementation for User Story 4
 
-- [ ] T052 [US4] Add ClearMessages method to ChatStateService.cs clearing Messages list but preserving SelectedCollectionIds
-- [ ] T053 [US4] Add clear button (MudIconButton with trash icon) to Chat.razor header calling ChatStateService.ClearMessages
-- [ ] T054 [US4] Add confirmation dialog (MudDialog) before clearing chat history in Chat.razor
-- [ ] T055 [US4] Ensure clear preserves document collection selections per FR-013
+- [X] T052 [US4] Add ClearMessages method to ChatStateService.cs clearing Messages list but preserving SelectedCollectionIds
+- [X] T053 [US4] Add clear button (MudIconButton with trash icon) to Chat.razor header calling ChatStateService.ClearMessages
+- [X] T054 [US4] Add confirmation dialog (MudDialog) before clearing chat history in Chat.razor
+- [X] T055 [US4] Ensure clear preserves document collection selections per FR-013
 
 **Checkpoint**: All user stories should now be independently functional - complete feature set ready
 

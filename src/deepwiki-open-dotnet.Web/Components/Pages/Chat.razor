@@ -8,6 +8,7 @@
 @inject NdJsonStreamParser Parser
 @inject IJSRuntime JS
 @inject Markdig.MarkdownPipeline MarkdownPipeline
+@inject IDialogService DialogService
 
 <div class="chat-page">
     <div class="chat-header d-flex align-items-center mb-2">
@@ -16,6 +17,13 @@
         {
             <MudProgressLinear Indeterminate="true" Color="Color.Secondary" Class="w-25" />
         }
+        <MudIconButton id="clear-chat-btn"
+                       Icon="@Icons.Material.Filled.DeleteSweep"
+                       title="Clear chat history"
+                       Size="Size.Small"
+                       Color="Color.Default"
+                       Disabled="ChatState.IsGenerating"
+                       OnClick="ConfirmClearAsync" />
     </div>
 
     <div class="message-list" style="max-height:60vh; overflow:auto;" id="message-list">
@@ -131,6 +139,20 @@
         finally
         {
             ChatState.IsGenerating = false;
+        }
+    }
+
+    private async Task ConfirmClearAsync()
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Clear chat history",
+            "This will remove all messages. Your collection selection will be kept.",
+            yesText: "Clear",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            ChatState.ClearMessages();
         }
     }
 
