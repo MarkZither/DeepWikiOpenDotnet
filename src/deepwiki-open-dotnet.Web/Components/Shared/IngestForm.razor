@@ -1,0 +1,603 @@
+@using deepwiki_open_dotnet.Web.Models
+@using deepwiki_open_dotnet.Web.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject DocumentsApiClient DocsApi
+@inject IJSRuntime JS
+@namespace deepwiki_open_dotnet.Web.Components.Shared
+@implements IAsyncDisposable
+
+<div class="ingest-form" aria-label="Ingest Repository form">
+
+    @* Hidden folder input — display:none is fine here because activation
+       comes from JS .click(), not a browser label/pointer event. *@
+    <InputFile id="ingest-dir-input"
+               OnChange="OnFolderPicked"
+               style="display:none"
+               @attributes='new Dictionary<string,object>{{"webkitdirectory",""},{"multiple",""}}' />
+
+    <MudForm @ref="_form">
+
+        @* ── Step 1: Configure ───────────────────────────────────────────── *@
+
+        <MudTextField @bind-Value="_repoUrl"
+                      Label="Repository Identifier"
+                      Placeholder="https://github.com/org/repo  or  my-repo-name"
+                      HelperText="Used to tag all ingested files. E.g. the GitHub URL or a short name."
+                      Required="true"
+                      RequiredError="Repository identifier is required."
+                      id="ingest-repo-id"
+                      Class="mb-3"
+                      Disabled="@(_phase > Phase.Configure && _phase != Phase.Scanning)"
+                      Variant="Variant.Outlined"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Tag" />
+
+        @if (_phase == Phase.Configure)
+        {
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.FolderOpen"
+                       OnClick="TriggerFolderPickAsync"
+                       id="ingest-choose-folder-btn"
+                       Class="mb-3">
+                Choose Repository Folder…
+            </MudButton>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1 d-block">
+                Opens a folder picker in your browser. Files are read locally and streamed to the server.
+            </MudText>
+        }
+
+        @* ── Step 1b: Scanning spinner ─────────────────────────────────────── *@
+
+        @if (_phase == Phase.Scanning)
+        {
+            <MudPaper Class="pa-3 mb-3" Outlined="true" id="ingest-scanning-panel">
+                <div class="d-flex align-center gap-3">
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small" Color="Color.Secondary" />
+                    <MudText Typo="Typo.body2">@_scanStatus</MudText>
+                </div>
+            </MudPaper>
+        }
+
+        @if (_pathError is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true" id="ingest-path-error">
+                @_pathError
+            </MudAlert>
+        }
+
+        @* ── Step 2: Scanned file list ────────────────────────────────────── *@
+
+        @if (_phase >= Phase.Scanned)
+        {
+            <MudPaper Class="pa-3 mb-3" Outlined="true">
+                <div class="d-flex align-center gap-2 mb-1">
+                    <MudIcon Icon="@Icons.Material.Filled.FindInPage" Size="Size.Small" />
+                    @if (_files.Count == 0)
+                    {
+                        <MudText Typo="Typo.subtitle2">No supported files found in the selected folder.</MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.subtitle2">
+                            Found <strong>@_files.Count</strong> file(s) ready to ingest
+                        </MudText>
+                    }
+                </div>
+
+                @if (_files.Count > 0)
+                {
+                    @if (_files.Count > 5000)
+                    {
+                        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
+                            ⚠️ <strong>@_files.Count files</strong> is unexpectedly large.
+                            Check the list below — if you see paths starting with <code>bin/</code>, <code>obj/</code>
+                            or <code>.git/</code> the folder filter may not have worked.
+                            Consider picking the repo root folder directly.
+                        </MudAlert>
+                    }
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                        First @Math.Min(100, _files.Count) of @_files.Count file(s) — verify paths look correct before ingesting:
+                    </MudText>
+
+                    <MudList T="string" Dense="true" Style="max-height:250px;overflow-y:auto;" Class="mt-1">
+                        @foreach (var f in _files.Take(100))
+                        {
+                            <MudListItem T="string" Dense="true"
+                                         Icon="@GetFileIcon(f.RelativePath)"
+                                         IconSize="Size.Small">
+                                <MudText Typo="Typo.caption" Style="font-family:monospace">@f.RelativePath</MudText>
+                            </MudListItem>
+                        }
+                        @if (_files.Count > 100)
+                        {
+                            <MudListItem T="string" Dense="true">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    … and @(_files.Count - 100) more file(s)
+                                </MudText>
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+            </MudPaper>
+        }
+
+        @* ── Step 3: Ingestion progress ───────────────────────────────────── *@
+
+        @if (_phase == Phase.Ingesting)
+        {
+            <MudPaper Class="pa-3 mb-3" Outlined="true" id="ingest-progress-panel">
+                <div class="d-flex align-center justify-space-between mb-2">
+                    <MudText Typo="Typo.subtitle2">
+                        @_processedCount / @_files.Count
+                        &nbsp;✅ @_totalSuccess
+                        @if (_totalFailures > 0) { <span>&nbsp;❌ @_totalFailures</span> }
+                    </MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Primary">
+                        @($"{ProgressPct:F0}%")
+                    </MudText>
+                </div>
+                <MudProgressLinear Value="@ProgressPct"
+                                   Color="Color.Primary"
+                                   Rounded="true"
+                                   Class="mb-2"
+                                   aria-label="Ingestion progress" />
+                @if (_currentFile is not null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        <MudIcon Icon="@Icons.Material.Filled.Sync" Size="Size.Small" Class="mr-1" />
+                        @_currentFile
+                    </MudText>
+                }
+                @if (_errorMessage is not null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-1">
+                        ⚠️ @_errorMessage
+                    </MudText>
+                }
+            </MudPaper>
+        }
+
+        @* ── Step 4: Done summary ─────────────────────────────────────────── *@
+
+        @if (_phase == Phase.Done && _totalSuccess > 0)
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-3 ingest-success-alert" Dense="true">
+                ✅ Ingested <strong>@_totalSuccess</strong> of <strong>@_files.Count</strong> file(s)
+                — <strong>@_totalChunks</strong> chunks created in @_totalDurationMs ms.
+                @if (_totalFailures > 0)
+                {
+                    <span> ⚠️ <strong>@_totalFailures</strong> file(s) failed.</span>
+                }
+            </MudAlert>
+        }
+
+        @if (_errorMessage is not null)
+        {
+            <MudAlert Severity="@(_phase == Phase.Done ? Severity.Warning : Severity.Error)"
+                      Class="mb-3 ingest-error-alert" Dense="true">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        @* ── Action buttons ───────────────────────────────────────────────── *@
+
+        <div class="d-flex gap-2 flex-wrap">
+
+            @if (_phase == Phase.Scanned && _files.Count > 0)
+            {
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.CloudUpload"
+                           OnClick="IngestAllAsync"
+                           id="ingest-start-btn">
+                    Ingest @_files.Count File(s)
+                </MudButton>
+            }
+
+            @if (_phase == Phase.Ingesting)
+            {
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.Stop"
+                           OnClick="Cancel"
+                           id="ingest-cancel-btn">
+                    Cancel
+                </MudButton>
+            }
+
+            @if (_phase == Phase.Done || (_phase == Phase.Scanned && _files.Count == 0))
+            {
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="Reset"
+                           id="ingest-reset-btn">
+                    Start Over
+                </MudButton>
+            }
+
+        </div>
+
+    </MudForm>
+</div>
+
+@code {
+    // ── Lifecycle phases ─────────────────────────────────────────────────────
+    private enum Phase { Configure, Scanning, Scanned, Ingesting, Done }
+
+    // ── File entry (browser file + its path relative to the picked folder) ───
+    private sealed record BrowserFileEntry(IBrowserFile File, string RelativePath);
+
+    // ── Supported .NET-centric file extensions ───────────────────────────────
+    private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // C# / .NET source
+        ".cs", ".razor", ".cshtml",
+        // F# source
+        ".fs", ".fsx",
+        // VB.NET source
+        ".vb",
+        // Project / solution files
+        ".csproj", ".fsproj", ".vbproj", ".sln", ".slnx",
+        // MSBuild
+        ".props", ".targets", ".nuspec",
+        // Documentation
+        ".md", ".txt",
+        // Config / data
+        ".json", ".xml", ".config", ".resx",
+        // CI/CD
+        ".yml", ".yaml",
+        // Editor / repo metadata
+        ".editorconfig", ".gitignore"
+    };
+
+    // Directories to skip entirely (matched against each path segment)
+    private static readonly HashSet<string> SkipDirs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "bin", "obj", ".git", ".vs", ".idea",
+        "node_modules", "packages", "TestResults", ".github"
+    };
+
+    // 1 MB per file — source files are never bigger. This is the SignalR stream cap.
+    private const long MaxFileSizeBytes = 1 * 1024 * 1024;
+
+    // ── Component parameters ─────────────────────────────────────────────────
+    /// <summary>Fires once the entire repository ingestion completes.</summary>
+    [Parameter]
+    public EventCallback<IngestResponseDto> OnIngested { get; set; }
+
+    // ── JS interop ───────────────────────────────────────────────────────────
+    private IJSObjectReference? _jsModule;
+    private bool _jsModuleReady;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/ingest.js");
+                _jsModuleReady = true;
+            }
+            catch (Exception ex)
+            {
+                _pathError = $"Failed to load ingest module: {ex.Message}. Try refreshing the page.";
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsModule is not null)
+            await _jsModule.DisposeAsync();
+    }
+
+    // ── State ────────────────────────────────────────────────────────────────
+    private MudForm? _form;
+    private Phase _phase = Phase.Configure;
+    private string _repoUrl = string.Empty;
+
+    private string? _pathError;
+    private string? _scanStatus;
+    private string? _errorMessage;
+
+    // Filtered list of browser files with their repo-relative paths
+    private List<BrowserFileEntry> _files = [];
+
+    // Per-file progress
+    private int     _processedCount;
+    private string? _currentFile;
+    private CancellationTokenSource? _cts;
+
+    // Running totals
+    private int  _totalSuccess;
+    private int  _totalFailures;
+    private int  _totalChunks;
+    private long _totalDurationMs;
+
+    private double ProgressPct =>
+        _files.Count == 0 ? 0 : _processedCount * 100.0 / _files.Count;
+
+    // ── Folder picker ────────────────────────────────────────────────────────
+    private async Task TriggerFolderPickAsync()
+    {
+        _pathError = null;
+        if (!_jsModuleReady || _jsModule is null)
+        {
+            _pathError = "Page is still loading — please wait a moment and try again.";
+            return;
+        }
+        await _jsModule.InvokeVoidAsync("triggerPicker", "ingest-dir-input");
+    }
+
+    private async Task OnFolderPicked(InputFileChangeEventArgs e)
+    {
+        _pathError    = null;
+        _errorMessage = null;
+        _scanStatus   = "Reading file list from browser…";
+        _phase        = Phase.Scanning;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            IReadOnlyList<IBrowserFile> allBrowserFiles;
+            try
+            {
+                allBrowserFiles = e.GetMultipleFiles(100_000);
+            }
+            catch (Exception ex)
+            {
+                _pathError  = $"Could not read file list: {ex.Message}";
+                _phase      = Phase.Configure;
+                _scanStatus = null;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            if (allBrowserFiles.Count == 0)
+            {
+                _pathError  = "No files were returned from the folder picker.";
+                _phase      = Phase.Configure;
+                _scanStatus = null;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            _scanStatus = $"Received {allBrowserFiles.Count:N0} files — reading paths…";
+            await InvokeAsync(StateHasChanged);
+
+            // Fetch webkitRelativePath via JS (IBrowserFile.Name is bare filename only).
+            string[] relativePaths = [];
+            try
+            {
+                if (_jsModule is not null)
+                    relativePaths = await _jsModule.InvokeAsync<string[]>(
+                        "getRelativePaths", "ingest-dir-input");
+            }
+            catch (Exception ex)
+            {
+                // Non-fatal: paths won't have directory context but we continue.
+                _pathError = $"Warning: path detection fell back to filenames only ({ex.Message})";
+            }
+
+            // Auto-populate the repo identifier from the root folder name if not set.
+            if (string.IsNullOrWhiteSpace(_repoUrl) && relativePaths.Length > 0)
+            {
+                var firstSlash = relativePaths[0].IndexOf('/');
+                if (firstSlash > 0)
+                    _repoUrl = relativePaths[0][..firstSlash];
+            }
+
+            _scanStatus = $"Filtering {allBrowserFiles.Count:N0} files by type and directory…";
+            await InvokeAsync(StateHasChanged);
+
+            // Run the CPU-bound filter on a thread-pool thread so the UI
+            // can render the spinner update above before blocking.
+            var captured = allBrowserFiles;
+            var paths    = relativePaths;
+            _files = await Task.Run(() =>
+                captured
+                    .Select((f, i) =>
+                    {
+                        var rel = i < paths.Length ? paths[i] : f.Name;
+                        rel = rel.Replace('\\', '/');
+                        var slash = rel.IndexOf('/');
+                        rel = slash >= 0 ? rel[(slash + 1)..] : rel;
+                        return new BrowserFileEntry(f, rel);
+                    })
+                    .Where(entry =>
+                    {
+                        var ext = Path.GetExtension(entry.RelativePath);
+                        if (!SupportedExtensions.Contains(ext)) return false;
+                        var segments = entry.RelativePath.Split('/');
+                        return !segments.Any(seg => SkipDirs.Contains(seg));
+                    })
+                    .OrderBy(entry => entry.RelativePath)
+                    .ToList());
+
+            _scanStatus = null;
+            _phase      = Phase.Scanned;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            _pathError  = $"Unexpected error: {ex.GetType().Name}: {ex.Message}";
+            _scanStatus = null;
+            _phase      = Phase.Configure;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    // ── Ingest ───────────────────────────────────────────────────────────────
+    // Send one file per API request so each call only has to embed a single file.
+    // A batch of 10 with Ollama can take 50-300 seconds — far beyond any reasonable
+    // HTTP timeout. Sending one at a time keeps each call to 1-30 seconds while
+    // also isolating context-length errors to the specific file that caused them.
+    private const int ApiBatchSize = 1;
+
+    private async Task IngestAllAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_repoUrl))
+        {
+            _errorMessage = "Please fill in the Repository Identifier before ingesting.";
+            return;
+        }
+
+        _phase           = Phase.Ingesting;
+        _processedCount  = 0;
+        _totalSuccess    = 0;
+        _totalFailures   = 0;
+        _totalChunks     = 0;
+        _totalDurationMs = 0;
+        _errorMessage    = null;
+        _currentFile     = null;
+
+        // No timeout — ingestion of a large repo can take 30+ minutes.
+        // The only way to stop it is the Cancel button, which calls _cts.Cancel().
+        _cts = new CancellationTokenSource();
+        var repoId = _repoUrl.Trim();
+
+        // Render the progress panel immediately — before any async work begins.
+        await InvokeAsync(StateHasChanged);
+
+        foreach (var batch in _files.Chunk(ApiBatchSize))
+        {
+            if (_cts.Token.IsCancellationRequested) break;
+
+            // ── Read each file in the batch from the browser ─────────────────
+            var documents = new List<IngestDocumentDto>(batch.Length);
+
+            foreach (var entry in batch)
+            {
+                if (_cts.Token.IsCancellationRequested) break;
+
+                _currentFile = entry.RelativePath;
+                await InvokeAsync(StateHasChanged);
+
+                try
+                {
+                    string text;
+                    using (var stream = entry.File.OpenReadStream(MaxFileSizeBytes, _cts.Token))
+                    using (var reader = new System.IO.StreamReader(stream))
+                        text = await reader.ReadToEndAsync(_cts.Token);
+
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        documents.Add(new IngestDocumentDto
+                        {
+                            RepoUrl  = repoId,
+                            FilePath = entry.RelativePath,
+                            Title    = Path.GetFileName(entry.RelativePath),
+                            Text     = text
+                        });
+                    }
+
+                    _processedCount++;
+                }
+                catch (OperationCanceledException) { goto done; }
+                catch (Exception ex)
+                {
+                    _totalFailures++;
+                    _processedCount++;
+                    _errorMessage = $"Read error on '{entry.RelativePath}': {ex.Message}";
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+
+            if (documents.Count == 0) continue;
+
+            // ── Send the batch to the API ────────────────────────────────────
+            _currentFile = documents.Count == 1
+                ? $"Embedding: {documents[0].FilePath}"
+                : $"Sending {documents.Count} file(s) to server…";
+            await InvokeAsync(StateHasChanged);
+
+            try
+            {
+                var result = await DocsApi.IngestAsync(new IngestRequestDto
+                {
+                    Documents    = documents,
+                    ContinueOnError = true,
+                    BatchSize    = documents.Count
+                }, _cts.Token);
+
+                _totalSuccess    += result.SuccessCount;
+                _totalFailures   += result.FailureCount;
+                _totalChunks     += result.TotalChunks;
+                _totalDurationMs += result.DurationMs;
+
+                if (result.FailureCount > 0 && result.Errors.Count > 0)
+                    _errorMessage = $"Batch error: {result.Errors[0].Message}";
+                else
+                    _errorMessage = null; // clear previous transient error on success
+            }
+            catch (OperationCanceledException) { break; }
+            catch (Exception ex)
+            {
+                _totalFailures   += documents.Count;
+                _errorMessage     = $"API error: {ex.Message}";
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+
+        done:
+        _phase       = Phase.Done;
+        _currentFile = null;
+        if (_totalFailures > 0 && _totalSuccess == 0)
+            _errorMessage = $"All {_totalFailures} file(s) failed. Check that the API service is running.";
+        else if (_totalFailures == 0)
+            _errorMessage = null;
+
+        await InvokeAsync(StateHasChanged);
+
+        await OnIngested.InvokeAsync(new IngestResponseDto
+        {
+            SuccessCount = _totalSuccess,
+            FailureCount = _totalFailures,
+            TotalChunks  = _totalChunks,
+            DurationMs   = _totalDurationMs
+        });
+    }
+
+    private void Cancel() => _cts?.Cancel();
+
+    // ── Reset ────────────────────────────────────────────────────────────────
+    private void Reset()
+    {
+        _cts?.Dispose();
+        _cts = null;
+
+        _phase   = Phase.Configure;
+        _repoUrl = string.Empty;
+        _files   = [];
+
+        _processedCount  = 0;
+        _currentFile     = null;
+        _totalSuccess    = 0;
+        _totalFailures   = 0;
+        _totalChunks     = 0;
+        _totalDurationMs = 0;
+        _errorMessage    = null;
+        _pathError       = null;
+        _scanStatus      = null;
+
+        _form?.ResetValidation();
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    private static string GetFileIcon(string relPath) =>
+        Path.GetExtension(relPath).ToLowerInvariant() switch
+        {
+            ".cs" or ".razor" or ".cshtml" or ".fs" or ".fsx" or ".vb" => Icons.Material.Filled.Code,
+            ".md" or ".txt"                                             => Icons.Material.Filled.Article,
+            ".json" or ".xml" or ".config" or ".resx"                  => Icons.Material.Filled.DataObject,
+            ".csproj" or ".fsproj" or ".vbproj" or ".sln" or ".slnx"   => Icons.Material.Filled.AccountTree,
+            ".props" or ".targets" or ".nuspec"                        => Icons.Material.Filled.Build,
+            ".yml" or ".yaml"                                          => Icons.Material.Filled.Settings,
+            _                                                          => Icons.Material.Filled.InsertDriveFile
+        };
+}
+
