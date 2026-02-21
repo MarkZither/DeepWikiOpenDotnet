@@ -256,7 +256,8 @@
     private static readonly HashSet<string> SkipDirs = new(StringComparer.OrdinalIgnoreCase)
     {
         "bin", "obj", ".git", ".vs", ".idea",
-        "node_modules", "packages", "TestResults", ".github"
+        "node_modules", "packages", "TestResults", ".github",
+        ".specify"
     };
 
     // 1 MB per file — source files are never bigger. This is the SignalR stream cap.
@@ -339,6 +340,8 @@
         _scanStatus   = "Reading file list from browser…";
         _phase        = Phase.Scanning;
         await InvokeAsync(StateHasChanged);
+        // Yield to the render thread so the spinner paints before the next step.
+        await Task.Delay(1);
 
         try
         {
@@ -365,10 +368,14 @@
                 return;
             }
 
-            _scanStatus = $"Received {allBrowserFiles.Count:N0} files — reading paths…";
+            // Show count immediately so the user knows the browser saw the files.
+            _scanStatus = $"Found {allBrowserFiles.Count:N0} files — reading relative paths from browser (may take a moment for large repos)…";
             await InvokeAsync(StateHasChanged);
+            await Task.Delay(1); // yield so the status line paints before the JS call blocks
 
             // Fetch webkitRelativePath via JS (IBrowserFile.Name is bare filename only).
+            // For repos with 10k+ files this serialises ~1 MB of JSON through SignalR
+            // and can take 5–15 seconds — the status line above is the user's indicator.
             string[] relativePaths = [];
             try
             {
@@ -390,8 +397,9 @@
                     _repoUrl = relativePaths[0][..firstSlash];
             }
 
-            _scanStatus = $"Filtering {allBrowserFiles.Count:N0} files by type and directory…";
+            _scanStatus = $"Filtering {allBrowserFiles.Count:N0} files by extension and directory…";
             await InvokeAsync(StateHasChanged);
+            await Task.Delay(1); // yield so the filter status paints before Task.Run starts
 
             // Run the CPU-bound filter on a thread-pool thread so the UI
             // can render the spinner update above before blocking.
