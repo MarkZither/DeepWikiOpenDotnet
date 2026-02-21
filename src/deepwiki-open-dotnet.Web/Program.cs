@@ -19,10 +19,21 @@ builder.AddRedisOutputCache("cache");
 // (empty client-name prefix + "-standard" suffix).
 builder.Services.Configure<HttpStandardResilienceOptions>("-standard", options =>
 {
+    // AttemptTimeout: how long a single HTTP attempt may take.
+    // Ollama embedding can take 1–30s per file; 10 min gives plenty of headroom.
     options.AttemptTimeout.Timeout      = TimeSpan.FromMinutes(10);
+
+    // TotalRequestTimeout must be >= AttemptTimeout * (MaxRetryAttempts + 1).
     options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(30);
+
     options.Retry.MaxRetryAttempts      = 2;
     options.Retry.Delay                 = TimeSpan.FromSeconds(2);
+
+    // Polly validation: SamplingDuration must be >= 2 × AttemptTimeout (600 s).
+    // Raise to 25 min so the circuit breaker still functions but doesn't block startup.
+    options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(25);
+    // Keep break duration reasonable so a flaky Ollama instance recovers.
+    options.CircuitBreaker.BreakDuration    = TimeSpan.FromSeconds(30);
 });
 
 // Add services to the container.
