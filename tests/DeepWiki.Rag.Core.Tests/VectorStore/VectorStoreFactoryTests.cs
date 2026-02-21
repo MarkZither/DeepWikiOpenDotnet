@@ -105,9 +105,9 @@ public class VectorStoreFactoryTests
     }
 
     [Fact]
-    public void Create_FallsBackToNoOpWhenProviderNotAvailable()
+    public void Create_ThrowsWhenProviderNotRegisteredInDI()
     {
-        // Arrange
+        // Arrange — provider configured but no data layer registered in DI container
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -120,12 +120,8 @@ public class VectorStoreFactoryTests
             .BuildServiceProvider();
         var factory = new VectorStoreFactory(serviceProvider, configuration, serviceProvider.GetService<ILoggerFactory>());
 
-        // Act
-        var store = factory.Create();
-
-        // Assert
-        Assert.NotNull(store);
-        Assert.IsType<NoOpVectorStore>(store);
+        // Act & Assert — should throw, not silently return a no-op
+        Assert.Throws<InvalidOperationException>(() => factory.Create());
     }
 
     [Theory]
@@ -133,20 +129,17 @@ public class VectorStoreFactoryTests
     [InlineData("postgres")]
     [InlineData("postgresql")]
     [InlineData("pgvector")]
-    public void CreateForProvider_SupportsKnownProviders(string provider)
+    public void CreateForProvider_ThrowsWhenAdapterNotInDI(string provider)
     {
-        // Arrange
+        // Arrange — known provider names but no data layer registered in the DI container
         var configuration = new ConfigurationBuilder().Build();
         var serviceProvider = new ServiceCollection()
             .AddLogging()
             .BuildServiceProvider();
         var factory = new VectorStoreFactory(serviceProvider, configuration, serviceProvider.GetService<ILoggerFactory>());
 
-        // Act - should not throw for known providers (will return NoOp since not registered)
-        var store = factory.CreateForProvider(provider);
-
-        // Assert
-        Assert.NotNull(store);
+        // Act & Assert — should throw, not silently return a no-op
+        Assert.Throws<InvalidOperationException>(() => factory.CreateForProvider(provider));
     }
 
     [Fact]

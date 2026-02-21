@@ -138,54 +138,18 @@ public class Program
         
         if (!dataLayerRegistered)
         {
-            // No data layer registered - add minimal health checks
-            // IDocumentRepository will need to be provided by test fixtures or will fail at DI resolution time
-            builder.Services.AddHealthChecks();
+            // Fail fast: if a provider is configured but the connection string is missing the application
+            // cannot function — crashing at startup is far better than silently losing all data.
+            var connHint = vectorStoreProvider.Equals("postgres", StringComparison.OrdinalIgnoreCase)
+                ? "'ConnectionStrings:deepwikidb'"
+                : "'ConnectionStrings:SqlServer' or 'VectorStore:SqlServer:ConnectionString'";
+            throw new InvalidOperationException(
+                $"VectorStore:Provider is '{vectorStoreProvider}' but its connection string is not configured. " +
+                $"Set {connHint} in appsettings, user-secrets, or environment variables. " +
+                $"See VECTOR_STORE_SETUP.md for configuration examples.");
         }
-
-        // Register vector store via factory pattern
-        // Configuration: Set "VectorStore:Provider" to "sqlserver" or "postgres" in appsettings.json
-        // For SQL Server: Set "VectorStore:SqlServer:ConnectionString" or use ConnectionStrings:SqlServer
-        // For Postgres: Set "VectorStore:Postgres:ConnectionString" or use ConnectionStrings:Postgres
-        builder.Services.AddSingleton<DeepWiki.Rag.Core.VectorStore.VectorStoreFactory>();
-        builder.Services.AddScoped<DeepWiki.Data.Abstractions.IVectorStore>(sp =>
-        {
-            // Lightweight logging for DI-time diagnosis
-            var regLogger = sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()?.CreateLogger("Startup.VectorStoreRegistration");
-
-            var factory = sp.GetRequiredService<DeepWiki.Rag.Core.VectorStore.VectorStoreFactory>();
-            var provider = builder.Configuration.GetValue<string>("VectorStore:Provider");
-            if (string.IsNullOrWhiteSpace(provider))
-            {
-                throw new InvalidOperationException(
-                    "VectorStore:Provider is not configured. Set 'VectorStore:Provider' to 'postgres' or 'sqlserver' in appsettings.json or environment variables. See VECTOR_STORE_SETUP.md for configuration examples.");
-            }
-
-            regLogger?.LogInformation("Resolving IVectorStore for provider '{Provider}'. ProviderAvailable={ProviderAvailable}", provider, factory.IsProviderAvailable(provider));
-
-            // If configured provider is not available, fail fast — NoOp fallback is NOT supported.
-            if (!factory.IsProviderAvailable(provider))
-            {
-                var logger = sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()?.CreateLogger("Startup.VectorStoreRegistration");
-                var connString = provider.Equals("postgres", StringComparison.OrdinalIgnoreCase) 
-                    ? builder.Configuration.GetConnectionString("deepwikidb")
-                    : builder.Configuration.GetConnectionString("SqlServer");
-                var msg = $"Vector store provider '{provider}' is not available. ";
-                if (string.IsNullOrWhiteSpace(connString))
-                {
-                    msg += $"Connection string not configured. Set 'ConnectionStrings:deepwikidb' (for postgres) or 'ConnectionStrings:SqlServer' (for sqlserver) in appsettings or user-secrets. See VECTOR_STORE_SETUP.md for configuration examples.";
-                }
-                else
-                {
-                    msg += $"Connection string is set but provider registration failed. Ensure the database is accessible and data layer extensions are registered.";
-                }
-                logger?.LogError(msg);
-                throw new InvalidOperationException(msg);
-            }
-
-            regLogger?.LogInformation("Creating IVectorStore implementation for provider '{Provider}'", provider);
-            return factory.Create(sp);
-        });
+        // IVectorStore is registered directly by AddPostgresDataLayer / AddSqlServerDataLayer above.
+        // No factory indirection needed — the data layer extensions wire it up correctly.
 
         // Register tokenization service
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Tokenization.TokenEncoderFactory>();
@@ -282,15 +246,24 @@ public class Program
             var provider = builder.Configuration.GetValue<string>("Embedding:Provider");
             regLogger?.LogInformation("Resolving IEmbeddingService for provider '{Provider}'. ProviderAvailable={ProviderAvailable}", provider ?? "(not set)", factory.IsProviderAvailable(provider ?? string.Empty));
             
-            // If no provider is configured or configured provider is not available, use NoOp
-            if (string.IsNullOrEmpty(provider) || !factory.IsProviderAvailable(provider))
+            // Fail fast — there is no useful fallback when embedding is not configured.
+            if (string.IsNullOrEmpty(provider))
             {
-                var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<DeepWiki.Rag.Core.Embedding.NoOpEmbeddingService>>();
-                logger?.LogWarning(
-                    "Embedding provider '{Provider}' not configured or not available. Using NoOpEmbeddingService. " +
-                    "Configure Embedding:Provider and required credentials to enable embeddings.",
-                    provider ?? "(not set)");
-                return new DeepWiki.Rag.Core.Embedding.NoOpEmbeddingService();
+                throw new InvalidOperationException(
+                    "Embedding:Provider is not configured. Set it to 'ollama', 'openai', or 'foundry' " +
+                    "in appsettings or environment variables.");
+            }
+            if (!factory.IsProviderAvailable(provider))
+            {
+                var hint = provider.ToLowerInvariant() switch
+                {
+                    "openai"             => "Set Embedding:OpenAI:ApiKey.",
+                    "foundry" or "azure" => "Set Embedding:Foundry:Endpoint.",
+                    "ollama"             => "Set Embedding:Ollama:Endpoint.",
+                    _                    => string.Empty
+                };
+                throw new InvalidOperationException(
+                    ($"Embedding provider '{provider}' is not available — required configuration is missing. {hint}").TrimEnd());
             }
             
             regLogger?.LogInformation("Creating IEmbeddingService implementation for provider '{Provider}'", provider);

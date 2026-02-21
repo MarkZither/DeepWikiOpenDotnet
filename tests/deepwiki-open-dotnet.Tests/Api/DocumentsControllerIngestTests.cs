@@ -349,7 +349,7 @@ public class DocumentsControllerIngestTests : IClassFixture<ApiTestFixture>
                     }
                     
                     // Add a no-op repository for testing
-                    services.AddScoped<DeepWiki.Data.Interfaces.IDocumentRepository>(_ => new NoOpDocumentRepository());
+                    services.AddScoped<DeepWiki.Data.Interfaces.IDocumentRepository>(_ => new MockDocumentRepository());
                 });
             });
 

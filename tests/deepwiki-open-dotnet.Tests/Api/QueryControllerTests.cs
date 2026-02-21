@@ -42,7 +42,7 @@ public class QueryControllerTests : IClassFixture<ApiTestFixture>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var results = await response.Content.ReadFromJsonAsync<QueryResultItem[]>(TestContext.Current.CancellationToken);
         Assert.NotNull(results);
-        Assert.Empty(results); // NoOpVectorStore returns empty results
+        Assert.Empty(results); // MockVectorStore starts empty
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class QueryControllerTests : IClassFixture<ApiTestFixture>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var results = await response.Content.ReadFromJsonAsync<QueryResultItem[]>(TestContext.Current.CancellationToken);
         Assert.NotNull(results);
-        // NoOpVectorStore returns empty, but if it had results, Text would be null
+        // MockVectorStore returns empty by default; if it had results, Text would be non-null
     }
 
     [Fact]

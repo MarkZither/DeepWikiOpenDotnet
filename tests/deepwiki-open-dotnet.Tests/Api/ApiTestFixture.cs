@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using DeepWiki.Data.Abstractions;
 using DeepWiki.Data.Interfaces;
-using DeepWiki.Rag.Core.VectorStore;
 using DeepWiki.ApiService.Tests.TestUtilities;
 
 namespace DeepWiki.ApiService.Tests.Api;
@@ -22,28 +21,17 @@ public class ApiTestFixture : WebApplicationFactory<DeepWiki.ApiService.Program>
     {
         builder.ConfigureServices(services =>
         {
-            // Remove production IVectorStore registration and replace with NoOp for testing
-            var vectorStoreDescriptor = services.FirstOrDefault(d => 
-                d.ServiceType == typeof(IVectorStore));
-            if (vectorStoreDescriptor != null)
-            {
-                services.Remove(vectorStoreDescriptor);
-            }
-            
-            // Register NoOpVectorStore for tests (individual tests can override with mocks)
-            services.AddScoped<IVectorStore, NoOpVectorStore>();
-            
-            // Remove production IDocumentRepository registration if present and replace with NoOp for testing
-            var repositoryDescriptor = services.FirstOrDefault(d => 
-                d.ServiceType == typeof(IDocumentRepository));
-            if (repositoryDescriptor != null)
-            {
-                services.Remove(repositoryDescriptor);
-            }
-            
-            // Register NoOpDocumentRepository for tests (individual tests can override with mocks)
-            services.AddScoped<IDocumentRepository, NoOpDocumentRepository>();
-            
+            // Replace production registrations with test doubles.
+            // Individual tests can further override by calling WithWebHostBuilder.
+            RemoveAll<IVectorStore>(services);
+            services.AddScoped<IVectorStore, MockVectorStore>();
+
+            RemoveAll<IEmbeddingService>(services);
+            services.AddSingleton<IEmbeddingService, MockEmbeddingService>();
+
+            RemoveAll<IDocumentRepository>(services);
+            services.AddScoped<IDocumentRepository, MockDocumentRepository>();
+
             // Override configuration for test environment
             builder.ConfigureAppConfiguration((context, config) =>
             {
@@ -52,6 +40,12 @@ public class ApiTestFixture : WebApplicationFactory<DeepWiki.ApiService.Program>
         });
 
         return base.CreateHost(builder);
+    }
+
+    private static void RemoveAll<T>(IServiceCollection services)
+    {
+        var descriptors = services.Where(d => d.ServiceType == typeof(T)).ToList();
+        foreach (var d in descriptors) services.Remove(d);
     }
 
     /// <summary>
