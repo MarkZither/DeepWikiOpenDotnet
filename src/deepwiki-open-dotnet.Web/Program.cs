@@ -1,7 +1,9 @@
 using deepwiki_open_dotnet.Web;
 using deepwiki_open_dotnet.Web.Components;
-using MudBlazor.Services;
 using deepwiki_open_dotnet.Web.Services;
+using Microsoft.AspNetCore.Components.Server.Circuits;
+using Microsoft.Extensions.Http.Resilience;
+using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,9 +11,35 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 
+// Aspire's AddStandardResilienceHandler() (registered via ConfigureHttpClientDefaults)
+// sets a 10-second AttemptTimeout by default. Embedding a single file via Ollama
+// typically takes 1-30 seconds, so the 10s limit causes every ingest request to be
+// cancelled before the API can write anything to the database.
+// The "-standard" key matches the pipeline name registered by ConfigureHttpClientDefaults
+// (empty client-name prefix + "-standard" suffix).
+builder.Services.Configure<HttpStandardResilienceOptions>("-standard", options =>
+{
+    options.AttemptTimeout.Timeout      = TimeSpan.FromMinutes(10);
+    options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(30);
+    options.Retry.MaxRetryAttempts      = 2;
+    options.Retry.Delay                 = TimeSpan.FromSeconds(2);
+});
+
 // Add services to the container.
+// MaximumReceiveMessageSize: Blazor Server sends ALL selected file metadata
+// (name, size, type) in a single SignalR message before any content streams.
+// The default 32 KB is exceeded with more than ~300 files. 50 MB covers repos
+// with tens of thousands of files. Content is still streamed separately.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options =>
+    {
+        options.RootComponents.MaxJSRootComponents = 300;
+    });
+
+builder.Services.AddSignalR(hubOptions =>
+{
+    hubOptions.MaximumReceiveMessageSize = 50 * 1024 * 1024; // 50 MB
+});
 
 builder.Services.AddMudServices();
 
@@ -19,6 +47,18 @@ builder.Services.AddMudServices();
 builder.Services.AddScoped<ChatStateService>();
 builder.Services.AddSingleton<NdJsonStreamParser>();
 builder.Services.AddHttpClient<ChatApiClient>(client => client.BaseAddress = new("https+http://apiservice"));
+builder.Services.AddHttpClient<DocumentsApiClient>(client =>
+{
+    client.BaseAddress = new("https+http://apiservice");
+    // Ingestion calls embed files and can take many minutes for large batches.
+    // The default 30-second timeout is far too short — use infinite and rely
+    // on the user's Cancel button (CancellationToken) to abort if needed.
+    client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+});
+
+// Logs circuit disconnections (e.g. SignalR message-size rejections) to the
+// Aspire dashboard so silent WebSocket failures are always diagnosable.
+builder.Services.AddScoped<CircuitHandler, CircuitErrorLogger>();
 
 // Markdown rendering pipeline for ChatMessage (Markdig)
 builder.Services.AddSingleton(new Markdig.MarkdownPipelineBuilder().Build());
