@@ -63,6 +63,11 @@ public class PostgresVectorStoreAdapter : DeepWiki.Data.Abstractions.IVectorStor
         await _inner.DeleteAsync(id, cancellationToken);
     }
 
+    public async Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default)
+    {
+        await _inner.DeleteChunksAsync(repoUrl, filePath, cancellationToken);
+    }
+
     public async Task RebuildIndexAsync(CancellationToken cancellationToken = default)
     {
         await _inner.RebuildIndexAsync(cancellationToken);
@@ -85,7 +90,9 @@ public class PostgresVectorStoreAdapter : DeepWiki.Data.Abstractions.IVectorStor
             TokenCount = e.TokenCount,
             FileType = e.FileType ?? string.Empty,
             IsCode = e.IsCode,
-            IsImplementation = e.IsImplementation
+            IsImplementation = e.IsImplementation,
+            ChunkIndex = e.ChunkIndex,
+            TotalChunks = e.TotalChunks
         };
     }
 
@@ -105,7 +112,9 @@ public class PostgresVectorStoreAdapter : DeepWiki.Data.Abstractions.IVectorStor
             TokenCount = d.TokenCount,
             FileType = d.FileType,
             IsCode = d.IsCode,
-            IsImplementation = d.IsImplementation
+            IsImplementation = d.IsImplementation,
+            ChunkIndex = d.ChunkIndex,
+            TotalChunks = d.TotalChunks
         };
         return ent;
     }

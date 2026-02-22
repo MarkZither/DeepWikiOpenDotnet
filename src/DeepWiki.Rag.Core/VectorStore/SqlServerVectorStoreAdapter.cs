@@ -36,6 +36,11 @@ public class SqlServerVectorStoreAdapter : DeepWiki.Data.Abstractions.IVectorSto
         throw new NotSupportedException("SqlServerVectorStoreAdapter has been moved to DeepWiki.Data.SqlServer.VectorStore.SqlServerVectorStoreAdapter. Register that adapter via AddSqlServerDataLayer().");
     }
 
+    public Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("SqlServerVectorStoreAdapter has been moved to DeepWiki.Data.SqlServer.VectorStore.SqlServerVectorStoreAdapter. Register that adapter via AddSqlServerDataLayer().");
+    }
+
     public Task RebuildIndexAsync(CancellationToken cancellationToken = default)
     {
         _logger?.LogWarning("RebuildIndexAsync shim called — use provider adapter for actual maintenance.");

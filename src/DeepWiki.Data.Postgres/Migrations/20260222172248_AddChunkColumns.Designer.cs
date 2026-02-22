@@ -3,6 +3,7 @@ using System;
 using DeepWiki.Data.Postgres.DbContexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pgvector;
@@ -12,9 +13,11 @@ using Pgvector;
 namespace DeepWiki.Data.Postgres.Migrations
 {
     [DbContext(typeof(PostgresVectorDbContext))]
-    partial class PostgresVectorDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260222172248_AddChunkColumns")]
+    partial class AddChunkColumns
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
