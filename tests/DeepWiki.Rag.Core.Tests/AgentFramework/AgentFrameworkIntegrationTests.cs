@@ -524,6 +524,16 @@ public class AgentFrameworkIntegrationTests
             return Task.CompletedTask;
         }
 
+        public Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default)
+        {
+            lock (_lock)
+            {
+                var toRemove = _documents.Values.Where(d => d.RepoUrl == repoUrl && d.FilePath == filePath).Select(d => d.Id).ToList();
+                foreach (var id in toRemove) _documents.Remove(id);
+            }
+            return Task.CompletedTask;
+        }
+
         public Task RebuildIndexAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         private static float CalculateCosineSimilarity(float[]? a, float[]? b)

@@ -187,6 +187,7 @@ namespace DeepWiki.Rag.Core.Tests.Services
             public Task<System.Collections.Generic.IReadOnlyList<DeepWiki.Data.Abstractions.Models.VectorQueryResult>> QueryAsync(float[] embedding, int k, System.Collections.Generic.Dictionary<string, string>? filters = null, CancellationToken cancellationToken = default) => _fn(embedding, k, filters, cancellationToken);
             public Task UpsertAsync(DeepWiki.Data.Abstractions.Models.DocumentDto document, CancellationToken cancellationToken = default) => Task.CompletedTask;
             public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+            public Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default) => Task.CompletedTask;
             public Task RebuildIndexAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         }
 
@@ -246,6 +247,7 @@ namespace DeepWiki.Rag.Core.Tests.Services
 
             public Task UpsertAsync(DeepWiki.Data.Abstractions.Models.DocumentDto document, CancellationToken cancellationToken = default) => Task.CompletedTask;
             public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+            public Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default) => Task.CompletedTask;
             public Task RebuildIndexAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         }
 

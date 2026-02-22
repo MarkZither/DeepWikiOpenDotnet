@@ -210,6 +210,42 @@
 
 ---
 
+## Phase 9: User Story 6 - Sliding Window Chunking for Large Files (Priority: P6)
+
+**Goal**: Files larger than `nomic-embed-text`'s 8,192-token context window currently fail with `"the input length exceeds the context length"` and are silently skipped. Split every file into overlapping fixed-size token chunks, store one DB row per chunk, and deduplicate search results back to file level so the LLM context is not flooded with chunks from the same file.
+
+**Why the current code fails**: `DocumentIngestionService.ChunkAndEmbedAsync` already exists but `IngestAsync` collapses all chunks back to a single row using only the first chunk's embedding — the rest are thrown away.
+
+**Chunking defaults**: `ChunkSize = 512` tokens, `ChunkOverlap = 128` tokens (~25%), `MaxChunksPerFile = 200`. Small chunks stay specific enough for retrieval; overlap retains cross-boundary context.
+
+**Independent Test**: Ingest a file larger than 8,192 tokens (e.g. `DocumentIngestionService.cs`). Verify multiple rows appear in the DB with sequential `chunk_index` values and the same `total_chunks`. Query a term from the middle of the file; verify the response cites the correct file.
+
+### Tests for User Story 6 ⚠️ Write FIRST, ensure they FAIL
+
+- [X] T083 [P] [US6] Unit test in `tests/DeepWiki.Rag.Core.Tests/Ingestion/ChunkingIngestionTests.cs`: large doc (stub tokeniser returning 10,000 tokens) fed to `IngestAsync` produces multiple upserts in `MockVectorStore`, each with sequential `ChunkIndex` and matching `TotalChunks`
+- [X] T084 [P] [US6] Unit test in `ChunkingIngestionTests.cs`: doc at or under `ChunkSize` tokens produces exactly 1 upsert with `ChunkIndex = 0`, `TotalChunks = 1`
+- [X] T085 [P] [US6] Unit test in `ChunkingIngestionTests.cs`: doc exceeding `MaxChunksPerFile × ChunkSize` tokens is capped at `MaxChunksPerFile` chunks; a warning is logged; no exception thrown; `IngestionResult.SuccessCount = 1` (success counted per file, not per chunk)
+- [X] T086 [P] [US6] Unit test in `ChunkingIngestionTests.cs`: re-ingesting a file that previously produced 5 chunks but now produces 3 calls `DeleteChunksAsync` before upserting; `MockVectorStore` ends up with exactly 3 rows for that `(RepoUrl, FilePath)` pair
+- [X] T087 [P] [US6] Unit test `ChunkOptions` in `tests/DeepWiki.Rag.Core.Tests/Ingestion/ChunkOptionsTests.cs`: `ChunkSize`, `ChunkOverlap`, `MaxChunksPerFile` bind from `IConfiguration` section `"Embedding:Chunking"`; missing keys fall back to defaults (512 / 128 / 200)
+- [X] T088 [P] [US6] Unit test `PostgresVectorStore` chunk upsert in `tests/DeepWiki.Data.Postgres.Tests/`: inserting chunk 0 then chunk 1 for the same `(RepoUrl, FilePath)` produces 2 rows; upserting chunk 0 again updates in-place (no duplicate row)
+
+### Implementation for User Story 6
+
+- [X] T089 [P] [US6] Add `ChunkIndex int` (default `0`) and `TotalChunks int` (default `1`) to `DeepWiki.Data.Entities.DocumentEntity` and `DeepWiki.Data.Abstractions.Models.DocumentDto`
+- [X] T090 [P] [US6] Generate EF Core migration `AddChunkColumns` for `DeepWiki.Data.Postgres`: add `chunk_index integer NOT NULL DEFAULT 0` and `total_chunks integer NOT NULL DEFAULT 1` columns; replace unique index on `(repo_url, file_path)` with unique index on `(repo_url, file_path, chunk_index)`
+- [X] T091 [P] [US6] Create `ChunkOptions` record in `src/DeepWiki.Rag.Core/Ingestion/ChunkOptions.cs` with defaults `ChunkSize = 512`, `ChunkOverlap = 128`, `MaxChunksPerFile = 200`; register `builder.Services.Configure<ChunkOptions>(config.GetSection("Embedding:Chunking"))` in `ApiService/Program.cs`
+- [X] T092 [P] [US6] Add `"Embedding": { "Chunking": { "ChunkSize": 512, "ChunkOverlap": 128, "MaxChunksPerFile": 200 } }` to `src/deepwiki-open-dotnet.ApiService/appsettings.json`
+- [X] T093 [P] [US6] Add `DeleteChunksAsync(string repoUrl, string filePath, CancellationToken)` to `IPersistenceVectorStore`; implement in `PostgresVectorStore` as `DELETE FROM documents WHERE repo_url = $1 AND file_path = $2`; propagate through `PostgresVectorStoreAdapter` to `IVectorStore`
+- [X] T094 [P] [US6] Update `PostgresVectorStore.UpsertAsync` — unique lookup keyed on `(RepoUrl, FilePath, ChunkIndex)` instead of `(RepoUrl, FilePath)`; update `PostgresVectorStoreAdapter.MapToEntity` / `MapToAbstraction` to pass `ChunkIndex` and `TotalChunks` through
+- [X] T095 [US6] Refactor `DocumentIngestionService.IngestAsync` — inject `IOptions<ChunkOptions>`; for every document: call `ChunkAndEmbedAsync(text, chunkOptions.ChunkSize, …)`, cap at `MaxChunksPerFile` (log warning if capped), call `_vectorStore.DeleteChunksAsync` to purge stale chunks, then upsert one `DocumentDto` per chunk with `ChunkIndex`/`TotalChunks` set; count success/failure **per file** so UI counts remain intuitive
+- [X] T096 [P] [US6] Apply the same `DeleteChunksAsync` + chunk-keyed upsert pattern to `SqlServerVectorStore` for parity; add `AddChunkColumns` migration to `DeepWiki.Data.SqlServer`
+- [X] T097 [US6] Deduplicate query results — in `GenerationService` (RAG retrieval path), after `_vectorStore.QueryAsync`, group raw results by `(RepoUrl, FilePath)` and keep the highest-scoring chunk per file before assembling the LLM context; cap distinct files at a configurable `Generation:MaxContextDocuments` (default `5`)
+- [X] T098 [P] [US6] Update `DocumentLibrary.razor` — the `GET /api/documents` list endpoint should return one row per file (filter or group on `chunk_index = 0` server-side); add `TotalChunks` to `DocumentSummaryDto` and a **Chunks** column to the `DocumentLibrary.razor` table so users can see how many chunks each file was split into
+
+**Checkpoint**: Every file regardless of size is now ingested. Large files produce multiple searchable chunks. The LLM context receives at most one representative excerpt per file, preventing any single large file from crowding out all context slots.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -220,6 +256,7 @@
   - User stories can proceed in parallel (if staffed)
   - Or sequentially in priority order: US1 → US2 → US3 → US4
 - **Polish (Phase 7)**: Depends on desired user stories being complete (at minimum US1 for MVP)
+- **User Story 6 (Phase 9)**: Depends on Phase 2 (tokenization service) and the data model established in Phase 8 (DocumentEntity, migrations, PostgresVectorStore)
 
 ### User Story Dependencies
 
@@ -227,6 +264,7 @@
 - **User Story 2 (P2)**: Can start after Foundational (Phase 2) - Integrates with US1 (extends ChatMessage, ChatApiClient) but independently testable
 - **User Story 3 (P3)**: Can start after Foundational (Phase 2) - Integrates with US1 (adds to Chat.razor) but independently testable
 - **User Story 4 (P4)**: Can start after Foundational (Phase 2) - Integrates with US1 (adds clear to ChatStateService) but independently testable
+- **User Story 6 (P6)**: Depends on data layer (Phase 2 tokenization + Phase 8 entity model); back-end only — no UI dependency
 
 ### Within Each User Story
 
@@ -336,7 +374,7 @@ With multiple developers after Foundational phase completes:
 
 ## Task Summary
 
-- **Total Tasks**: 82
+- **Total Tasks**: 98
 - **Setup Tasks**: 5
 - **Foundational Tasks**: 12 (CRITICAL - blocks all stories)
 - **User Story 1 Tasks**: 12 (5 tests + 7 implementation)
@@ -344,7 +382,8 @@ With multiple developers after Foundational phase completes:
 - **User Story 3 Tasks**: 12 (5 tests + 7 implementation)
 - **User Story 4 Tasks**: 6 (2 tests + 4 implementation)
 - **User Story 5 Tasks**: 17 (4 models + 5 tests + 8 implementation)
+- **User Story 6 Tasks**: 16 (6 tests + 10 implementation)
 - **Polish Tasks**: 10
-- **Parallel Opportunities**: 35+ tasks marked [P] across all phases
+- **Parallel Opportunities**: 45+ tasks marked [P] across all phases
 - **Independent Test Criteria**: Each user story has explicit test scenario
 - **Suggested MVP Scope**: Phases 1-3 only (User Story 1) = 29 tasks for working chat interface

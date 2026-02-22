@@ -272,6 +272,9 @@ public class QueryControllerTests : IClassFixture<ApiTestFixture>
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
 
+        public Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
         public Task RebuildIndexAsync(CancellationToken cancellationToken = default)
             => Task.CompletedTask;
     }

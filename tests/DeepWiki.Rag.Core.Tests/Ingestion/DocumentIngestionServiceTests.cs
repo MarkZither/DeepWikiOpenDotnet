@@ -710,6 +710,11 @@ public class DocumentIngestionServiceTests
             return Task.CompletedTask;
         }
 
+        public Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public Task RebuildIndexAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -752,6 +757,11 @@ public class DocumentIngestionServiceTests
         }
 
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }

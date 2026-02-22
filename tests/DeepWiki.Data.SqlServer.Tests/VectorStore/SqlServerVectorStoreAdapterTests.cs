@@ -38,6 +38,9 @@ public class SqlServerVectorStoreAdapterTests
             throw new NotImplementedException();
         }
 
+        public Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
         public Task RebuildIndexAsync(CancellationToken cancellationToken = default)
         {
             // Test double: no-op implementation

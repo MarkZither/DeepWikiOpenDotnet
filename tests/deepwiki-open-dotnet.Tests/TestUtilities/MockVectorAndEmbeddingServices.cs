@@ -35,7 +35,7 @@ public class MockVectorStore : IVectorStore
     public Task UpsertAsync(DocumentDto document, CancellationToken cancellationToken = default)
     {
         UpsertCallCount++;
-        var existing = _documents.FindIndex(d => d.RepoUrl == document.RepoUrl && d.FilePath == document.FilePath);
+        var existing = _documents.FindIndex(d => d.RepoUrl == document.RepoUrl && d.FilePath == document.FilePath && d.ChunkIndex == document.ChunkIndex);
         if (existing >= 0)
             _documents[existing] = document;
         else
@@ -46,6 +46,12 @@ public class MockVectorStore : IVectorStore
     public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         _documents.RemoveAll(d => d.Id == id);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default)
+    {
+        _documents.RemoveAll(d => d.RepoUrl == repoUrl && d.FilePath == filePath);
         return Task.CompletedTask;
     }
 
