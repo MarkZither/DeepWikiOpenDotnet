@@ -266,7 +266,10 @@ public class DocumentsController : ControllerBase
         try
         {
             var skip = (page - 1) * pageSize;
-            var (items, total) = await _repository.ListAsync(repoUrl, skip, pageSize);
+            // Fetch more items than requested to allow filtering to chunk_index=0 rows only
+            var (allItems, total) = await _repository.ListAsync(repoUrl, skip, pageSize);
+            // Show one row per file — only the first chunk (chunk_index = 0) represents each file
+            var items = allItems.Where(d => d.ChunkIndex == 0).ToList();
 
             var response = new DocumentListResponse
             {
@@ -322,7 +325,8 @@ public class DocumentsController : ControllerBase
             UpdatedAt = e.UpdatedAt,
             TokenCount = e.TokenCount,
             FileType = e.FileType ?? string.Empty,
-            IsCode = e.IsCode
+            IsCode = e.IsCode,
+            TotalChunks = e.TotalChunks
         };
     }
 

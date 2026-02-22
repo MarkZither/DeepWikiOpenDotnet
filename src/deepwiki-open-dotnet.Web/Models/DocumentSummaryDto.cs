@@ -35,4 +35,7 @@ public class DocumentSummaryDto
 
     [JsonPropertyName("isCode")]
     public bool IsCode { get; set; }
+
+    [JsonPropertyName("totalChunks")]
+    public int TotalChunks { get; set; }
 }

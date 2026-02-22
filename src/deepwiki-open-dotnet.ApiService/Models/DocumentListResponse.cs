@@ -45,4 +45,5 @@ public sealed record DocumentSummary
     public int TokenCount { get; init; }
     public string? FileType { get; init; }
     public bool IsCode { get; init; }
+    public int TotalChunks { get; init; }
 }

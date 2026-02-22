@@ -55,6 +55,7 @@
             <MudTh>Repository URL</MudTh>
             <MudTh>File Path</MudTh>
             <MudTh><MudTableSortLabel SortBy="new Func<DocumentSummaryDto, object>(x => x.TokenCount)">Tokens</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<DocumentSummaryDto, object>(x => x.TotalChunks)">Chunks</MudTableSortLabel></MudTh>
             <MudTh>Type</MudTh>
             <MudTh><MudTableSortLabel SortBy="new Func<DocumentSummaryDto, object>(x => x.CreatedAt)">Created</MudTableSortLabel></MudTh>
             <MudTh>Actions</MudTh>
@@ -71,6 +72,7 @@
             </MudTd>
             <MudTd DataLabel="File Path">@context.FilePath</MudTd>
             <MudTd DataLabel="Tokens">@context.TokenCount</MudTd>
+            <MudTd DataLabel="Chunks">@context.TotalChunks</MudTd>
             <MudTd DataLabel="Type">
                 @if (context.IsCode)
                 {
