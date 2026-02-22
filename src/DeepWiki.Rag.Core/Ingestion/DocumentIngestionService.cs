@@ -3,6 +3,7 @@ using System.Text.Json;
 using DeepWiki.Data.Abstractions;
 using DeepWiki.Data.Abstractions.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DeepWiki.Rag.Core.Ingestion;
 
@@ -16,6 +17,7 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
     private readonly ITokenizationService _tokenizationService;
     private readonly IEmbeddingService _embeddingService;
     private readonly ILogger<DocumentIngestionService> _logger;
+    private readonly ChunkOptions _chunkOptions;
 
     // === SECURITY CONSTANTS ===
     // Maximum document text size in bytes (5 MB) - prevents memory exhaustion attacks
@@ -69,16 +71,33 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
     /// <param name="logger">Optional logger.</param>
     public DocumentIngestionService(IVectorStore vectorStore, ITokenizationService tokenizationService,
         IEmbeddingService embeddingService, ILogger<DocumentIngestionService> logger)
+        : this(vectorStore, tokenizationService, embeddingService, logger, Options.Create(new ChunkOptions()))
+    {
+    }
+
+    /// <summary>
+    /// Creates a new document ingestion service with explicit chunk options.
+    /// </summary>
+    /// <param name="vectorStore">The vector store for document storage.</param>
+    /// <param name="tokenizationService">The tokenization service for chunking.</param>
+    /// <param name="embeddingService">The embedding service for generating vectors.</param>
+    /// <param name="logger">Logger.</param>
+    /// <param name="chunkOptions">Chunking configuration.</param>
+    public DocumentIngestionService(IVectorStore vectorStore, ITokenizationService tokenizationService,
+        IEmbeddingService embeddingService, ILogger<DocumentIngestionService> logger,
+        IOptions<ChunkOptions> chunkOptions)
     {
         ArgumentNullException.ThrowIfNull(vectorStore);
         ArgumentNullException.ThrowIfNull(tokenizationService);
         ArgumentNullException.ThrowIfNull(embeddingService);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(chunkOptions);
 
         _vectorStore = vectorStore;
         _tokenizationService = tokenizationService;
         _embeddingService = embeddingService;
         _logger = logger;
+        _chunkOptions = chunkOptions.Value;
     }
 
     /// <inheritdoc />
@@ -113,25 +132,111 @@ public sealed class DocumentIngestionService : IDocumentIngestionService
                 // Validate document
                 ValidateDocument(doc);
 
-                // Convert to DocumentDto with metadata enrichment
-                var documentDto = await CreateDocumentDtoAsync(doc, request, cancellationToken);
+                // Determine chunking parameters
+                var chunkSize = _chunkOptions.ChunkSize;
+                var maxChunks = _chunkOptions.MaxChunksPerFile;
 
-                // Respect cancellation after expensive preparatory work
+                // Get token count
+                var tokenCount = await _tokenizationService.CountTokensAsync(
+                    doc.Text, _embeddingService.ModelId, cancellationToken);
+
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // Upsert to vector store
-                await UpsertAsync(documentDto, cancellationToken);
+                List<ChunkEmbeddingResult> chunkResults;
 
-                // Respect cancellation after upsert
-                cancellationToken.ThrowIfCancellationRequested();
+                if (tokenCount <= chunkSize)
+                {
+                    // Small document: embed as single chunk
+                    float[] embedding;
+                    if (doc.Embedding is not null && doc.Embedding.Length > 0)
+                        embedding = doc.Embedding;
+                    else if (request.SkipEmbedding)
+                        embedding = Array.Empty<float>();
+                    else
+                        embedding = await _embeddingService.EmbedAsync(doc.Text, cancellationToken);
 
-                // Count chunks (single document = 1 chunk for now, chunking handled by ChunkAndEmbedAsync)
-                totalChunks++;
+                    chunkResults = new List<ChunkEmbeddingResult>
+                    {
+                        new ChunkEmbeddingResult
+                        {
+                            Text = doc.Text,
+                            Embedding = embedding,
+                            ChunkIndex = 0,
+                            TokenCount = tokenCount
+                        }
+                    };
+                }
+                else
+                {
+                    // Large document: use sliding window chunking
+                    chunkResults = (await ChunkAndEmbedAsync(
+                        doc.Text, chunkSize, doc.Id, cancellationToken)).ToList();
+
+                    if (chunkResults.Count > maxChunks)
+                    {
+                        _logger.LogWarning(
+                            "Document {DocIdentifier} produced {ChunkCount} chunks exceeding MaxChunksPerFile={Max}; capping",
+                            docIdentifier, chunkResults.Count, maxChunks);
+                        chunkResults = chunkResults.Take(maxChunks).ToList();
+                    }
+                }
+
+                var fileType = doc.FileType ?? GetFileType(doc.FilePath);
+                var isCode = doc.IsCode ?? IsCodeFile(fileType);
+                var isImplementation = doc.IsImplementation ?? IsImplementationFile(doc.FilePath, isCode);
+                var sanitizedMetadata = SanitizeMetadataJson(doc.MetadataJson);
+                var metadata = MergeMetadata(sanitizedMetadata, request.MetadataDefaults, new Dictionary<string, object>
+                {
+                    ["file_type"] = fileType,
+                    ["is_code"] = isCode,
+                    ["is_implementation"] = isImplementation,
+                    ["language"] = isCode ? DetectCodeLanguage(fileType) : "text",
+                    ["_suspicious_content_detected"] = DetectSuspiciousContent(doc.Text) is not null
+                });
+
+                var numChunks = chunkResults.Count;
+                var fileId = doc.Id ?? Guid.NewGuid();
+
+                // Purge stale chunks before upserting new ones
+                await _vectorStore.DeleteChunksAsync(doc.RepoUrl, doc.FilePath, cancellationToken);
+
+                // Upsert one row per chunk
+                for (var i = 0; i < numChunks; i++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var chunk = chunkResults[i];
+                    var chunkDto = new DocumentDto
+                    {
+                        Id = i == 0 ? fileId : Guid.NewGuid(),
+                        RepoUrl = doc.RepoUrl,
+                        FilePath = doc.FilePath,
+                        Title = string.IsNullOrEmpty(doc.Title) ? Path.GetFileName(doc.FilePath) : doc.Title,
+                        Text = chunk.Text,
+                        Embedding = chunk.Embedding,
+                        MetadataJson = metadata,
+                        TokenCount = chunk.TokenCount,
+                        FileType = fileType,
+                        IsCode = isCode,
+                        IsImplementation = isImplementation,
+                        ChunkIndex = i,
+                        TotalChunks = numChunks
+                    };
+
+                    var now = DateTime.UtcNow;
+                    chunkDto.CreatedAt = now;
+                    chunkDto.UpdatedAt = now;
+
+                    await _vectorStore.UpsertAsync(chunkDto, cancellationToken);
+                    ingestedIds.Add(chunkDto.Id);
+                }
+
+                totalChunks += numChunks;
                 successCount++;
-                ingestedIds.Add(documentDto.Id);
 
-                _logger.LogDebug("Successfully ingested document {DocId}: {DocIdentifier}",
-                    documentDto.Id, docIdentifier);
+                _logger.LogDebug(
+                    "Successfully ingested document {DocIdentifier} as {ChunkCount} chunk(s)",
+                    docIdentifier, numChunks);
             }
             catch (Exception ex) when (request.ContinueOnError && ex is not OperationCanceledException)
             {

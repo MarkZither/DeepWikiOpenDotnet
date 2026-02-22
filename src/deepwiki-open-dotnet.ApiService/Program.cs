@@ -155,6 +155,10 @@ public class Program
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Tokenization.TokenEncoderFactory>();
         builder.Services.AddSingleton<DeepWiki.Data.Abstractions.ITokenizationService, DeepWiki.Rag.Core.Tokenization.TokenizationService>();
 
+        // Chunking options (T091)
+        builder.Services.Configure<DeepWiki.Rag.Core.Ingestion.ChunkOptions>(
+            builder.Configuration.GetSection("Embedding:Chunking"));
+
         // Session manager and generation service
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.SessionManager>();
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Observability.GenerationMetrics>();

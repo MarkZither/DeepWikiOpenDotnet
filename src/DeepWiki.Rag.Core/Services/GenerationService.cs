@@ -87,7 +87,17 @@ public class GenerationService : IGenerationService
             try
             {
                 var embedding = await _embeddingService.EmbedAsync(promptText, cancellationToken);
-                var results = await _vectorStore.QueryAsync(embedding, topK, filters, cancellationToken);
+                var rawResults = await _vectorStore.QueryAsync(embedding, topK * 3, filters, cancellationToken);
+
+                // Deduplicate: keep only the highest-scoring chunk per (RepoUrl, FilePath) pair
+                var maxContextDocs = 5; // Generation:MaxContextDocuments default
+                var deduped = rawResults
+                    .GroupBy(r => (r.Document.RepoUrl, r.Document.FilePath))
+                    .Select(g => g.OrderByDescending(r => r.SimilarityScore).First())
+                    .OrderByDescending(r => r.SimilarityScore)
+                    .Take(maxContextDocs)
+                    .ToList();
+                var results = (IReadOnlyList<VectorQueryResult>)deduped;
 
                 var sb = new System.Text.StringBuilder();
                 sb.AppendLine("Context documents:");
