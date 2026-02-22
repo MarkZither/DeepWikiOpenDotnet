@@ -89,6 +89,14 @@ public class DocumentEntityConfiguration : IEntityTypeConfiguration<DocumentEnti
             .HasColumnType("jsonb")
             .HasColumnName("metadata_json");
 
+        builder.Property(d => d.ChunkIndex)
+            .HasDefaultValue(0)
+            .HasColumnName("chunk_index");
+
+        builder.Property(d => d.TotalChunks)
+            .HasDefaultValue(1)
+            .HasColumnName("total_chunks");
+
         // Table name
         builder.ToTable("documents");
 

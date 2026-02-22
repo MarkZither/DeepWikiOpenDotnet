@@ -84,6 +84,19 @@ public class DocumentEntity
     public string? MetadataJson { get; set; }
 
     /// <summary>
+    /// Zero-based index of this chunk within the parent document.
+    /// Defaults to 0 for documents that are not split into multiple chunks.
+    /// Together with FilePath and RepoUrl forms the unique composite key.
+    /// </summary>
+    public int ChunkIndex { get; set; } = 0;
+
+    /// <summary>
+    /// Total number of chunks the source document was split into.
+    /// Defaults to 1 for documents that fit within a single chunk.
+    /// </summary>
+    public int TotalChunks { get; set; } = 1;
+
+    /// <summary>
     /// Validates that the embedding has exactly 1536 dimensions if non-null.
     /// </summary>
     /// <exception cref="ArgumentException">If embedding is not null and dimensions != 1536.</exception>
