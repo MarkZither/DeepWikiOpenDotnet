@@ -195,6 +195,16 @@ public class Program
                 client.BaseAddress = new Uri(endpoint);
                 // Set a long timeout for local Ollama models which can take minutes to process
                 client.Timeout = TimeSpan.FromMinutes(10);
+            })
+            .ConfigureHttpClient(_ => { }) // no-op — timeout set above
+            .AddStandardResilienceHandler(options =>
+            {
+                // Local Ollama can take 60-120s per request — override the Aspire default of 30s
+                var localModelTimeout = TimeSpan.FromMinutes(2);
+                options.AttemptTimeout.Timeout      = localModelTimeout;
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(10);
+                // SamplingDuration must be >= 2× AttemptTimeout per Polly validation
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(5);
             });
             builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
             {
@@ -220,6 +230,13 @@ public class Program
                 if (!string.IsNullOrWhiteSpace(baseUrl)) client.BaseAddress = new Uri(baseUrl);
                 // Allow long-running requests for local models
                 client.Timeout = TimeSpan.FromMinutes(10);
+            })
+            .AddStandardResilienceHandler(options =>
+            {
+                var localModelTimeout = TimeSpan.FromMinutes(2);
+                options.AttemptTimeout.Timeout      = localModelTimeout;
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(10);
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(5);
             });
 
             builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>

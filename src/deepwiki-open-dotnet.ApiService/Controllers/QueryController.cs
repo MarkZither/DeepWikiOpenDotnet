@@ -19,17 +19,20 @@ public class QueryController : ControllerBase
     private readonly IEmbeddingService _embeddingService;
     private readonly ILogger<QueryController> _logger;
     private readonly ResiliencePipeline _embeddingResiliencePipeline;
+    private readonly IConfiguration _configuration;
 
     public QueryController(
         IVectorStore vectorStore,
         IEmbeddingService embeddingService,
         ILogger<QueryController> logger,
-        ResiliencePipeline embeddingResiliencePipeline)
+        ResiliencePipeline embeddingResiliencePipeline,
+        IConfiguration configuration)
     {
         _vectorStore = vectorStore ?? throw new ArgumentNullException(nameof(vectorStore));
         _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _embeddingResiliencePipeline = embeddingResiliencePipeline ?? throw new ArgumentNullException(nameof(embeddingResiliencePipeline));
+        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
     }
 
     /// <summary>
@@ -72,9 +75,11 @@ public class QueryController : ControllerBase
             {
                 _logger.LogInformation("About to call embedding provider '{Provider}'", _embeddingService.Provider);
 
-                // Apply an embedding timeout in addition to the request cancellation token
+                // Apply an embedding timeout in addition to the request cancellation token.
+                // Default 120s — configurable via Embedding:TimeoutSeconds for slow local models.
+                var embedTimeoutSec = _configuration.GetValue<int?>("Embedding:TimeoutSeconds") ?? 120;
                 using var ctsEmbed = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                ctsEmbed.CancelAfter(TimeSpan.FromSeconds(15)); // short timeout for embed calls
+                ctsEmbed.CancelAfter(TimeSpan.FromSeconds(embedTimeoutSec));
 
                 queryEmbedding = await _embeddingResiliencePipeline.ExecuteAsync(
                     async ct => await _embeddingService.EmbedAsync(queryText, ct),
