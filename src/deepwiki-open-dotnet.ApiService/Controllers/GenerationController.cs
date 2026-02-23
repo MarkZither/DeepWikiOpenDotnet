@@ -46,7 +46,7 @@ public class GenerationController : ControllerBase
         var session = _sessionManager.GetSession(req.SessionId);
         if (session == null)
         {
-            Response.StatusCode = 400;
+            Response.StatusCode = 404;
             Response.ContentType = "application/json";
             var err = new DeepWiki.ApiService.Models.ErrorResponse { Detail = "Invalid session ID: session not found" };
             var json = JsonSerializer.Serialize(err);
