@@ -246,6 +246,17 @@
 
 ---
 
+## Phase 10: Vector Search Correctness
+
+**Purpose**: Fix the similarity metric and add a pgvector index so searches use cosine distance (correct for unit-normalised embeddings) and hit an HNSW index instead of doing a full sequential scan.
+
+- [ ] T099 [P] Fix distance operator in `src/DeepWiki.Data.Postgres/Repositories/PostgresVectorStore.cs` — `SearchAsync` currently orders by `d.Embedding.L2Distance(queryVector)` (`<->`); change to `d.Embedding.CosineDistance(queryVector)` (`<=>`). `nomic-embed-text` produces unit-normalised vectors so cosine is the correct metric; L2 gives wrong ranking on unit-length embeddings.
+- [ ] T100 [P] Add HNSW cosine index via entity configuration — in `src/DeepWiki.Data.Postgres/Configuration/DocumentEntityConfiguration.cs` add `builder.HasIndex(d => d.Embedding).HasMethod("hnsw").HasOperators("vector_cosine_ops").HasStorageParameter("m", 16).HasStorageParameter("ef_construction", 64).HasDatabaseName("ix_documents_embedding_cosine");` (remove the existing comment saying EF can't do this — `Pgvector.EntityFrameworkCore` 0.3.x supports it); then run `dotnet ef migrations add AddVectorCosineIndex` to generate the migration automatically.
+
+**Checkpoint**: Semantic search now uses cosine distance and benefits from the HNSW index; query latency scales sub-linearly with corpus size.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -374,7 +385,7 @@ With multiple developers after Foundational phase completes:
 
 ## Task Summary
 
-- **Total Tasks**: 98
+- **Total Tasks**: 100
 - **Setup Tasks**: 5
 - **Foundational Tasks**: 12 (CRITICAL - blocks all stories)
 - **User Story 1 Tasks**: 12 (5 tests + 7 implementation)
@@ -384,6 +395,7 @@ With multiple developers after Foundational phase completes:
 - **User Story 5 Tasks**: 17 (4 models + 5 tests + 8 implementation)
 - **User Story 6 Tasks**: 16 (6 tests + 10 implementation)
 - **Polish Tasks**: 10
+- **Vector Search Correctness Tasks**: 2
 - **Parallel Opportunities**: 45+ tasks marked [P] across all phases
 - **Independent Test Criteria**: Each user story has explicit test scenario
 - **Suggested MVP Scope**: Phases 1-3 only (User Story 1) = 29 tasks for working chat interface
