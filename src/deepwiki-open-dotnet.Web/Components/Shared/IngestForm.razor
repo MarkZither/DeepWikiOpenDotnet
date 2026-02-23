@@ -271,6 +271,7 @@
     // ── JS interop ───────────────────────────────────────────────────────────
     private IJSObjectReference? _jsModule;
     private bool _jsModuleReady;
+    private DotNetObjectReference<IngestForm>? _dotNetRef;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -280,6 +281,11 @@
             {
                 _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/ingest.js");
                 _jsModuleReady = true;
+
+                // Register a capture-phase change listener so the spinner fires
+                // *before* Blazor starts serialising the FileList over SignalR.
+                _dotNetRef = DotNetObjectReference.Create(this);
+                await _jsModule.InvokeVoidAsync("setupInputListener", "ingest-dir-input", _dotNetRef);
             }
             catch (Exception ex)
             {
@@ -291,6 +297,7 @@
 
     public async ValueTask DisposeAsync()
     {
+        _dotNetRef?.Dispose();
         if (_jsModule is not null)
             await _jsModule.DisposeAsync();
     }
@@ -322,6 +329,23 @@
         _files.Count == 0 ? 0 : _processedCount * 100.0 / _files.Count;
 
     // ── Folder picker ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Called by JavaScript the instant the OS folder picker closes and the
+    /// browser's change event fires — well before Blazor finishes serialising
+    /// the FileList over SignalR. Showing the spinner here eliminates the
+    /// silent gap the user would otherwise see.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnFolderChangeDetected(int fileCount)
+    {
+        _pathError    = null;
+        _errorMessage = null;
+        _scanStatus   = $"Browser saw {fileCount:N0} file(s) — sending metadata to server…";
+        _phase        = Phase.Scanning;
+        await InvokeAsync(StateHasChanged);
+    }
+
     private async Task TriggerFolderPickAsync()
     {
         _pathError = null;
@@ -335,12 +359,12 @@
 
     private async Task OnFolderPicked(InputFileChangeEventArgs e)
     {
+        // Phase is already Scanning (set by OnFolderChangeDetected the moment
+        // the OS picker closed). Just update the status message.
         _pathError    = null;
         _errorMessage = null;
-        _scanStatus   = "Reading file list from browser…";
-        _phase        = Phase.Scanning;
+        _scanStatus   = "Reading file list…";
         await InvokeAsync(StateHasChanged);
-        // Yield to the render thread so the spinner paints before the next step.
         await Task.Delay(1);
 
         try
@@ -368,14 +392,9 @@
                 return;
             }
 
-            // Show count immediately so the user knows the browser saw the files.
-            _scanStatus = $"Found {allBrowserFiles.Count:N0} files — reading relative paths from browser (may take a moment for large repos)…";
-            await InvokeAsync(StateHasChanged);
-            await Task.Delay(1); // yield so the status line paints before the JS call blocks
-
-            // Fetch webkitRelativePath via JS (IBrowserFile.Name is bare filename only).
-            // For repos with 10k+ files this serialises ~1 MB of JSON through SignalR
-            // and can take 5–15 seconds — the status line above is the user's indicator.
+            // Fetch webkitRelativePath via JS. Paths were pre-cached in the
+            // capture-phase change listener so this call returns immediately
+            // from a module-level variable — no extra round-trip needed.
             string[] relativePaths = [];
             try
             {
