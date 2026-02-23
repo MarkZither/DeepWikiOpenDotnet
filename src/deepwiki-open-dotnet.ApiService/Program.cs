@@ -95,6 +95,10 @@ public class Program
         builder.Services.Configure<VectorStoreOptions>(
             builder.Configuration.GetSection(VectorStoreOptions.SectionName));
 
+        // Register Embedding configuration options
+        builder.Services.Configure<EmbeddingOptions>(
+            builder.Configuration.GetSection(EmbeddingOptions.SectionName));
+
         // Register data layer services based on VectorStore:Provider configuration
         var vectorStoreProvider = builder.Configuration.GetValue<string>("VectorStore:Provider");
         if (string.IsNullOrWhiteSpace(vectorStoreProvider))
