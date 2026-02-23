@@ -266,10 +266,11 @@ public class DocumentsController : ControllerBase
         try
         {
             var skip = (page - 1) * pageSize;
-            // Fetch more items than requested to allow filtering to chunk_index=0 rows only
-            var (allItems, total) = await _repository.ListAsync(repoUrl, skip, pageSize);
-            // Show one row per file — only the first chunk (chunk_index = 0) represents each file
-            var items = allItems.Where(d => d.ChunkIndex == 0).ToList();
+            // firstChunkOnly:true pushes the ChunkIndex==0 filter into the DB query
+            // so Count and Skip/Take operate over distinct files, not raw chunks.
+            // Previously this filter was applied in-memory AFTER Skip/Take, which
+            // meant most pages were empty (skip consumed chunk rows that were discarded).
+            var (items, total) = await _repository.ListAsync(repoUrl, skip, pageSize, firstChunkOnly: true);
 
             var response = new DocumentListResponse
             {

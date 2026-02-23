@@ -100,6 +100,6 @@ public class DocumentsControllerDeleteTests : IClassFixture<ApiTestFixture>
         public Task<DocumentEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(DocumentEntity document, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_exists && id == _expectedId);
-        public Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, bool firstChunkOnly = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

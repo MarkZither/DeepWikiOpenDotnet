@@ -28,6 +28,6 @@ public class MockDocumentRepository : IDocumentRepository
     public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) 
         => Task.FromResult(false);
         
-    public Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, CancellationToken cancellationToken = default) 
+    public Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, bool firstChunkOnly = false, CancellationToken cancellationToken = default) 
         => Task.FromResult((new List<DocumentEntity>(), 0));
 }
