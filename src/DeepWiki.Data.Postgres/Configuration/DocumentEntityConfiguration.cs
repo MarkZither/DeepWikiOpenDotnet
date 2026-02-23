@@ -107,7 +107,15 @@ public class DocumentEntityConfiguration : IEntityTypeConfiguration<DocumentEnti
         builder.HasIndex(d => d.CreatedAt)
             .HasDatabaseName("ix_documents_created_at");
 
-        // Note: pgvector HNSW indexes are created via raw SQL in migrations
-        // because EF Core doesn't have native support for pgvector-specific index options
+        // HNSW cosine-distance index for pgvector similarity search.
+        // HasMethod/HasOperators/HasStorageParameter are provided by Npgsql.EntityFrameworkCore.PostgreSQL.
+        // This generates: CREATE INDEX ... USING hnsw (embedding vector_cosine_ops) WITH (m=16, ef_construction=64)
+        // The <=> operator used in SearchAsync (vector_cosine_ops) matches this index so queries hit it.
+        builder.HasIndex(d => d.Embedding)
+            .HasMethod("hnsw")
+            .HasOperators("vector_cosine_ops")
+            .HasStorageParameter("m", 16)
+            .HasStorageParameter("ef_construction", 64)
+            .HasDatabaseName("ix_documents_embedding_cosine");
     }
 }
