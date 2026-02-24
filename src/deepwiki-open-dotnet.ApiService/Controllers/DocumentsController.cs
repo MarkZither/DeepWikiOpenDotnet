@@ -182,6 +182,39 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
+    /// Returns one entry per repository URL with the count of indexed files.
+    /// Used by the Web UI Document Collections dropdown.
+    /// </summary>
+    [HttpGet("collections")]
+    [ProducesResponseType(typeof(DocumentCollectionResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetCollections(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var summaries = await _repository.GetCollectionSummariesAsync(cancellationToken);
+
+            var collections = summaries.Select(s => new DocumentCollectionSummary
+            {
+                Id = s.RepoUrl,
+                Name = DeriveCollectionName(s.RepoUrl),
+                DocumentCount = s.DocumentCount
+            }).ToList();
+
+            return Ok(new DocumentCollectionResponse
+            {
+                Collections = collections,
+                TotalCount = collections.Count
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve document collections");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new ErrorResponse { Detail = "An unexpected error occurred while retrieving document collections." });
+        }
+    }
+
+    /// <summary>
     /// Retrieves a single document by its ID.
     /// </summary>
     /// <param name="id">Document ID (GUID)</param>
@@ -329,6 +362,23 @@ public class DocumentsController : ControllerBase
             IsCode = e.IsCode,
             TotalChunks = e.TotalChunks
         };
+    }
+
+    /// <summary>
+    /// Derives a human-readable display name from a repository URL.
+    /// E.g. "https://github.com/org/repo" → "org/repo"
+    /// </summary>
+    private static string DeriveCollectionName(string repoUrl)
+    {
+        if (Uri.TryCreate(repoUrl, UriKind.Absolute, out var uri))
+        {
+            // Strip leading slash and return the path, e.g. "/org/repo" → "org/repo"
+            var path = uri.AbsolutePath.TrimStart('/');
+            if (!string.IsNullOrEmpty(path))
+                return path;
+        }
+
+        return repoUrl;
     }
 
     /// <summary>

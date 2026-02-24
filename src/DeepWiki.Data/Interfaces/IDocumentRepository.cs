@@ -134,4 +134,14 @@ public interface IDocumentRepository
     Task<bool> ExistsAsync(
         Guid id,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns one summary entry per distinct repository URL, with the count
+    /// of documents (ChunkIndex == 0 rows, i.e. distinct files) in each.
+    /// Used by GET /api/documents/collections.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>List of (RepoUrl, DocumentCount) tuples, ordered by RepoUrl.</returns>
+    Task<List<(string RepoUrl, int DocumentCount)>> GetCollectionSummariesAsync(
+        CancellationToken cancellationToken = default);
 }

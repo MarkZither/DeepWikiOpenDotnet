@@ -136,4 +136,17 @@ public class SqlServerDocumentRepository : IDocumentRepository
         return await _context.Documents
             .AnyAsync(d => d.Id == id, cancellationToken);
     }
+
+    public async Task<List<(string RepoUrl, int DocumentCount)>> GetCollectionSummariesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await _context.Documents
+            .Where(d => d.ChunkIndex == 0)
+            .GroupBy(d => d.RepoUrl)
+            .Select(g => new { RepoUrl = g.Key, DocumentCount = g.Count() })
+            .OrderBy(g => g.RepoUrl)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(g => (g.RepoUrl, g.DocumentCount)).ToList();
+    }
 }

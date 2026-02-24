@@ -114,6 +114,8 @@ public class DocumentsControllerListTests : IClassFixture<ApiTestFixture>
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, bool firstChunkOnly = false, CancellationToken cancellationToken = default)
             => Task.FromResult((_items, _total));
+        public Task<List<(string RepoUrl, int DocumentCount)>> GetCollectionSummariesAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new List<(string RepoUrl, int DocumentCount)>());
     }
 
     private class CapturingMockRepository : IDocumentRepository
@@ -140,5 +142,7 @@ public class DocumentsControllerListTests : IClassFixture<ApiTestFixture>
             _onCapture(repoUrl);
             return Task.FromResult((_items, _total));
         }
+        public Task<List<(string RepoUrl, int DocumentCount)>> GetCollectionSummariesAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new List<(string RepoUrl, int DocumentCount)>());
     }
 }

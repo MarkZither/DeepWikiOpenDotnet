@@ -192,6 +192,9 @@ public class Program
         var configuredProviders = builder.Configuration.GetSection("Generation:Providers").Get<string[]>() ?? Array.Empty<string>();
         if (configuredProviders.Any(p => p.Equals("Ollama", StringComparison.OrdinalIgnoreCase)))
         {
+            // RemoveAllResilienceHandlers is marked [Experimental] (EXTEXP0001) but is the
+            // documented pattern for replacing the global Aspire pipeline with a custom one.
+#pragma warning disable EXTEXP0001
             builder.Services.AddHttpClient<DeepWiki.Rag.Core.Providers.OllamaProvider>((sp, client) =>
             {
                 var cfg = sp.GetRequiredService<IConfiguration>();
@@ -200,7 +203,10 @@ public class Program
                 // Set a long timeout for local Ollama models which can take minutes to process
                 client.Timeout = TimeSpan.FromMinutes(10);
             })
-            .ConfigureHttpClient(_ => { }) // no-op — timeout set above
+            // Remove the global 30s Aspire pipeline added by ConfigureHttpClientDefaults
+            // in ServiceDefaults before adding our own. Without this the two pipelines
+            // stack: the global one fires first and kills Ollama requests at 30 seconds.
+            .RemoveAllResilienceHandlers()
             .AddStandardResilienceHandler(options =>
             {
                 // Local Ollama can take 60-120s per request — override the Aspire default of 30s
@@ -210,6 +216,7 @@ public class Program
                 // SamplingDuration must be >= 2× AttemptTimeout per Polly validation
                 options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(5);
             });
+#pragma warning restore EXTEXP0001
             builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
             {
                 var cfg = sp.GetRequiredService<IConfiguration>();
@@ -227,6 +234,8 @@ public class Program
         // Only register if configured in Generation:Providers list
         if (configuredProviders.Any(p => p.Equals("OpenAI", StringComparison.OrdinalIgnoreCase)))
         {
+            // RemoveAllResilienceHandlers is marked [Experimental] (EXTEXP0001) — see OllamaProvider above.
+#pragma warning disable EXTEXP0001
             builder.Services.AddHttpClient("OpenAIProvider", (sp, client) =>
             {
                 var cfg = sp.GetRequiredService<IConfiguration>();
@@ -235,6 +244,8 @@ public class Program
                 // Allow long-running requests for local models
                 client.Timeout = TimeSpan.FromMinutes(10);
             })
+            // Remove the global 30s Aspire pipeline (same reason as OllamaProvider above)
+            .RemoveAllResilienceHandlers()
             .AddStandardResilienceHandler(options =>
             {
                 var localModelTimeout = TimeSpan.FromMinutes(2);
@@ -242,6 +253,7 @@ public class Program
                 options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(10);
                 options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(5);
             });
+#pragma warning restore EXTEXP0001
 
             builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
             {

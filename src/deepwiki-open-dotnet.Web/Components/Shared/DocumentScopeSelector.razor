@@ -1,8 +1,10 @@
 @using deepwiki_open_dotnet.Web.Models
 @using deepwiki_open_dotnet.Web.Services
 @using MudBlazor
+@using Microsoft.Extensions.Logging
 @inject ChatApiClient ChatApi
 @inject ChatStateService ChatState
+@inject ILogger<DocumentScopeSelector> Logger
 
 <div class="document-scope-selector">
     <MudSelect T="DocumentCollectionModel"
@@ -43,9 +45,9 @@
             var result = await ChatApi.GetCollectionsAsync();
             _collections = result.Collections;
         }
-        catch
+        catch (Exception ex)
         {
-            // Silently fall back to empty list – user can still chat with all documents
+            Logger.LogError(ex, "Failed to load document collections; the dropdown will be empty");
             _collections = new List<DocumentCollectionModel>();
         }
     }

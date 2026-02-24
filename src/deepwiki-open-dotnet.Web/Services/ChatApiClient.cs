@@ -31,11 +31,11 @@ public class ChatApiClient
         => _httpClient.PostAsJsonAsync("/api/generation/stream", request, cancellationToken);
 
     /// <summary>
-    /// Fetches available document collections from GET /api/documents.
+    /// Fetches available document collections from GET /api/documents/collections.
     /// </summary>
     public async Task<DocumentListResponseDto> GetCollectionsAsync(CancellationToken cancellationToken = default)
     {
-        var result = await _httpClient.GetFromJsonAsync<DocumentListResponseDto>("/api/documents", cancellationToken).ConfigureAwait(false);
+        var result = await _httpClient.GetFromJsonAsync<DocumentListResponseDto>("/api/documents/collections", cancellationToken).ConfigureAwait(false);
         return result ?? new DocumentListResponseDto();
     }
 }
