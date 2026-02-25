@@ -25,7 +25,7 @@ public class DocumentScopeSelectorTests
         {
             Content = new StringContent(collectionsJson, Encoding.UTF8, "application/json")
         }));
-        return new ChatApiClient(new HttpClient(handler) { BaseAddress = new Uri("https+http://apiservice") });
+        return new ChatApiClient(new HttpClient(handler) { BaseAddress = new Uri("https+http://apiservice") }, Microsoft.Extensions.Logging.Abstractions.NullLogger<deepwiki_open_dotnet.Web.Services.ChatApiClient>.Instance);
     }
 
     /// <summary>

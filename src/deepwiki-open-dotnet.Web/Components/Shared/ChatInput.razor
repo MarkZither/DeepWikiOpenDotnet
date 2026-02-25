@@ -2,24 +2,101 @@
 @inject ChatStateService ChatState
 @namespace deepwiki_open_dotnet.Web.Components.Shared
 
-<input id="chat-input" class="form-control w-100" @bind="InputText" placeholder="Ask a question..." />
-<button id="send-btn" class="btn btn-primary mt-2" disabled="@IsDisabled" @onclick="OnSendClicked">Send</button>
+<div class="chat-input-container" role="group" aria-label="Chat message input">
+    @if (!string.IsNullOrEmpty(_validationError))
+    {
+        <div class="text-danger small mb-1" role="alert" aria-live="polite">@_validationError</div>
+    }
+    <textarea id="chat-input"
+              class="form-control w-100"
+              rows="2"
+              placeholder="Ask a question… (Enter to send, Shift+Enter for new line)"
+              maxlength="@MaxLength"
+              disabled="@IsDisabled"
+              aria-label="Chat message input"
+              aria-disabled="@IsDisabled"
+              aria-multiline="true"
+              @bind="InputText"
+              @bind:event="oninput"
+              @onkeydown="HandleKeyDown" />
+    <div class="d-flex justify-content-between align-items-center mt-1">
+        <span class="small text-muted" aria-live="polite" aria-atomic="true">
+            @InputText.Length / @MaxLength
+        </span>
+        <button id="send-btn"
+                class="btn btn-primary btn-sm"
+                disabled="@IsDisabled"
+                aria-label="Send message"
+                @onclick="OnSendClicked">
+            Send
+        </button>
+    </div>
+</div>
 
 @code {
-    private string InputText { get; set; } = string.Empty;
+    private const int MaxLength = 2000;
+
+    /// <summary>Characters not permitted in the input (prevents script/injection).</summary>
+    private static readonly System.Text.RegularExpressions.Regex DangerousChars =
+        new System.Text.RegularExpressions.Regex(@"[<>]", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private string _inputText = string.Empty;
+    private string _validationError = string.Empty;
+
+    private string InputText
+    {
+        get => _inputText;
+        set
+        {
+            // T060: enforce max length and strip dangerous chars
+            if (value.Length > MaxLength)
+                value = value[..MaxLength];
+            if (DangerousChars.IsMatch(value))
+            {
+                _validationError = "Characters < and > are not allowed.";
+                value = DangerousChars.Replace(value, string.Empty);
+            }
+            else
+            {
+                _validationError = string.Empty;
+            }
+            _inputText = value;
+        }
+    }
 
     [Parameter]
     public EventCallback<string> OnSubmit { get; set; }
 
     private bool IsDisabled => ChatState.IsGenerating;
 
+    /// <summary>T058: Enter = submit, Shift+Enter = newline, Esc = clear.</summary>
+    private async Task HandleKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            // Prevent the default newline; submit the message
+            await OnSendClicked();
+        }
+        else if (e.Key == "Escape")
+        {
+            InputText = string.Empty;
+            _validationError = string.Empty;
+        }
+        // Shift+Enter: browser inserts newline naturally in textarea; no action needed
+    }
+
     private async Task OnSendClicked()
     {
         if (string.IsNullOrWhiteSpace(InputText))
             return; // prevent empty submissions
 
-        // raise event for parent to handle (Chat.razor will send to API)
-        await OnSubmit.InvokeAsync(InputText);
+        if (!string.IsNullOrEmpty(_validationError))
+            return; // block while validation error is present
+
+        var text = InputText.Trim();
         InputText = string.Empty;
+        _validationError = string.Empty;
+
+        await OnSubmit.InvokeAsync(text);
     }
 }

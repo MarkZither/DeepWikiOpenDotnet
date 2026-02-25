@@ -3,10 +3,13 @@
 @using MudBlazor
 @inject MarkdownPipeline MarkdownPipeline
 
-<div class="chat-message paper @RoleClass" id="@MessageId">
+<div class="chat-message paper @RoleClass" id="@MessageId"
+     role="article"
+     aria-label="@($"{RoleLabel} message at {Message.Timestamp.ToLocalTime():t}")"
+     aria-busy="@Message.IsStreaming">
     <div class="message-header d-flex align-items-center mb-2">
-        <div class="me-2 avatar-placeholder">@RoleLabel</div>
-        <div class="text-muted small">@Message.Timestamp.ToLocalTime().ToString("t")</div>
+        <div class="me-2 avatar-placeholder" aria-hidden="true">@RoleLabel</div>
+        <div class="text-muted small" aria-label="Sent at @Message.Timestamp.ToLocalTime().ToString("t")">@Message.Timestamp.ToLocalTime().ToString("t")</div>
         @if (Message.Sources?.Count > 0)
         {
             <span class="grounded-badge badge ms-2"

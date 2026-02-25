@@ -156,4 +156,48 @@ public class ChatStateServiceTests
         Assert.DoesNotContain("old-1", svc.SelectedCollectionIds);
         Assert.Contains("new-1", svc.SelectedCollectionIds);
     }
+
+    /// <summary>
+    /// T065 / SC-002: Adding 50+ messages and performing state operations should complete well within 1 second
+    /// and show no degradation — the message list is a simple List&lt;T&gt; and does not copy on every add.
+    /// </summary>
+    [Fact]
+    public void Performance_50Plus_Messages_No_Degradation()
+    {
+        const int MessageCount = 60; // exceeds SC-002 threshold of 50
+        var svc = new ChatStateService();
+        var stateChangeCount = 0;
+        svc.StateChanged += () => stateChangeCount++;
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        // Add 60 alternating user/assistant messages
+        for (int i = 0; i < MessageCount; i++)
+        {
+            var role = i % 2 == 0 ? MessageRole.User : MessageRole.Assistant;
+            svc.AddMessage(new ChatMessageModel { Role = role, Text = $"Message {i}" });
+        }
+
+        // Simulate token streaming — 500 appends to the last message
+        for (int i = 0; i < 500; i++)
+        {
+            svc.UpdateLastMessage(m => m.Text += "token ");
+        }
+
+        sw.Stop();
+
+        // All messages must be present
+        Assert.Equal(MessageCount, svc.Messages.Count);
+
+        // The last message text was accumulated via UpdateLastMessage
+        Assert.Contains("token", svc.Messages[^1].Text);
+
+        // StateChanged fired for each AddMessage + UpdateLastMessage call
+        Assert.Equal(MessageCount + 500, stateChangeCount);
+
+        // Performance: all operations must complete well under 500 ms (generous upper bound for CI)
+        Assert.True(sw.ElapsedMilliseconds < 500,
+            $"Performance test exceeded 500 ms threshold (took {sw.ElapsedMilliseconds} ms). " +
+            "Possible regression in ChatStateService message management.");
+    }
 }

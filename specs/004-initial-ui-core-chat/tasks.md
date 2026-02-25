@@ -161,16 +161,16 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T056 [P] Add session creation logic: call POST /api/generation/session on Chat.razor mount, store session_id in ChatStateService
-- [ ] T057 [P] Update ChatApiClient to include session_id and context (previous messages) in GenerationRequestDto for multi-turn conversations per FR-017
-- [ ] T058 [P] Add keyboard shortcuts: Enter to submit in ChatInput.razor, Shift+Enter for new line, Esc to clear input
-- [ ] T059 [P] Add token batching (50ms windows) in Chat.razor to batch rapid NDJSON tokens before triggering StateHasChanged for performance
-- [ ] T060 [P] Add input validation in ChatInput.razor: max length 2000 chars, prevent special character injection
-- [ ] T061 [P] Add accessibility attributes to Chat.razor components: aria-labels, roles, live regions for streaming content
-- [ ] T062 [P] Add logging for streaming failures, API errors, and session lifecycle in ChatApiClient.cs
-- [ ] T063 Update project README.md with quickstart instructions referencing `specs/004-initial-ui-core-chat/quickstart.md`
-- [ ] T064 Run through quickstart.md validation scenarios: basic chat, document query, collection selection, clear history
-- [ ] T065 [P] Performance validation: test 50+ message conversation per SC-002, verify no degradation
+- [X] T056 [P] Add session creation logic: call POST /api/generation/session on Chat.razor mount, store session_id in ChatStateService
+- [X] T057 [P] Update ChatApiClient to include session_id and context (previous messages) in GenerationRequestDto for multi-turn conversations per FR-017
+- [X] T058 [P] Add keyboard shortcuts: Enter to submit in ChatInput.razor, Shift+Enter for new line, Esc to clear input
+- [X] T059 [P] Add token batching (50ms windows) in Chat.razor to batch rapid NDJSON tokens before triggering StateHasChanged for performance
+- [X] T060 [P] Add input validation in ChatInput.razor: max length 2000 chars, prevent special character injection
+- [X] T061 [P] Add accessibility attributes to Chat.razor components: aria-labels, roles, live regions for streaming content
+- [X] T062 [P] Add logging for streaming failures, API errors, and session lifecycle in ChatApiClient.cs
+- [X] T063 Update project README.md with quickstart instructions referencing `specs/004-initial-ui-core-chat/quickstart.md`
+- [X] T064 Run through quickstart.md validation scenarios: basic chat, document query, collection selection, clear history
+- [X] T065 [P] Performance validation: test 50+ message conversation per SC-002, verify no degradation
 
 ---
 

@@ -23,7 +23,7 @@ public class ChatApiClientTests
         }));
 
         var http = new HttpClient(handler) { BaseAddress = new Uri("https+http://apiservice") };
-        var api = new ChatApiClient(http);
+        var api = new ChatApiClient(http, Microsoft.Extensions.Logging.Abstractions.NullLogger<deepwiki_open_dotnet.Web.Services.ChatApiClient>.Instance);
 
         var resp = await api.StreamGenerationAsync(new GenerationRequestDto { SessionId = Guid.NewGuid(), Prompt = "hi" });
 
@@ -41,7 +41,7 @@ public class ChatApiClientTests
         }));
 
         var http = new HttpClient(handler) { BaseAddress = new Uri("https+http://apiservice") };
-        var api = new ChatApiClient(http);
+        var api = new ChatApiClient(http, Microsoft.Extensions.Logging.Abstractions.NullLogger<deepwiki_open_dotnet.Web.Services.ChatApiClient>.Instance);
 
         var resp = await api.StreamGenerationAsync(new GenerationRequestDto { SessionId = Guid.NewGuid(), Prompt = "fail" });
 
@@ -59,7 +59,7 @@ public class ChatApiClientTests
         });
 
         var http = new HttpClient(handler) { BaseAddress = new Uri("https+http://apiservice") };
-        var api = new ChatApiClient(http);
+        var api = new ChatApiClient(http, Microsoft.Extensions.Logging.Abstractions.NullLogger<deepwiki_open_dotnet.Web.Services.ChatApiClient>.Instance);
 
         using var cts = new CancellationTokenSource();
         cts.CancelAfter(10); // cancel almost immediately
@@ -82,7 +82,7 @@ public class ChatApiClientTests
         });
 
         var http = new HttpClient(handler) { BaseAddress = new Uri("https+http://apiservice") };
-        var api = new ChatApiClient(http);
+        var api = new ChatApiClient(http, Microsoft.Extensions.Logging.Abstractions.NullLogger<deepwiki_open_dotnet.Web.Services.ChatApiClient>.Instance);
 
         var request = new GenerationRequestDto
         {
@@ -113,7 +113,7 @@ public class ChatApiClientTests
         });
 
         var http = new HttpClient(handler) { BaseAddress = new Uri("https+http://apiservice") };
-        var api = new ChatApiClient(http);
+        var api = new ChatApiClient(http, Microsoft.Extensions.Logging.Abstractions.NullLogger<deepwiki_open_dotnet.Web.Services.ChatApiClient>.Instance);
 
         await api.StreamGenerationAsync(new GenerationRequestDto { SessionId = Guid.NewGuid(), Prompt = "no filters" });
 
@@ -146,7 +146,7 @@ public class ChatApiClientTests
         });
 
         var http = new HttpClient(handler) { BaseAddress = new Uri("https+http://apiservice") };
-        var api = new ChatApiClient(http);
+        var api = new ChatApiClient(http, Microsoft.Extensions.Logging.Abstractions.NullLogger<deepwiki_open_dotnet.Web.Services.ChatApiClient>.Instance);
 
         var result = await api.GetCollectionsAsync();
 
@@ -170,7 +170,7 @@ public class ChatApiClientTests
         }));
 
         var http = new HttpClient(handler) { BaseAddress = new Uri("https+http://apiservice") };
-        var api = new ChatApiClient(http);
+        var api = new ChatApiClient(http, Microsoft.Extensions.Logging.Abstractions.NullLogger<deepwiki_open_dotnet.Web.Services.ChatApiClient>.Instance);
 
         var result = await api.GetCollectionsAsync();
 

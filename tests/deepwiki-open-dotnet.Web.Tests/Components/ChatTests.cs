@@ -46,7 +46,7 @@ public class ChatTests
             });
         });
         var http = new HttpClient(handler) { BaseAddress = new Uri("http://apiservice") };
-        ctx.Services.AddSingleton(new ChatApiClient(http));
+        ctx.Services.AddSingleton(new ChatApiClient(http, Microsoft.Extensions.Logging.Abstractions.NullLogger<deepwiki_open_dotnet.Web.Services.ChatApiClient>.Instance));
 
         IRenderedComponent<Chat>? cut = null;
         try
@@ -101,7 +101,7 @@ public class ChatTests
             });
         });
         var http = new HttpClient(handler) { BaseAddress = new Uri("http://apiservice") };
-        ctx.Services.AddSingleton(new ChatApiClient(http));
+        ctx.Services.AddSingleton(new ChatApiClient(http, Microsoft.Extensions.Logging.Abstractions.NullLogger<deepwiki_open_dotnet.Web.Services.ChatApiClient>.Instance));
 
         IRenderedComponent<Chat>? cut = null;
         try

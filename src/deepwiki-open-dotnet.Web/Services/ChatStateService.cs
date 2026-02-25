@@ -14,6 +14,9 @@ public class ChatStateService
 
     public bool IsGenerating { get; set; }
 
+    /// <summary>Session ID returned by POST /api/generation/session. Guid.Empty until a session is created.</summary>
+    public Guid SessionId { get; set; } = Guid.Empty;
+
     public HashSet<string> SelectedCollectionIds { get; } = new();
 
     /// <summary>
