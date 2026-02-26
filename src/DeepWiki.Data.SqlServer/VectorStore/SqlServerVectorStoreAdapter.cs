@@ -36,12 +36,13 @@ namespace DeepWiki.Data.SqlServer.VectorStore
             string? filePathFilter = null;
             if (filters != null && filters.TryGetValue("filePath", out var f)) filePathFilter = f;
 
-            var results = await _inner.QueryNearestAsync(new ReadOnlyMemory<float>(embedding), k, repoFilter, filePathFilter, cancellationToken);
+            var queryMemory = new ReadOnlyMemory<float>(embedding);
+            var results = await _inner.QueryNearestAsync(queryMemory, k, repoFilter, filePathFilter, cancellationToken);
 
             var list = results.Select(d => new VectorQueryResult
             {
                 Document = MapToAbstraction(d),
-                SimilarityScore = 0f
+                SimilarityScore = CosineSimilarity(queryMemory, d.Embedding ?? default)
             }).ToList().AsReadOnly();
 
             return list;
@@ -93,6 +94,24 @@ namespace DeepWiki.Data.SqlServer.VectorStore
                 ChunkIndex = e.ChunkIndex,
                 TotalChunks = e.TotalChunks
             };
+        }
+
+        private static float CosineSimilarity(ReadOnlyMemory<float> a, ReadOnlyMemory<float> b)
+        {
+            if (a.IsEmpty || b.IsEmpty) return 0f;
+            if (a.Length != b.Length) return 0f;
+            var aSpan = a.Span;
+            var bSpan = b.Span;
+            float dot = 0f, normA = 0f, normB = 0f;
+            for (int i = 0; i < aSpan.Length; i++)
+            {
+                dot += aSpan[i] * bSpan[i];
+                normA += aSpan[i] * aSpan[i];
+                normB += bSpan[i] * bSpan[i];
+            }
+            normA = MathF.Sqrt(normA);
+            normB = MathF.Sqrt(normB);
+            return (normA == 0 || normB == 0) ? 0f : dot / (normA * normB);
         }
 
         private static DeepWiki.Data.Entities.DocumentEntity MapToEntity(DocumentDto d)
