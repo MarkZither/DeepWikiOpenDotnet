@@ -2,6 +2,8 @@ using DeepWiki.ApiService.Models;
 using DeepWiki.ApiService.Tests.Api;
 using DeepWiki.Data.Abstractions;
 using DeepWiki.Data.Abstractions.Models;
+using DeepWiki.Data.Interfaces;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
@@ -176,17 +178,27 @@ public class QueryControllerTests : IClassFixture<ApiTestFixture>
         using var customFactory = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<DeepWiki.ApiService.Program>()
             .WithWebHostBuilder(builder =>
             {
+                builder.ConfigureAppConfiguration((context, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["ConnectionStrings:deepwikidb"] = "Host=localhost;Port=5432;Database=deepwiki_test;Username=test;Password=test",
+                        ["VectorStore:AutoMigrate"] = "false"
+                    });
+                });
+
                 builder.ConfigureServices(services =>
                 {
-                    // Remove production IVectorStore registration
-                    var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IVectorStore));
-                    if (descriptor != null)
+                    // Remove and replace all external-dependency services with test doubles
+                    foreach (var type in new[] { typeof(IVectorStore), typeof(IEmbeddingService), typeof(IDocumentRepository) })
                     {
-                        services.Remove(descriptor);
+                        var descriptors = services.Where(d => d.ServiceType == type).ToList();
+                        foreach (var d in descriptors) services.Remove(d);
                     }
 
-                    // Add mock that returns test data
                     services.AddScoped<IVectorStore>(_ => new MockVectorStore());
+                    services.AddSingleton<IEmbeddingService, DeepWiki.ApiService.Tests.TestUtilities.MockEmbeddingService>();
+                    services.AddScoped<IDocumentRepository, DeepWiki.ApiService.Tests.TestUtilities.MockDocumentRepository>();
                 });
             });
         

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using DeepWiki.Data.Abstractions;
@@ -19,6 +20,24 @@ public class ApiTestFixture : WebApplicationFactory<DeepWiki.ApiService.Program>
     /// </summary>
     protected override IHost CreateHost(IHostBuilder builder)
     {
+        // ConfigureAppConfiguration MUST be called directly on IHostBuilder here,
+        // not nested inside ConfigureServices. The auto-migration code in Program.cs
+        // runs right after builder.Build(), so configuration overrides must be in
+        // the IHostBuilder pipeline before the host is constructed.
+        builder.ConfigureAppConfiguration((context, config) =>
+        {
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                // Syntactically valid (but non-existent) Postgres connection string so
+                // NpgsqlDataSourceBuilder can parse it without throwing.
+                // No real connection is ever made — IVectorStore and IDocumentRepository
+                // are replaced by the mock registrations below.
+                ["ConnectionStrings:deepwikidb"] = "Host=localhost;Port=5432;Database=deepwiki_test;Username=test;Password=test",
+                // Disable EF auto-migration so the app never tries to connect to the fake DB at startup.
+                ["VectorStore:AutoMigrate"] = "false"
+            });
+        });
+
         builder.ConfigureServices(services =>
         {
             // Replace production registrations with test doubles.
@@ -31,12 +50,6 @@ public class ApiTestFixture : WebApplicationFactory<DeepWiki.ApiService.Program>
 
             RemoveAll<IDocumentRepository>(services);
             services.AddScoped<IDocumentRepository, MockDocumentRepository>();
-
-            // Override configuration for test environment
-            builder.ConfigureAppConfiguration((context, config) =>
-            {
-                // Tests can add in-memory configuration here if needed
-            });
         });
 
         return base.CreateHost(builder);
