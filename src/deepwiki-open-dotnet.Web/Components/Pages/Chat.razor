@@ -152,7 +152,7 @@
                     break;
                 }
 
-                if (delta.Done == true)
+                if (delta.Type == "done")
                 {
                     FlushTokenBuffer();
                     ChatState.UpdateLastMessage(m => m.IsStreaming = false);
@@ -164,6 +164,12 @@
                     break;
                 }
             }
+
+            // Safety net: if the stream ended without a done or error event (e.g. connection
+            // reset or provider closed cleanly without emitting done), make sure the cursor
+            // and generating state are cleared so the UI doesn't appear permanently frozen.
+            FlushTokenBuffer();
+            ChatState.UpdateLastMessage(m => { if (m.IsStreaming) m.IsStreaming = false; });
         }
         catch (OperationCanceledException)
         {

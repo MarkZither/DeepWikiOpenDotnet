@@ -200,8 +200,11 @@ public class Program
                 var cfg = sp.GetRequiredService<IConfiguration>();
                 var endpoint = cfg.GetValue<string>("Embedding:Ollama:Endpoint") ?? "http://localhost:11434";
                 client.BaseAddress = new Uri(endpoint);
-                // Set a long timeout for local Ollama models which can take minutes to process
-                client.Timeout = TimeSpan.FromMinutes(10);
+                // Disable the HttpClient hard deadline — the OllamaProvider manages its own
+                // per-token stall timeout via CancellationTokenSource.CancelAfter, which
+                // resets on every received chunk.  A fixed HttpClient timeout would race
+                // against that mechanism and kill long (but healthy) reasoning-model responses.
+                client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
             })
             // Remove the global 30s Aspire pipeline added by ConfigureHttpClientDefaults
             // in ServiceDefaults before adding our own. Without this the two pipelines
