@@ -2,6 +2,7 @@
 @using Markdig
 @using MudBlazor
 @inject MarkdownPipeline MarkdownPipeline
+@inject IJSRuntime JS
 
 <div class="chat-message paper @RoleClass" id="@MessageId"
      role="article"
@@ -35,7 +36,7 @@
         }
         else
         {
-            @((MarkupString)Markdig.Markdown.ToHtml(Message.Text ?? string.Empty, MarkdownPipeline))
+            @((MarkupString)Markdig.Markdown.ToHtml(PreprocessMath(Message.Text), MarkdownPipeline))
         }
     </div>
 
@@ -73,4 +74,37 @@
     private string RoleClass => Message.Role == MessageRole.User ? "message-user text-end" : "message-assistant text-start";
     private string RoleLabel => Message.Role == MessageRole.User ? "You" : "Assistant";
     private string MessageId => $"message-{Message.Id}";
+
+    // Track previous streaming state so we call KaTeX exactly once -
+    // on the render where IsStreaming flips true->false, or on first render if already done.
+    private bool _wasStreaming = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var justFinished = _wasStreaming && !Message.IsStreaming;
+        _wasStreaming = Message.IsStreaming;
+
+        if (!Message.IsStreaming && (firstRender || justFinished))
+        {
+            await JS.InvokeVoidAsync("chat.renderMathInElement", MessageId);
+        }
+    }
+
+    /// <summary>
+    /// Wraps bare LaTeX commands that are not already inside math delimiters so that
+    /// Markdig and KaTeX can render them. Reasoning models like phi4-mini-reasoning
+    /// often emit <c>\boxed{answer}</c> without surrounding dollar signs.
+    /// </summary>
+    private static string PreprocessMath(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+
+        // Wrap \boxed{...} (one level of nested braces) when not already inside a
+        // math delimiter ($, \(, \[). Converts to $$\boxed{...}$$ (display math).
+        return System.Text.RegularExpressions.Regex.Replace(
+            text,
+            @"(?<![\$\\(\[])\\boxed(\{(?:[^{}]|\{[^{}]*\})*\})",
+            @"$$\boxed$1$$"
+        );
+    }
 }

@@ -1,6 +1,7 @@
 using deepwiki_open_dotnet.Web;
 using deepwiki_open_dotnet.Web.Components;
 using deepwiki_open_dotnet.Web.Services;
+using Markdig;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.Extensions.Http.Resilience;
 using MudBlazor.Services;
@@ -72,7 +73,12 @@ builder.Services.AddHttpClient<DocumentsApiClient>(client =>
 builder.Services.AddScoped<CircuitHandler, CircuitErrorLogger>();
 
 // Markdown rendering pipeline for ChatMessage (Markdig)
-builder.Services.AddSingleton(new Markdig.MarkdownPipelineBuilder().Build());
+// UseAdvancedExtensions includes GFM tables, task lists, etc.
+// UseMathematics() adds $...$ (inline) and $$...$$ (block) parsing so KaTeX can render them.
+builder.Services.AddSingleton(new Markdig.MarkdownPipelineBuilder()
+    .UseAdvancedExtensions()
+    .UseMathematics()
+    .Build());
 
 builder.Services.AddHttpClient<WeatherApiClient>(client =>
     {
