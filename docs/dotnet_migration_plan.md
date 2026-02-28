@@ -163,16 +163,16 @@ Use EF Core `FromSqlInterpolated` to run this safely and map results to `Documen
 
 ## Migration checklist and milestones
 
-1. Draft plan & repo skeleton (this file) — **1–2 days**
-2. EF Core model + migrations, DB setup scripts (SQL for vector index) — **2–4 days**
-3. Implement `IVectorStore` (SQL Server) + unit tests — **4–7 days**
-4. Embedding service & tokenizer + end-to-end ingestion pipeline — **3–5 days**
-5. Agent orchestration mapping & basic flow with a single provider — **4–7 days**
-6. Streaming endpoints + SignalR WebSocket implementation — **2–4 days**
-7. Integration tests + performance tuning — **3–7 days**
-8. Documentation, deployment manifests, and cut-over plan — **2–3 days**
+1. ~~Draft plan & repo skeleton (this file) — **1–2 days**~~ ✅ Complete
+2. ~~EF Core model + migrations, DB setup scripts (SQL for vector index) — **2–4 days**~~ ✅ Complete (Postgres + SQL Server dual-provider)
+3. ~~Implement `IVectorStore` (SQL Server) + unit tests — **4–7 days**~~ ✅ Complete (+ Postgres pgvector)
+4. ~~Embedding service & tokenizer + end-to-end ingestion pipeline — **3–5 days**~~ ✅ Complete (3 providers, tiktoken, full pipeline)
+5. ~~Agent orchestration mapping & basic flow with a single provider — **4–7 days**~~ ✅ Complete (RagService + Ollama + OpenAI-compat)
+6. ~~Streaming endpoints + SignalR WebSocket implementation — **2–4 days**~~ ✅ Complete (NDJSON + SignalR hub)
+7. ~~Integration tests + performance tuning — **3–7 days**~~ ✅ Substantially complete (91 test files)
+8. Documentation, deployment manifests, and cut-over plan — **2–3 days** ⬜ Pending
 
-Total rough estimate: 4–8 weeks depending on team size and parallelization.
+**Original milestones 1–7 are complete.** See the **Revised Roadmap** in the "Next steps" section below for the forward-looking plan covering wiki, deep research, collection management, GraphRAG, model routing, podcast generation, and SCORM output.
 
 ---
 
@@ -185,11 +185,108 @@ Total rough estimate: 4–8 weeks depending on team size and parallelization.
 
 ---
 
-## Next steps
+## Completed milestones (as of 2026-03-01)
 
-- Implement prototype `DocumentEntity`, `RAGDbContext`, and a minimal `SqlServerVectorStore` with sample query and migration.
-- Build integration tests verifying retrieval accuracy on a small sample dataset.
-- Map `adalflow` flows into MAF components with a simple agent proof-of-concept.
+The following items from the original migration checklist are **done**:
+
+- ✅ **Milestone 1** — Plan & repo skeleton
+- ✅ **Milestone 2** — EF Core model + migrations (Postgres pgvector + SQL Server 2025 dual-provider)
+- ✅ **Milestone 3** — `IVectorStore` implementations (SQL Server `VECTOR_DISTANCE`, Postgres `<=>` cosine, HNSW index)
+- ✅ **Milestone 4** — Embedding service (OpenAI, Azure/Foundry, Ollama), tiktoken tokenization, full ingestion pipeline with chunking, retry, caching
+- ✅ **Milestone 5** — `RagService` with multi-provider streaming, circuit breaker, stall timeout, idempotency
+- ✅ **Milestone 6** — NDJSON HTTP streaming endpoint + SignalR `GenerationHub` + session management
+- ✅ **Milestone 7 (partial)** — 91 test files across 7 projects (unit, integration, bunit, Testcontainers, performance)
+- ✅ **Blazor UI** — RAG chat with streaming + multi-turn + citations + Markdown/KaTeX, document library with pagination/filter/delete, folder-based ingestion wizard
+- ✅ **Infra** — Rate limiting, OTel metrics (TTF, tokens/sec), Prometheus endpoint, Polly resilience throughout
+
+---
+
+## Next steps — Revised Roadmap
+
+The following phases are ordered by business priority. Git integration and additional LLM provider parity are deferred — the current Ollama + OpenAI-compatible provider coverage is sufficient for near-term use.
+
+### Phase 1 — Wiki System (High Priority)
+
+Build the wiki cache, generation, and export features that form the core product experience.
+
+1. **`IWikiCacheService`** — CRUD for wiki structures (pages, sections, rootSections) per repo/collection. Use EF Core persistence with a `WikiEntity` + `WikiPageEntity` model (prefer DB over file-based cache for consistency with the existing data layer).
+2. **Wiki API endpoints**:
+   - `GET /api/wiki/{repoOrCollection}` — retrieve cached wiki data
+   - `POST /api/wiki` — store generated wiki structure + pages
+   - `DELETE /api/wiki/{repoOrCollection}` — delete a wiki entry
+   - `GET /api/wiki/projects` — list all cached wiki projects with metadata
+3. **Wiki export** — `POST /api/wiki/export` returning Markdown or JSON file download with TOC, page content, related-page links, and `Content-Disposition` header.
+4. **Blazor Wiki page** — browse cached wiki projects, view generated pages with Markdown rendering, trigger wiki generation from a collection, navigate between pages/sections.
+5. **Tests**: wiki service unit tests, export format tests, Blazor component tests (bunit).
+
+### Phase 2 — Deep Research & Prompt Templates (High Priority)
+
+Enable the multi-turn iterative research workflow and externalise prompt management.
+
+6. **`IPromptTemplateService`** — load and render prompt templates with variable substitution (language, conversation history, context documents, user query). Port the 5 Python templates: RAG system prompt, RAG user prompt, Simple Chat, Deep Research Plan, Deep Research Update, Deep Research Conclusion.
+7. **Deep Research orchestration** — detect `[DEEP RESEARCH]` prefix in user prompts, execute a multi-turn pipeline (iteration 1: Research Plan → iterations 2–4: Research Update with progressive deepening → iteration 5+: Final Conclusion/synthesis), stream deltas from each iteration to the client.
+8. **File-scoped query support** — when a `filePath` is provided in the generation request, fetch the file content from the collection and inject it into the RAG context for focused answers.
+9. **Blazor Deep Research UX** — visual indicator for research phase (plan → researching → conclusion), progress through iterations, collapsible iteration history.
+10. **Tests**: prompt template rendering tests, Deep Research orchestration tests (mock provider, verify iteration sequencing and delta streaming), file-scoped query integration tests.
+
+### Phase 3 — Arbitrary File & Content Ingestion (High Priority)
+
+Allow users to add product documentation, Azure DevOps work items, and other arbitrary content to collections for enhanced RAG context.
+
+11. **Collection model** — formalise `Collection` as a first-class entity (name, description, owner, source type: `repo | upload | azuredevops | url`). Add `CollectionEntity` + EF migration.
+12. **Arbitrary file upload endpoint** — `POST /api/collections/{id}/documents/upload` accepting multipart file uploads (PDF, Markdown, Word, plain text, HTML). Parse and chunk each file type with appropriate extractors.
+13. **URL content ingestion** — `POST /api/collections/{id}/documents/url` accepting a URL; fetch, extract readable content (HTML → text), chunk, embed, and upsert.
+14. **Azure DevOps integration** — `POST /api/collections/{id}/documents/azuredevops` accepting an ADO org/project/query; fetch work items (user stories, bugs, tasks, epics) via the Azure DevOps REST API, convert to text, chunk, embed, upsert. Support WIQL queries for flexible item selection.
+15. **Blazor Collection Manager** — UI for creating/managing collections, uploading files, pasting URLs, connecting ADO projects. Show ingestion progress and document counts per source type.
+16. **Tests**: file-type parser tests (PDF, DOCX, HTML extraction), collection CRUD tests, ADO client mock tests.
+
+### Phase 4 — GraphRAG & Code Graph RAG (Medium Priority)
+
+Improve retrieval relevance by adding graph-based knowledge representations alongside vector search.
+
+17. **Knowledge graph extraction** — build an `IGraphExtractor` that processes ingested documents to extract entities (concepts, classes, functions, APIs) and relationships. Store as a lightweight graph model in the DB (nodes + edges tables) or use a graph-aware index.
+18. **Code graph construction** — for code files, parse AST/symbol information to build a code graph (call graphs, inheritance, module dependencies). Use Roslyn for C#, tree-sitter or similar for other languages. Store relationships as graph edges linked to document chunks.
+19. **Hybrid retrieval** — extend `RagService` to combine vector similarity search with graph traversal (e.g., retrieve neighbours of top-K hits, follow call-graph edges for code questions). Implement a `IRetrievalStrategy` abstraction with `VectorOnly`, `GraphOnly`, and `Hybrid` modes.
+20. **Graph-aware prompt enrichment** — include graph context (related entities, dependency paths) in the generation prompt to improve answer grounding.
+21. **Tests**: graph extraction unit tests, hybrid retrieval accuracy benchmarks, code graph parser tests.
+
+### Phase 5 — Dynamic Model Routing (Medium Priority)
+
+Intelligently select the best model for each query based on complexity, domain, and cost.
+
+22. **`IModelRouter`** — classify incoming prompts (complexity, domain, code vs prose, language) and route to the optimal model/provider. Implement rules-based routing first (e.g., simple factual → small/fast model, deep research → large model, code → code-specialised model).
+23. **Cost & latency tracking** — extend `GenerationMetrics` to record per-model cost estimates and latency percentiles. Surface in observability dashboard.
+24. **Routing configuration** — admin-configurable routing rules in `appsettings.json` or a `routing.json` config file (model preferences per query type, cost budgets, fallback chains).
+25. **Tests**: routing classification unit tests, cost tracking integration tests.
+
+### Phase 6 — Podcast Generation (Lower Priority)
+
+Generate NotebookLM-style audio podcasts from wiki topics and user search history.
+
+26. **`IPodcastService`** — given a set of wiki pages or search results, generate a conversational podcast script (two-speaker dialogue format) using the LLM. Apply a podcast-specific prompt template with speaker roles, topic transitions, and summary/recap structure.
+27. **Text-to-speech integration** — integrate with Azure Cognitive Services Speech SDK (or similar TTS provider) to convert the podcast script to audio. Support multiple voice profiles for the two-speaker format.
+28. **Podcast API** — `POST /api/podcasts/generate` accepting topic/collection/search-context, returning a podcast job ID. `GET /api/podcasts/{id}` to retrieve status and download the audio file when ready.
+29. **Blazor Podcast UI** — trigger podcast generation from wiki pages or search results, show generation progress, inline audio player for playback.
+30. **Tests**: podcast script generation tests (verify dialogue structure, speaker alternation), TTS integration tests.
+
+### Phase 7 — SCORM Package Generation for Workday Learning (Lower Priority)
+
+Produce SCORM-compliant learning packages from wiki topics for import into Workday Learning.
+
+31. **`IScormPackageService`** — given wiki pages, generate a SCORM 1.2 or SCORM 2004 package. Structure content as a multi-page course with: learning objectives (derived from wiki section headings), content pages (wiki content rendered as HTML), knowledge-check questions (LLM-generated from the content), and a completion quiz.
+32. **SCORM manifest generation** — produce `imsmanifest.xml` with proper organization, resource, and sequencing elements. Package all HTML content, CSS, JavaScript (SCORM API wrapper), and media assets into a conformant ZIP.
+33. **Quiz generation** — use the LLM to generate multiple-choice and true/false questions from wiki content. Include distractors, correct-answer explanations, and map to learning objectives.
+34. **SCORM API wrapper** — include a lightweight JavaScript SCORM runtime communication layer (`SCORMAdapter.js`) that handles `LMSInitialize`, `LMSSetValue` (score, completion status, suspend data), and `LMSFinish` for Workday Learning compatibility.
+35. **SCORM API endpoints** — `POST /api/scorm/generate` accepting wiki topic/collection ID and course metadata (title, description, passing score). `GET /api/scorm/{id}` to download the generated `.zip` package.
+36. **Blazor SCORM UI** — configure course parameters (title, passing score, question count), select wiki topics to include, preview course structure, download the SCORM package.
+37. **Tests**: SCORM manifest XML validation tests, quiz generation quality tests, SCORM package structure conformance tests (validate against SCORM spec), Workday Learning import smoke test documentation.
+
+### Quick Wins (Do Anytime)
+
+38. **Wire `SecurityHeadersMiddleware`** — add `app.UseSecurityHeaders()` to the API pipeline.
+39. **Register `SessionCleanupService`** — add `builder.Services.AddHostedService<SessionCleanupService>()`.
+40. **Replace template pages** — remove Counter/Weather scaffolding, add a proper home page with project overview and navigation to Wiki, Chat, and Documents.
+41. **Add root health check** — `GET /health` returning service info, timestamp, and component health.
 
 ---
 
