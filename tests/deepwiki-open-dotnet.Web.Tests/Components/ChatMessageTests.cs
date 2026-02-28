@@ -16,6 +16,7 @@ public class ChatMessageTests
     public async Task ChatMessage_Displays_Source_Citations_With_Clickable_Links()
     {
         await using var ctx = new BunitContext();
+        ctx.JSInterop.SetupVoid("chat.renderMathInElement", _ => true);
         ctx.Services.AddMudServices();
         ctx.Services.AddSingleton(new Markdig.MarkdownPipelineBuilder().Build());
 
@@ -45,6 +46,7 @@ public class ChatMessageTests
     public void ChatMessage_No_Sources_Section_When_Empty()
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupVoid("chat.renderMathInElement", _ => true);
         ctx.Services.AddSingleton(new Markdig.MarkdownPipelineBuilder().Build());
 
         var message = new ChatMessageModel
@@ -63,6 +65,7 @@ public class ChatMessageTests
     public async Task ChatMessage_Shows_Grounded_Badge_When_Sources_Present()
     {
         await using var ctx = new BunitContext();
+        ctx.JSInterop.SetupVoid("chat.renderMathInElement", _ => true);
         ctx.Services.AddMudServices();
         ctx.Services.AddSingleton(new Markdig.MarkdownPipelineBuilder().Build());
 
@@ -83,6 +86,7 @@ public class ChatMessageTests
     public void ChatMessage_No_Grounded_Badge_Without_Sources()
     {
         using var ctx = new BunitContext();
+        ctx.JSInterop.SetupVoid("chat.renderMathInElement", _ => true);
         ctx.Services.AddSingleton(new Markdig.MarkdownPipelineBuilder().Build());
 
         var message = new ChatMessageModel
@@ -101,6 +105,7 @@ public class ChatMessageTests
     public async Task ChatMessage_Source_Citations_Show_Relevance_Score()
     {
         await using var ctx = new BunitContext();
+        ctx.JSInterop.SetupVoid("chat.renderMathInElement", _ => true);
         ctx.Services.AddMudServices();
         ctx.Services.AddSingleton(new Markdig.MarkdownPipelineBuilder().Build());
 
