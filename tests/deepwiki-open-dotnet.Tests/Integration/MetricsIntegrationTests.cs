@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
+using DeepWiki.ApiService.Tests.TestUtilities;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
@@ -12,16 +13,18 @@ using Xunit;
 namespace DeepWiki.ApiService.Tests.Integration
 {
 #pragma warning disable xUnit1051
-    public class MetricsIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+    public class MetricsIntegrationTests : IClassFixture<IntegrationTestFixture>
     {
 #pragma warning restore xUnit1051
         private readonly WebApplicationFactory<Program> _factory;
 
-        public MetricsIntegrationTests(WebApplicationFactory<Program> factory)
+        public MetricsIntegrationTests(IntegrationTestFixture factory)
         {
+            // Derive a factory that adds a fast provider for predictable token counts.
+            // IntegrationTestFixture.CreateHost already handles the connection string,
+            // AutoMigrate=false, and mock service registrations.
             _factory = factory.WithWebHostBuilder(builder =>
             {
-                // Register a fast provider for predictable token counts
                 builder.ConfigureServices(services =>
                 {
                     services.AddSingleton<DeepWiki.Rag.Core.Providers.IModelProvider>(new FastTestProvider());

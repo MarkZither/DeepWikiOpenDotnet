@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using DeepWiki.ApiService.Tests.TestUtilities;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -7,20 +8,13 @@ using Xunit;
 
 namespace DeepWiki.ApiService.Tests.Integration;
 
-public class PrometheusExportTests : IClassFixture<WebApplicationFactory<Program>>
+public class PrometheusExportTests : IClassFixture<IntegrationTestFixture>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly IntegrationTestFixture _factory;
 
-    public PrometheusExportTests(WebApplicationFactory<Program> factory)
+    public PrometheusExportTests(IntegrationTestFixture factory)
     {
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureAppConfiguration((ctx, cfg) =>
-            {
-                var items = new[] { new KeyValuePair<string, string?>("OpenTelemetry:Prometheus:Enabled", "true") };
-                cfg.AddInMemoryCollection(items);
-            });
-        });
+        _factory = factory;
     }
 
     [Fact]

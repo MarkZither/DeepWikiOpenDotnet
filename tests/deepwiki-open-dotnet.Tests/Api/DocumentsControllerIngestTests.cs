@@ -3,6 +3,7 @@ using DeepWiki.ApiService.Tests.Api;
 using DeepWiki.ApiService.Tests.TestUtilities;
 using DeepWiki.Data.Abstractions;
 using DeepWiki.Data.Abstractions.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
@@ -329,6 +330,11 @@ public class DocumentsControllerIngestTests : IClassFixture<ApiTestFixture>
         using var customFactory = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<DeepWiki.ApiService.Program>()
             .WithWebHostBuilder(builder =>
             {
+                builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:deepwikidb"] = "Host=localhost;Port=5432;Database=deepwiki_test;Username=test;Password=test",
+                    ["VectorStore:AutoMigrate"] = "false"
+                }));
                 builder.ConfigureServices(services =>
                 {
                     // Remove production IDocumentIngestionService registration

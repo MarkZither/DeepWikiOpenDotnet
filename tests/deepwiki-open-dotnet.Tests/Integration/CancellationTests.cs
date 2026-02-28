@@ -5,21 +5,24 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
+using DeepWiki.ApiService.Tests.TestUtilities;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
 namespace DeepWiki.ApiService.Tests.Integration
 {
-    public class CancellationTests : IClassFixture<WebApplicationFactory<Program>>
+    public class CancellationTests : IClassFixture<IntegrationTestFixture>
     {
         private readonly WebApplicationFactory<Program> _factory;
 
-        public CancellationTests(WebApplicationFactory<Program> factory)
+        public CancellationTests(IntegrationTestFixture factory)
         {
+            // Derive a factory that adds a slow provider for cancellation timing tests.
+            // IntegrationTestFixture.CreateHost already handles the connection string,
+            // AutoMigrate=false, and mock service registrations.
             _factory = factory.WithWebHostBuilder(builder =>
             {
-                // Replace IModelProvider with a slow provider implementation for this test
                 builder.ConfigureServices(services =>
                 {
                     services.AddSingleton<DeepWiki.Rag.Core.Providers.IModelProvider>(new SlowTestProvider(1000, 100));

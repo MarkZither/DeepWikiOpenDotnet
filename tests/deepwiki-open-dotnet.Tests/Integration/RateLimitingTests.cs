@@ -2,6 +2,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
+using DeepWiki.ApiService.Tests.TestUtilities;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using System.Net.Http.Json;
@@ -9,11 +10,11 @@ using Xunit;
 
 namespace DeepWiki.ApiService.Tests.Integration
 {
-    public class RateLimitingTests : IClassFixture<WebApplicationFactory<Program>>
+    public class RateLimitingTests : IClassFixture<IntegrationTestFixture>
     {
-        private readonly WebApplicationFactory<Program> _factory;
+        private readonly IntegrationTestFixture _factory;
 
-        public RateLimitingTests(WebApplicationFactory<Program> factory)
+        public RateLimitingTests(IntegrationTestFixture factory)
         {
             _factory = factory;
         }
