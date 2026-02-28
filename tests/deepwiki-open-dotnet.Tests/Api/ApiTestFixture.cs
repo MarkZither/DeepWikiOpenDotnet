@@ -1,7 +1,6 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using DeepWiki.Data.Abstractions;
 using DeepWiki.Data.Interfaces;
 using DeepWiki.ApiService.Tests.TestUtilities;
@@ -10,38 +9,22 @@ namespace DeepWiki.ApiService.Tests.Api;
 
 /// <summary>
 /// Test fixture for API integration tests using WebApplicationFactory.
-/// Provides a test server with configured dependencies and in-memory services.
-/// References the Program class from DeepWiki.ApiService namespace.
+/// Sets ASPNETCORE_ENVIRONMENT=Testing so appsettings.Testing.json is loaded,
+/// which supplies a parseable connection string and disables EF auto-migration
+/// without hardcoding anything in test code.
 /// </summary>
 public class ApiTestFixture : WebApplicationFactory<DeepWiki.ApiService.Program>
 {
-    /// <summary>
-    /// Configures the test host with test-specific services and settings.
-    /// </summary>
-    protected override IHost CreateHost(IHostBuilder builder)
+    protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
-        // ConfigureAppConfiguration MUST be called directly on IHostBuilder here,
-        // not nested inside ConfigureServices. The auto-migration code in Program.cs
-        // runs right after builder.Build(), so configuration overrides must be in
-        // the IHostBuilder pipeline before the host is constructed.
-        builder.ConfigureAppConfiguration((context, config) =>
-        {
-            config.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                // Syntactically valid (but non-existent) Postgres connection string so
-                // NpgsqlDataSourceBuilder can parse it without throwing.
-                // No real connection is ever made — IVectorStore and IDocumentRepository
-                // are replaced by the mock registrations below.
-                ["ConnectionStrings:deepwikidb"] = "Host=localhost;Port=5432;Database=deepwiki_test;Username=test;Password=test",
-                // Disable EF auto-migration so the app never tries to connect to the fake DB at startup.
-                ["VectorStore:AutoMigrate"] = "false"
-            });
-        });
+        // Load appsettings.Testing.json — this is evaluated before Program.cs
+        // registers services, so the connection string check and AutoMigrate flag
+        // are both satisfied before any code in Program.Main runs.
+        builder.UseEnvironment("Testing");
 
+        // Replace all external-dependency services with in-memory test doubles.
         builder.ConfigureServices(services =>
         {
-            // Replace production registrations with test doubles.
-            // Individual tests can further override by calling WithWebHostBuilder.
             RemoveAll<IVectorStore>(services);
             services.AddScoped<IVectorStore, MockVectorStore>();
 
@@ -51,8 +34,6 @@ public class ApiTestFixture : WebApplicationFactory<DeepWiki.ApiService.Program>
             RemoveAll<IDocumentRepository>(services);
             services.AddScoped<IDocumentRepository, MockDocumentRepository>();
         });
-
-        return base.CreateHost(builder);
     }
 
     private static void RemoveAll<T>(IServiceCollection services)

@@ -1,6 +1,7 @@
 using DeepWiki.ApiService.Models;
 using DeepWiki.ApiService.Tests.Api;
 using DeepWiki.Data.Abstractions;
+using Microsoft.AspNetCore.Hosting;
 using DeepWiki.Data.Abstractions.Models;
 using DeepWiki.Data.Interfaces;
 using Microsoft.Extensions.Configuration;
@@ -178,14 +179,7 @@ public class QueryControllerTests : IClassFixture<ApiTestFixture>
         using var customFactory = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<DeepWiki.ApiService.Program>()
             .WithWebHostBuilder(builder =>
             {
-                builder.ConfigureAppConfiguration((context, config) =>
-                {
-                    config.AddInMemoryCollection(new Dictionary<string, string?>
-                    {
-                        ["ConnectionStrings:deepwikidb"] = "Host=localhost;Port=5432;Database=deepwiki_test;Username=test;Password=test",
-                        ["VectorStore:AutoMigrate"] = "false"
-                    });
-                });
+                builder.UseEnvironment("Testing");
 
                 builder.ConfigureServices(services =>
                 {

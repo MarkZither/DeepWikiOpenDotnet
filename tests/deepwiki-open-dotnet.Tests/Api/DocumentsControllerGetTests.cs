@@ -1,7 +1,6 @@
 using DeepWiki.ApiService.Tests.Api;
 using DeepWiki.Data.Interfaces;
 using DeepWiki.Data.Entities;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
@@ -40,23 +39,15 @@ public class DocumentsControllerGetTests : IClassFixture<ApiTestFixture>
             IsImplementation = false
         };
 
-        using var customFactory = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<DeepWiki.ApiService.Program>()
-            .WithWebHostBuilder(builder =>
+        using var customFactory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
             {
-                builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:deepwikidb"] = "Host=localhost;Port=5432;Database=deepwiki_test;Username=test;Password=test",
-                    ["VectorStore:AutoMigrate"] = "false"
-                }));
-                builder.ConfigureServices(services =>
-                {
-                    // Replace IDocumentRepository with mock
-                    var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
-                    if (descriptor != null) services.Remove(descriptor);
+                // Replace IDocumentRepository with mock
+                var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
+                if (descriptor != null) services.Remove(descriptor);
 
-                    services.AddScoped<IDocumentRepository>(_ => new MockRepository(entity));
-                });
-            });
+                services.AddScoped<IDocumentRepository>(_ => new MockRepository(entity));
+            }));
 
         var client = customFactory.CreateClient();
 
@@ -79,22 +70,14 @@ public class DocumentsControllerGetTests : IClassFixture<ApiTestFixture>
         // Arrange
         var id = Guid.NewGuid();
 
-        using var customFactory = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<DeepWiki.ApiService.Program>()
-            .WithWebHostBuilder(builder =>
+        using var customFactory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
             {
-                builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:deepwikidb"] = "Host=localhost;Port=5432;Database=deepwiki_test;Username=test;Password=test",
-                    ["VectorStore:AutoMigrate"] = "false"
-                }));
-                builder.ConfigureServices(services =>
-                {
-                    var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
-                    if (descriptor != null) services.Remove(descriptor);
+                var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
+                if (descriptor != null) services.Remove(descriptor);
 
-                    services.AddScoped<IDocumentRepository>(_ => new MockRepository(null));
-                });
-            });
+                services.AddScoped<IDocumentRepository>(_ => new MockRepository(null));
+            }));
 
         var client = customFactory.CreateClient();
 

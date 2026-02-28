@@ -407,8 +407,8 @@ using (var scope = app.Services.CreateScope())
 }
 
         // Configure the HTTP request pipeline.
-        // Development: show developer exception page so errors are visible in responses / logs
-        if (app.Environment.IsDevelopment())
+        // Non-production: show developer exception page and expose OpenAPI / Scalar docs
+        if (!app.Environment.IsProduction())
         {
             app.UseDeveloperExceptionPage();
             app.MapOpenApi();
