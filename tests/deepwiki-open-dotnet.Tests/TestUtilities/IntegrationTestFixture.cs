@@ -28,6 +28,11 @@ public class IntegrationTestFixture : WebApplicationFactory<DeepWiki.ApiService.
 
             RemoveAll<IDocumentRepository>(services);
             services.AddScoped<IDocumentRepository, MockDocumentRepository>();
+
+            // Remove any real IModelProvider registrations (Ollama/OpenAI) that may
+            // be added by Program.cs when CI env vars configure Generation:Providers.
+            // CancellationTests adds its own SlowTestProvider via WithWebHostBuilder.
+            RemoveAll<DeepWiki.Rag.Core.Providers.IModelProvider>(services);
         });
     }
 

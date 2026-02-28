@@ -33,6 +33,10 @@ public class ApiTestFixture : WebApplicationFactory<DeepWiki.ApiService.Program>
 
             RemoveAll<IDocumentRepository>(services);
             services.AddScoped<IDocumentRepository, MockDocumentRepository>();
+
+            // Remove any real IModelProvider registrations (Ollama/OpenAI) that may
+            // be added by Program.cs when CI env vars configure Generation:Providers.
+            RemoveAll<DeepWiki.Rag.Core.Providers.IModelProvider>(services);
         });
     }
 

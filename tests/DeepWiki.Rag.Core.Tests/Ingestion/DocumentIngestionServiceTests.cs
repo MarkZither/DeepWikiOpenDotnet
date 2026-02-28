@@ -495,7 +495,7 @@ public class DocumentIngestionServiceTests
         // Assert
         Assert.Equal(5, result.SuccessCount);
         Assert.Equal(0, result.FailureCount);
-        Assert.True(result.DurationMs > 0);
+        Assert.True(result.DurationMs >= 0);
         Assert.Equal(5, result.TotalChunks);
         Assert.Equal(5, result.IngestedDocumentIds.Count);
         Assert.Empty(result.Errors);

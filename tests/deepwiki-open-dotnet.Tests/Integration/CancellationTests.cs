@@ -25,7 +25,10 @@ namespace DeepWiki.ApiService.Tests.Integration
             {
                 builder.ConfigureServices(services =>
                 {
-                    services.AddSingleton<DeepWiki.Rag.Core.Providers.IModelProvider>(new SlowTestProvider(1000, 100));
+                    // 1000 tokens × 20 ms = 20 s worst-case stream time.
+                    // The 10 s drain timeout below catches any cancellation failures
+                    // without blocking the CI runner for 100 s (old 1000×100 ms).
+                    services.AddSingleton<DeepWiki.Rag.Core.Providers.IModelProvider>(new SlowTestProvider(1000, 20));
                 });
             });
         }
