@@ -43,7 +43,9 @@ namespace DeepWiki.Data.SqlServer.VectorStore
             {
                 Document = MapToAbstraction(d),
                 SimilarityScore = CosineSimilarity(queryMemory, d.Embedding ?? default)
-            }).ToList().AsReadOnly();
+            })
+            .OrderByDescending(r => r.SimilarityScore)
+            .ToList().AsReadOnly();
 
             return list;
         }
