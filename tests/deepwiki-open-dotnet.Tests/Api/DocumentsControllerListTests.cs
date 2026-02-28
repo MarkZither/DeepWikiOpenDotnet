@@ -27,17 +27,14 @@ public class DocumentsControllerListTests : IClassFixture<ApiTestFixture>
             new DocumentEntity { Id = Guid.NewGuid(), RepoUrl = "https://repo/a", FilePath = "b.md", Title = "B", Text = "B text", CreatedAt = DateTime.UtcNow.AddMinutes(-1), UpdatedAt = DateTime.UtcNow.AddMinutes(-1), TokenCount = 20, FileType = "md", IsCode = false }
         };
 
-        using var customFactory = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<DeepWiki.ApiService.Program>()
-            .WithWebHostBuilder(builder =>
+        using var customFactory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
             {
-                builder.ConfigureServices(services =>
-                {
-                    var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
-                    if (descriptor != null) services.Remove(descriptor);
+                var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
+                if (descriptor != null) services.Remove(descriptor);
 
-                    services.AddScoped<IDocumentRepository>(_ => new MockRepository(items, items.Count));
-                });
-            });
+                services.AddScoped<IDocumentRepository>(_ => new MockRepository(items, items.Count));
+            }));
 
         var client = customFactory.CreateClient();
 
@@ -66,17 +63,14 @@ public class DocumentsControllerListTests : IClassFixture<ApiTestFixture>
 
         var capturedRepo = string.Empty;
 
-        using var customFactory = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<DeepWiki.ApiService.Program>()
-            .WithWebHostBuilder(builder =>
+        using var customFactory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
             {
-                builder.ConfigureServices(services =>
-                {
-                    var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
-                    if (descriptor != null) services.Remove(descriptor);
+                var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
+                if (descriptor != null) services.Remove(descriptor);
 
-                    services.AddScoped<IDocumentRepository>(_ => new CapturingMockRepository(items, items.Count, r => capturedRepo = r ?? string.Empty));
-                });
-            });
+                services.AddScoped<IDocumentRepository>(_ => new CapturingMockRepository(items, items.Count, r => capturedRepo = r ?? string.Empty));
+            }));
 
         var client = customFactory.CreateClient();
 
@@ -112,8 +106,10 @@ public class DocumentsControllerListTests : IClassFixture<ApiTestFixture>
         public Task<DocumentEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(DocumentEntity document, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, CancellationToken cancellationToken = default)
+        public Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, bool firstChunkOnly = false, CancellationToken cancellationToken = default)
             => Task.FromResult((_items, _total));
+        public Task<List<(string RepoUrl, int DocumentCount)>> GetCollectionSummariesAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new List<(string RepoUrl, int DocumentCount)>());
     }
 
     private class CapturingMockRepository : IDocumentRepository
@@ -135,10 +131,12 @@ public class DocumentsControllerListTests : IClassFixture<ApiTestFixture>
         public Task<DocumentEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task UpdateAsync(DocumentEntity document, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, CancellationToken cancellationToken = default)
+        public Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, bool firstChunkOnly = false, CancellationToken cancellationToken = default)
         {
             _onCapture(repoUrl);
             return Task.FromResult((_items, _total));
         }
+        public Task<List<(string RepoUrl, int DocumentCount)>> GetCollectionSummariesAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new List<(string RepoUrl, int DocumentCount)>());
     }
 }

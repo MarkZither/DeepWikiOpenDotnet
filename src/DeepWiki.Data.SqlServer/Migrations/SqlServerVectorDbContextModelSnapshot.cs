@@ -28,6 +28,11 @@ namespace DeepWiki.Data.SqlServer.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("ChunkIndex")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -73,6 +78,11 @@ namespace DeepWiki.Data.SqlServer.Migrations
 
                     b.Property<int>("TokenCount")
                         .HasColumnType("int");
+
+                    b.Property<int>("TotalChunks")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
 
                     b.Property<DateTime>("UpdatedAt")
                         .IsConcurrencyToken()

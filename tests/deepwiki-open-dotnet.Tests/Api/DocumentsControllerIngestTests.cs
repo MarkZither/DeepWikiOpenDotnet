@@ -1,8 +1,10 @@
 using DeepWiki.ApiService.Models;
 using DeepWiki.ApiService.Tests.Api;
 using DeepWiki.ApiService.Tests.TestUtilities;
+using Microsoft.AspNetCore.Hosting;
 using DeepWiki.Data.Abstractions;
 using DeepWiki.Data.Abstractions.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
@@ -329,6 +331,7 @@ public class DocumentsControllerIngestTests : IClassFixture<ApiTestFixture>
         using var customFactory = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<DeepWiki.ApiService.Program>()
             .WithWebHostBuilder(builder =>
             {
+                builder.UseEnvironment("Testing");
                 builder.ConfigureServices(services =>
                 {
                     // Remove production IDocumentIngestionService registration
@@ -349,7 +352,7 @@ public class DocumentsControllerIngestTests : IClassFixture<ApiTestFixture>
                     }
                     
                     // Add a no-op repository for testing
-                    services.AddScoped<DeepWiki.Data.Interfaces.IDocumentRepository>(_ => new NoOpDocumentRepository());
+                    services.AddScoped<DeepWiki.Data.Interfaces.IDocumentRepository>(_ => new MockDocumentRepository());
                 });
             });
 

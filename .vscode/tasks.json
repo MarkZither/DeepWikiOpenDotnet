@@ -34,6 +34,18 @@
                 "clear": true
             },
             "problemMatcher": []
+        },
+        {
+            "label": "show-apphost-pid",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/show-apphost-pid.sh",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "focus": true,
+                "clear": true
+            },
+            "problemMatcher": []
         }
     ]
 }

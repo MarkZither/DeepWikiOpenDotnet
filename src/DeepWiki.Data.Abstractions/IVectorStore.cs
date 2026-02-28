@@ -37,6 +37,15 @@ public interface IVectorStore
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Deletes all chunks for a specific (repoUrl, filePath) pair.
+    /// Used before re-ingestion to purge stale chunks when chunk count changes.
+    /// </summary>
+    /// <param name="repoUrl">Repository URL.</param>
+    /// <param name="filePath">File path within the repository.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Rebuilds the vector store index for optimal query performance.
     /// May be a no-op on some providers if indexing is automatic.
     /// </summary>

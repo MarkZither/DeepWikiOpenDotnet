@@ -17,5 +17,15 @@ namespace DeepWiki.Data.Abstractions.Models
         public string FileType { get; set; } = string.Empty;
         public bool IsCode { get; set; }
         public bool IsImplementation { get; set; }
+
+        /// <summary>
+        /// Zero-based index of this chunk within the parent document (default 0).
+        /// </summary>
+        public int ChunkIndex { get; set; } = 0;
+
+        /// <summary>
+        /// Total number of chunks the source document was split into (default 1).
+        /// </summary>
+        public int TotalChunks { get; set; } = 1;
     }
 }

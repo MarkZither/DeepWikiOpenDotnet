@@ -73,6 +73,12 @@ public class DocumentEntityConfiguration : IEntityTypeConfiguration<DocumentEnti
 
         builder.Property(d => d.MetadataJson);
 
+        builder.Property(d => d.ChunkIndex)
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.TotalChunks)
+            .HasDefaultValue(1);
+
         // Table name
         builder.ToTable("Documents");
 

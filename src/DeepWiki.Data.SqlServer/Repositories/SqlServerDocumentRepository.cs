@@ -63,6 +63,7 @@ public class SqlServerDocumentRepository : IDocumentRepository
         string? repoUrl = null,
         int skip = 0,
         int take = 100,
+        bool firstChunkOnly = false,
         CancellationToken cancellationToken = default)
     {
         if (skip < 0) throw new ArgumentException("Skip must be >= 0", nameof(skip));
@@ -70,9 +71,12 @@ public class SqlServerDocumentRepository : IDocumentRepository
 
         var query = _context.Documents.AsQueryable();
         if (!string.IsNullOrEmpty(repoUrl))
-        {
             query = query.Where(d => d.RepoUrl == repoUrl);
-        }
+
+        // Apply chunk filter BEFORE Count and Skip/Take so pagination is over
+        // distinct files, not over individual chunks.
+        if (firstChunkOnly)
+            query = query.Where(d => d.ChunkIndex == 0);
 
         var total = await query.CountAsync(cancellationToken);
         var items = await query
@@ -131,5 +135,18 @@ public class SqlServerDocumentRepository : IDocumentRepository
     {
         return await _context.Documents
             .AnyAsync(d => d.Id == id, cancellationToken);
+    }
+
+    public async Task<List<(string RepoUrl, int DocumentCount)>> GetCollectionSummariesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await _context.Documents
+            .Where(d => d.ChunkIndex == 0)
+            .GroupBy(d => d.RepoUrl)
+            .Select(g => new { RepoUrl = g.Key, DocumentCount = g.Count() })
+            .OrderBy(g => g.RepoUrl)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(g => (g.RepoUrl, g.DocumentCount)).ToList();
     }
 }

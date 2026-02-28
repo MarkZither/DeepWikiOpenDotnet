@@ -77,6 +77,22 @@ public interface IPersistenceVectorStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Deletes all chunks for a specific (repoUrl, filePath) pair.
+    /// Used before re-ingestion to purge stale chunks when chunk count changes.
+    /// </summary>
+    /// <param name="repoUrl">Repository URL. Must not be null or empty.</param>
+    /// <param name="filePath">File path within the repository. Must not be null or empty.</param>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>Task representing the async operation.</returns>
+    /// <remarks>
+    /// Idempotent: if no rows exist for the pair, succeeds silently.
+    /// </remarks>
+    Task DeleteChunksAsync(
+        string repoUrl,
+        string filePath,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes all documents belonging to a specific repository.
     /// </summary>
     /// <param name="repoUrl">Repository URL to match for deletion. Uses exact string match (case-sensitive).</param>

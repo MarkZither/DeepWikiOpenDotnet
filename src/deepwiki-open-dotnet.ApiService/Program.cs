@@ -95,6 +95,10 @@ public class Program
         builder.Services.Configure<VectorStoreOptions>(
             builder.Configuration.GetSection(VectorStoreOptions.SectionName));
 
+        // Register Embedding configuration options
+        builder.Services.Configure<EmbeddingOptions>(
+            builder.Configuration.GetSection(EmbeddingOptions.SectionName));
+
         // Register data layer services based on VectorStore:Provider configuration
         var vectorStoreProvider = builder.Configuration.GetValue<string>("VectorStore:Provider");
         if (string.IsNullOrWhiteSpace(vectorStoreProvider))
@@ -138,58 +142,26 @@ public class Program
         
         if (!dataLayerRegistered)
         {
-            // No data layer registered - add minimal health checks
-            // IDocumentRepository will need to be provided by test fixtures or will fail at DI resolution time
-            builder.Services.AddHealthChecks();
+            // Fail fast: if a provider is configured but the connection string is missing the application
+            // cannot function — crashing at startup is far better than silently losing all data.
+            var connHint = vectorStoreProvider.Equals("postgres", StringComparison.OrdinalIgnoreCase)
+                ? "'ConnectionStrings:deepwikidb'"
+                : "'ConnectionStrings:SqlServer' or 'VectorStore:SqlServer:ConnectionString'";
+            throw new InvalidOperationException(
+                $"VectorStore:Provider is '{vectorStoreProvider}' but its connection string is not configured. " +
+                $"Set {connHint} in appsettings, user-secrets, or environment variables. " +
+                $"See VECTOR_STORE_SETUP.md for configuration examples.");
         }
-
-        // Register vector store via factory pattern
-        // Configuration: Set "VectorStore:Provider" to "sqlserver" or "postgres" in appsettings.json
-        // For SQL Server: Set "VectorStore:SqlServer:ConnectionString" or use ConnectionStrings:SqlServer
-        // For Postgres: Set "VectorStore:Postgres:ConnectionString" or use ConnectionStrings:Postgres
-        builder.Services.AddSingleton<DeepWiki.Rag.Core.VectorStore.VectorStoreFactory>();
-        builder.Services.AddScoped<DeepWiki.Data.Abstractions.IVectorStore>(sp =>
-        {
-            // Lightweight logging for DI-time diagnosis
-            var regLogger = sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()?.CreateLogger("Startup.VectorStoreRegistration");
-
-            var factory = sp.GetRequiredService<DeepWiki.Rag.Core.VectorStore.VectorStoreFactory>();
-            var provider = builder.Configuration.GetValue<string>("VectorStore:Provider");
-            if (string.IsNullOrWhiteSpace(provider))
-            {
-                throw new InvalidOperationException(
-                    "VectorStore:Provider is not configured. Set 'VectorStore:Provider' to 'postgres' or 'sqlserver' in appsettings.json or environment variables. See VECTOR_STORE_SETUP.md for configuration examples.");
-            }
-
-            regLogger?.LogInformation("Resolving IVectorStore for provider '{Provider}'. ProviderAvailable={ProviderAvailable}", provider, factory.IsProviderAvailable(provider));
-
-            // If configured provider is not available, fail fast — NoOp fallback is NOT supported.
-            if (!factory.IsProviderAvailable(provider))
-            {
-                var logger = sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()?.CreateLogger("Startup.VectorStoreRegistration");
-                var connString = provider.Equals("postgres", StringComparison.OrdinalIgnoreCase) 
-                    ? builder.Configuration.GetConnectionString("deepwikidb")
-                    : builder.Configuration.GetConnectionString("SqlServer");
-                var msg = $"Vector store provider '{provider}' is not available. ";
-                if (string.IsNullOrWhiteSpace(connString))
-                {
-                    msg += $"Connection string not configured. Set 'ConnectionStrings:deepwikidb' (for postgres) or 'ConnectionStrings:SqlServer' (for sqlserver) in appsettings or user-secrets. See VECTOR_STORE_SETUP.md for configuration examples.";
-                }
-                else
-                {
-                    msg += $"Connection string is set but provider registration failed. Ensure the database is accessible and data layer extensions are registered.";
-                }
-                logger?.LogError(msg);
-                throw new InvalidOperationException(msg);
-            }
-
-            regLogger?.LogInformation("Creating IVectorStore implementation for provider '{Provider}'", provider);
-            return factory.Create(sp);
-        });
+        // IVectorStore is registered directly by AddPostgresDataLayer / AddSqlServerDataLayer above.
+        // No factory indirection needed — the data layer extensions wire it up correctly.
 
         // Register tokenization service
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Tokenization.TokenEncoderFactory>();
         builder.Services.AddSingleton<DeepWiki.Data.Abstractions.ITokenizationService, DeepWiki.Rag.Core.Tokenization.TokenizationService>();
+
+        // Chunking options (T091)
+        builder.Services.Configure<DeepWiki.Rag.Core.Ingestion.ChunkOptions>(
+            builder.Configuration.GetSection("Embedding:Chunking"));
 
         // Session manager and generation service
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.SessionManager>();
@@ -220,14 +192,34 @@ public class Program
         var configuredProviders = builder.Configuration.GetSection("Generation:Providers").Get<string[]>() ?? Array.Empty<string>();
         if (configuredProviders.Any(p => p.Equals("Ollama", StringComparison.OrdinalIgnoreCase)))
         {
+            // RemoveAllResilienceHandlers is marked [Experimental] (EXTEXP0001) but is the
+            // documented pattern for replacing the global Aspire pipeline with a custom one.
+#pragma warning disable EXTEXP0001
             builder.Services.AddHttpClient<DeepWiki.Rag.Core.Providers.OllamaProvider>((sp, client) =>
             {
                 var cfg = sp.GetRequiredService<IConfiguration>();
                 var endpoint = cfg.GetValue<string>("Embedding:Ollama:Endpoint") ?? "http://localhost:11434";
                 client.BaseAddress = new Uri(endpoint);
-                // Set a long timeout for local Ollama models which can take minutes to process
-                client.Timeout = TimeSpan.FromMinutes(10);
+                // Disable the HttpClient hard deadline — the OllamaProvider manages its own
+                // per-token stall timeout via CancellationTokenSource.CancelAfter, which
+                // resets on every received chunk.  A fixed HttpClient timeout would race
+                // against that mechanism and kill long (but healthy) reasoning-model responses.
+                client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+            })
+            // Remove the global 30s Aspire pipeline added by ConfigureHttpClientDefaults
+            // in ServiceDefaults before adding our own. Without this the two pipelines
+            // stack: the global one fires first and kills Ollama requests at 30 seconds.
+            .RemoveAllResilienceHandlers()
+            .AddStandardResilienceHandler(options =>
+            {
+                // Local Ollama can take 60-120s per request — override the Aspire default of 30s
+                var localModelTimeout = TimeSpan.FromMinutes(2);
+                options.AttemptTimeout.Timeout      = localModelTimeout;
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(10);
+                // SamplingDuration must be >= 2× AttemptTimeout per Polly validation
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(5);
             });
+#pragma warning restore EXTEXP0001
             builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
             {
                 var cfg = sp.GetRequiredService<IConfiguration>();
@@ -245,6 +237,8 @@ public class Program
         // Only register if configured in Generation:Providers list
         if (configuredProviders.Any(p => p.Equals("OpenAI", StringComparison.OrdinalIgnoreCase)))
         {
+            // RemoveAllResilienceHandlers is marked [Experimental] (EXTEXP0001) — see OllamaProvider above.
+#pragma warning disable EXTEXP0001
             builder.Services.AddHttpClient("OpenAIProvider", (sp, client) =>
             {
                 var cfg = sp.GetRequiredService<IConfiguration>();
@@ -252,7 +246,17 @@ public class Program
                 if (!string.IsNullOrWhiteSpace(baseUrl)) client.BaseAddress = new Uri(baseUrl);
                 // Allow long-running requests for local models
                 client.Timeout = TimeSpan.FromMinutes(10);
+            })
+            // Remove the global 30s Aspire pipeline (same reason as OllamaProvider above)
+            .RemoveAllResilienceHandlers()
+            .AddStandardResilienceHandler(options =>
+            {
+                var localModelTimeout = TimeSpan.FromMinutes(2);
+                options.AttemptTimeout.Timeout      = localModelTimeout;
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(10);
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(5);
             });
+#pragma warning restore EXTEXP0001
 
             builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
             {
@@ -282,15 +286,24 @@ public class Program
             var provider = builder.Configuration.GetValue<string>("Embedding:Provider");
             regLogger?.LogInformation("Resolving IEmbeddingService for provider '{Provider}'. ProviderAvailable={ProviderAvailable}", provider ?? "(not set)", factory.IsProviderAvailable(provider ?? string.Empty));
             
-            // If no provider is configured or configured provider is not available, use NoOp
-            if (string.IsNullOrEmpty(provider) || !factory.IsProviderAvailable(provider))
+            // Fail fast — there is no useful fallback when embedding is not configured.
+            if (string.IsNullOrEmpty(provider))
             {
-                var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<DeepWiki.Rag.Core.Embedding.NoOpEmbeddingService>>();
-                logger?.LogWarning(
-                    "Embedding provider '{Provider}' not configured or not available. Using NoOpEmbeddingService. " +
-                    "Configure Embedding:Provider and required credentials to enable embeddings.",
-                    provider ?? "(not set)");
-                return new DeepWiki.Rag.Core.Embedding.NoOpEmbeddingService();
+                throw new InvalidOperationException(
+                    "Embedding:Provider is not configured. Set it to 'ollama', 'openai', or 'foundry' " +
+                    "in appsettings or environment variables.");
+            }
+            if (!factory.IsProviderAvailable(provider))
+            {
+                var hint = provider.ToLowerInvariant() switch
+                {
+                    "openai"             => "Set Embedding:OpenAI:ApiKey.",
+                    "foundry" or "azure" => "Set Embedding:Foundry:Endpoint.",
+                    "ollama"             => "Set Embedding:Ollama:Endpoint.",
+                    _                    => string.Empty
+                };
+                throw new InvalidOperationException(
+                    ($"Embedding provider '{provider}' is not available — required configuration is missing. {hint}").TrimEnd());
             }
             
             regLogger?.LogInformation("Creating IEmbeddingService implementation for provider '{Provider}'", provider);
@@ -394,8 +407,8 @@ using (var scope = app.Services.CreateScope())
 }
 
         // Configure the HTTP request pipeline.
-        // Development: show developer exception page so errors are visible in responses / logs
-        if (app.Environment.IsDevelopment())
+        // Non-production: show developer exception page and expose OpenAPI / Scalar docs
+        if (!app.Environment.IsProduction())
         {
             app.UseDeveloperExceptionPage();
             app.MapOpenApi();

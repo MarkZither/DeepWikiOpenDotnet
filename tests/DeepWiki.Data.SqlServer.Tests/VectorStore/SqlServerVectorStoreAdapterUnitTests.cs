@@ -42,6 +42,9 @@ public class SqlServerVectorStoreAdapterUnitTests
             throw new NotImplementedException();
         }
 
+        public Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
         public Task<List<DeepWiki.Data.Entities.DocumentEntity>> QueryNearestAsync(ReadOnlyMemory<float> queryEmbedding, int k = 10, string? repoUrlFilter = null, string? filePathFilter = null, CancellationToken cancellationToken = default)
         {
             LastQueryEmbedding = queryEmbedding;
@@ -113,6 +116,7 @@ public class SqlServerVectorStoreAdapterUnitTests
         public Task<int> CountAsync(string? repoUrlFilter = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DeleteByRepoAsync(string repoUrl, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<List<DocumentEntity>> QueryNearestAsync(ReadOnlyMemory<float> queryEmbedding, int k = 10, string? repoUrlFilter = null, string? filePathFilter = null, CancellationToken cancellationToken = default) => Task.FromResult(new List<DocumentEntity>());
         public Task UpsertAsync(DocumentEntity document, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task RebuildIndexAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

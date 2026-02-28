@@ -12,6 +12,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/deepwiki-open-dotnet.Tests/deepwiki-open-dotnet.Tests.csproj" />
+    <Project Path="tests/deepwiki-open-dotnet.Web.Tests/deepwiki-open-dotnet.Web.Tests.csproj" />
     <Project Path="tests/DeepWiki.Data.Abstractions.Tests/DeepWiki.Data.Abstractions.Tests.csproj" />
     <Project Path="tests/DeepWiki.Data.Postgres.Tests/DeepWiki.Data.Postgres.Tests.csproj" />
     <Project Path="tests/DeepWiki.Data.SqlServer.Tests/DeepWiki.Data.SqlServer.Tests.csproj" />

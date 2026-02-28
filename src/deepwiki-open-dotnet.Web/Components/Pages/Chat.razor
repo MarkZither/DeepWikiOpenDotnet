@@ -1,0 +1,219 @@
+@page "/chat"
+@using deepwiki_open_dotnet.Web.Models
+@using deepwiki_open_dotnet.Web.Services
+@using deepwiki_open_dotnet.Web.Components.Shared
+@using MudBlazor
+@inject ChatStateService ChatState
+@inject ChatApiClient ChatApi
+@inject NdJsonStreamParser Parser
+@inject IJSRuntime JS
+@inject Markdig.MarkdownPipeline MarkdownPipeline
+@inject IDialogService DialogService
+
+<div class="chat-page" role="main" aria-label="Chat interface">
+    <div class="chat-header d-flex align-items-center mb-2" role="banner">
+        <h5 class="me-auto" id="chat-heading">Chat</h5>
+        @if (ChatState.IsGenerating)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Secondary" Class="w-25"
+                               aria-label="AI is generating a response" aria-busy="true" />
+        }
+        <MudIconButton id="clear-chat-btn"
+                       Icon="@Icons.Material.Filled.DeleteSweep"
+                       title="Clear chat history"
+                       Size="Size.Small"
+                       Color="Color.Default"
+                       Disabled="ChatState.IsGenerating"
+                       aria-label="Clear chat history"
+                       OnClick="ConfirmClearAsync" />
+    </div>
+
+    <div class="message-list" style="max-height:60vh; overflow:auto;" id="message-list"
+         role="log" aria-label="Chat messages" aria-live="polite" aria-atomic="false"
+         aria-relevant="additions" aria-labelledby="chat-heading">
+        @foreach (var m in ChatState.Messages)
+        {
+            <ChatMessage Message="m" />
+        }
+    </div>
+
+    <div class="mt-3" role="complementary" aria-label="Chat controls">
+        <DocumentScopeSelector />
+
+        <div class="scope-indicator my-2 d-flex align-items-center"
+             aria-live="polite" aria-atomic="true" aria-label="Document scope">
+            <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" Class="me-1 text-muted" />
+            <span class="small text-muted">Searching: <strong>@ChatState.ScopeLabel</strong></span>
+        </div>
+        <ChatInput OnSubmit="HandleSubmit" />
+    </div>
+</div>
+
+@code {
+    private readonly System.Text.StringBuilder _tokenBuffer = new();
+    private DateTime _lastRender = DateTime.MinValue;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ChatState.StateChanged += OnStateChanged;
+        
+        // T056: Create a session for this chat and store in ChatStateService
+        try
+        {
+            var sessionReq = new SessionRequestDto { Owner = "web-user" };
+            var sessionResp = await ChatApi.CreateSessionAsync(sessionReq);
+            ChatState.SessionId = sessionResp.SessionId;
+        }
+        catch (Exception)
+        {
+            // Session creation failure is non-fatal; generation will proceed without a session ID
+            ChatState.SessionId = Guid.Empty;
+        }
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        ChatState.StateChanged -= OnStateChanged;
+    }
+
+    private async Task HandleSubmit(string userInput)
+    {
+        // Add user message
+        ChatState.AddMessage(new ChatMessageModel { Role = MessageRole.User, Text = userInput });
+
+        // Add assistant placeholder
+        ChatState.AddMessage(new ChatMessageModel { Role = MessageRole.Assistant, Text = string.Empty, IsStreaming = true });
+
+        ChatState.IsGenerating = true;
+        _tokenBuffer.Clear();
+        _lastRender = DateTime.MinValue;
+        var cts = new CancellationTokenSource();
+
+        try
+        {
+            var collectionIds = ChatState.SelectedCollectionIds.Count > 0
+                ? new System.Collections.Generic.List<string>(ChatState.SelectedCollectionIds)
+                : null;
+
+            // T057: Build multi-turn context from previous messages (exclude the two just added)
+            var previousMessages = ChatState.Messages
+                .SkipLast(2) // exclude placeholder assistant + current user message
+                .Select(m => new ContextMessageDto
+                {
+                    Role = m.Role == MessageRole.User ? "user" : "assistant",
+                    Content = m.Text
+                })
+                .ToList();
+
+            var request = new GenerationRequestDto
+            {
+                SessionId = ChatState.SessionId,
+                Prompt = userInput,
+                CollectionIds = collectionIds,
+                Context = previousMessages.Count > 0 ? previousMessages : null
+            };
+
+            var resp = await ChatApi.StreamGenerationAsync(request, cts.Token).ConfigureAwait(false);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var err = $"API returned {(int)resp.StatusCode} {resp.ReasonPhrase}";
+                UpdateLastWithError(err);
+                return;
+            }
+
+            await using var stream = await resp.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
+
+            await foreach (var delta in Parser.ParseAsync(stream, cts.Token))
+            {
+                if (!string.IsNullOrEmpty(delta.Text))
+                {
+                    // T059: accumulate tokens in buffer; flush to UI at most every 50 ms
+                    _tokenBuffer.Append(delta.Text);
+                    var now = DateTime.UtcNow;
+                    if ((now - _lastRender).TotalMilliseconds >= 50)
+                    {
+                        ChatState.UpdateLastMessage(m => m.Text += _tokenBuffer.ToString());
+                        _tokenBuffer.Clear();
+                        _lastRender = now;
+                        // scroll to latest
+                        var last = ChatState.Messages.LastOrDefault();
+                        if (last is not null)
+                            await JS.InvokeVoidAsync("chat.scrollIntoViewById", $"message-{last.Id}");
+                    }
+                }
+
+                if (delta.Type == "error")
+                {
+                    FlushTokenBuffer();
+                    UpdateLastWithError(delta.Error ?? "Unknown error");
+                    // inline error shown on message; no global toast in tests
+                    break;
+                }
+
+                if (delta.Type == "done")
+                {
+                    FlushTokenBuffer();
+                    ChatState.UpdateLastMessage(m => m.IsStreaming = false);
+
+                    var sources = NdJsonStreamParser.MapToSourceCitations(delta.Metadata?.Sources);
+                    if (sources.Count > 0)
+                        ChatState.UpdateLastMessage(m => { m.Sources.AddRange(sources); });
+
+                    break;
+                }
+            }
+
+            // Safety net: if the stream ended without a done or error event (e.g. connection
+            // reset or provider closed cleanly without emitting done), make sure the cursor
+            // and generating state are cleared so the UI doesn't appear permanently frozen.
+            FlushTokenBuffer();
+            ChatState.UpdateLastMessage(m => { if (m.IsStreaming) m.IsStreaming = false; });
+        }
+        catch (OperationCanceledException)
+        {
+            FlushTokenBuffer();
+            UpdateLastWithError("Generation canceled");
+        }
+        catch (Exception ex)
+        {
+            FlushTokenBuffer();
+            UpdateLastWithError(ex.Message);
+        }
+        finally
+        {
+            ChatState.IsGenerating = false;
+        }
+    }
+
+    /// <summary>T059: Flush any buffered tokens to the last message immediately.</summary>
+    private void FlushTokenBuffer()
+    {
+        if (_tokenBuffer.Length > 0)
+        {
+            var text = _tokenBuffer.ToString();
+            _tokenBuffer.Clear();
+            ChatState.UpdateLastMessage(m => m.Text += text);
+        }
+    }
+
+    private async Task ConfirmClearAsync()
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Clear chat history",
+            "This will remove all messages. Your collection selection will be kept.",
+            yesText: "Clear",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            ChatState.ClearMessages();
+        }
+    }
+
+    private void UpdateLastWithError(string msg)
+    {
+        ChatState.UpdateLastMessage(m => { m.IsStreaming = false; m.ErrorMessage = msg; });
+    }
+}

@@ -91,6 +91,10 @@ public class OllamaProvider : IModelProvider
         {
             try
             {
+                // Track when the last bytes arrived so we can report true stall duration,
+                // not total elapsed time.  Reset after every successful read.
+                var lastActivity = DateTime.UtcNow;
+
                 while (true)
                 {
                     int read;
@@ -100,17 +104,24 @@ public class OllamaProvider : IModelProvider
                     }
                     catch (OperationCanceledException ex)
                     {
-                        // Distinguish between timeout and user cancellation by checking elapsed time
-                        var elapsed = DateTime.UtcNow - startTime;
-                        if (elapsed >= _stallTimeout.Subtract(TimeSpan.FromSeconds(1))) // Allow 1 second tolerance
+                        // Check stall duration (time since last received bytes), not total elapsed.
+                        // This distinguishes a genuine stall from a long but active generation.
+                        var sinceLastActivity = DateTime.UtcNow - lastActivity;
+                        if (sinceLastActivity >= _stallTimeout.Subtract(TimeSpan.FromSeconds(1)))
                         {
-                            throw new TimeoutException($"Ollama provider timed out after {elapsed.TotalSeconds:F1}s while streaming", ex);
+                            throw new TimeoutException(
+                                $"Ollama provider stalled for {sinceLastActivity.TotalSeconds:F1}s (no data) while streaming", ex);
                         }
                         throw; // User cancelled, rethrow as-is
                     }
 
                     if (read == 0)
                         break;
+
+                    // Reset the stall-timeout deadline — as long as bytes keep arriving
+                    // the stream is healthy and should never be cancelled.
+                    lastActivity = DateTime.UtcNow;
+                    cts.CancelAfter(_stallTimeout);
 
                     leftover.AddRange(buffer.Take(read));
 

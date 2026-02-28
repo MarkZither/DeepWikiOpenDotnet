@@ -1,16 +1,17 @@
 using System.Net;
 using System.Text.Json;
+using DeepWiki.ApiService.Tests.TestUtilities;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
 namespace DeepWiki.ApiService.Tests.Integration;
 
-public class HealthCheckTests : IClassFixture<WebApplicationFactory<Program>>
+public class HealthCheckTests : IClassFixture<IntegrationTestFixture>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly IntegrationTestFixture _factory;
 
-    public HealthCheckTests(WebApplicationFactory<Program> factory)
+    public HealthCheckTests(IntegrationTestFixture factory)
     {
         _factory = factory;
     }

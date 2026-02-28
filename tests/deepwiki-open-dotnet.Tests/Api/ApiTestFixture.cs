@@ -1,57 +1,49 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using DeepWiki.Data.Abstractions;
 using DeepWiki.Data.Interfaces;
-using DeepWiki.Rag.Core.VectorStore;
 using DeepWiki.ApiService.Tests.TestUtilities;
 
 namespace DeepWiki.ApiService.Tests.Api;
 
 /// <summary>
 /// Test fixture for API integration tests using WebApplicationFactory.
-/// Provides a test server with configured dependencies and in-memory services.
-/// References the Program class from DeepWiki.ApiService namespace.
+/// Sets ASPNETCORE_ENVIRONMENT=Testing so appsettings.Testing.json is loaded,
+/// which supplies a parseable connection string and disables EF auto-migration
+/// without hardcoding anything in test code.
 /// </summary>
 public class ApiTestFixture : WebApplicationFactory<DeepWiki.ApiService.Program>
 {
-    /// <summary>
-    /// Configures the test host with test-specific services and settings.
-    /// </summary>
-    protected override IHost CreateHost(IHostBuilder builder)
+    protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
+        // Load appsettings.Testing.json — this is evaluated before Program.cs
+        // registers services, so the connection string check and AutoMigrate flag
+        // are both satisfied before any code in Program.Main runs.
+        builder.UseEnvironment("Testing");
+
+        // Replace all external-dependency services with in-memory test doubles.
         builder.ConfigureServices(services =>
         {
-            // Remove production IVectorStore registration and replace with NoOp for testing
-            var vectorStoreDescriptor = services.FirstOrDefault(d => 
-                d.ServiceType == typeof(IVectorStore));
-            if (vectorStoreDescriptor != null)
-            {
-                services.Remove(vectorStoreDescriptor);
-            }
-            
-            // Register NoOpVectorStore for tests (individual tests can override with mocks)
-            services.AddScoped<IVectorStore, NoOpVectorStore>();
-            
-            // Remove production IDocumentRepository registration if present and replace with NoOp for testing
-            var repositoryDescriptor = services.FirstOrDefault(d => 
-                d.ServiceType == typeof(IDocumentRepository));
-            if (repositoryDescriptor != null)
-            {
-                services.Remove(repositoryDescriptor);
-            }
-            
-            // Register NoOpDocumentRepository for tests (individual tests can override with mocks)
-            services.AddScoped<IDocumentRepository, NoOpDocumentRepository>();
-            
-            // Override configuration for test environment
-            builder.ConfigureAppConfiguration((context, config) =>
-            {
-                // Tests can add in-memory configuration here if needed
-            });
-        });
+            RemoveAll<IVectorStore>(services);
+            services.AddScoped<IVectorStore, MockVectorStore>();
 
-        return base.CreateHost(builder);
+            RemoveAll<IEmbeddingService>(services);
+            services.AddSingleton<IEmbeddingService, MockEmbeddingService>();
+
+            RemoveAll<IDocumentRepository>(services);
+            services.AddScoped<IDocumentRepository, MockDocumentRepository>();
+
+            // Remove any real IModelProvider registrations (Ollama/OpenAI) that may
+            // be added by Program.cs when CI env vars configure Generation:Providers.
+            RemoveAll<DeepWiki.Rag.Core.Providers.IModelProvider>(services);
+        });
+    }
+
+    private static void RemoveAll<T>(IServiceCollection services)
+    {
+        var descriptors = services.Where(d => d.ServiceType == typeof(T)).ToList();
+        foreach (var d in descriptors) services.Remove(d);
     }
 
     /// <summary>

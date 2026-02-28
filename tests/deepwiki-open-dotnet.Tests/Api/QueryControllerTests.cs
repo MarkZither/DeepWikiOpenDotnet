@@ -1,7 +1,10 @@
 using DeepWiki.ApiService.Models;
 using DeepWiki.ApiService.Tests.Api;
 using DeepWiki.Data.Abstractions;
+using Microsoft.AspNetCore.Hosting;
 using DeepWiki.Data.Abstractions.Models;
+using DeepWiki.Data.Interfaces;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
@@ -42,7 +45,7 @@ public class QueryControllerTests : IClassFixture<ApiTestFixture>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var results = await response.Content.ReadFromJsonAsync<QueryResultItem[]>(TestContext.Current.CancellationToken);
         Assert.NotNull(results);
-        Assert.Empty(results); // NoOpVectorStore returns empty results
+        Assert.Empty(results); // MockVectorStore starts empty
     }
 
     [Fact]
@@ -123,7 +126,7 @@ public class QueryControllerTests : IClassFixture<ApiTestFixture>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var results = await response.Content.ReadFromJsonAsync<QueryResultItem[]>(TestContext.Current.CancellationToken);
         Assert.NotNull(results);
-        // NoOpVectorStore returns empty, but if it had results, Text would be null
+        // MockVectorStore returns empty by default; if it had results, Text would be non-null
     }
 
     [Fact]
@@ -176,17 +179,20 @@ public class QueryControllerTests : IClassFixture<ApiTestFixture>
         using var customFactory = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<DeepWiki.ApiService.Program>()
             .WithWebHostBuilder(builder =>
             {
+                builder.UseEnvironment("Testing");
+
                 builder.ConfigureServices(services =>
                 {
-                    // Remove production IVectorStore registration
-                    var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IVectorStore));
-                    if (descriptor != null)
+                    // Remove and replace all external-dependency services with test doubles
+                    foreach (var type in new[] { typeof(IVectorStore), typeof(IEmbeddingService), typeof(IDocumentRepository) })
                     {
-                        services.Remove(descriptor);
+                        var descriptors = services.Where(d => d.ServiceType == type).ToList();
+                        foreach (var d in descriptors) services.Remove(d);
                     }
 
-                    // Add mock that returns test data
                     services.AddScoped<IVectorStore>(_ => new MockVectorStore());
+                    services.AddSingleton<IEmbeddingService, DeepWiki.ApiService.Tests.TestUtilities.MockEmbeddingService>();
+                    services.AddScoped<IDocumentRepository, DeepWiki.ApiService.Tests.TestUtilities.MockDocumentRepository>();
                 });
             });
         
@@ -270,6 +276,9 @@ public class QueryControllerTests : IClassFixture<ApiTestFixture>
             => Task.CompletedTask;
 
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
 
         public Task RebuildIndexAsync(CancellationToken cancellationToken = default)

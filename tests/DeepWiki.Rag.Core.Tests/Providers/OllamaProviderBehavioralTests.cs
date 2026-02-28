@@ -72,7 +72,7 @@ namespace DeepWiki.Rag.Core.Tests.Providers
                 }
             });
 
-            ex.Message.Should().Contain("timed out");
+            ex.Message.Should().Contain("stalled");
         }
 
         private class FakeHandler : HttpMessageHandler

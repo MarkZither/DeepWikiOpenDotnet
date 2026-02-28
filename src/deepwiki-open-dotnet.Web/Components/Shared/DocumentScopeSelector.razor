@@ -1,0 +1,68 @@
+@using deepwiki_open_dotnet.Web.Models
+@using deepwiki_open_dotnet.Web.Services
+@using MudBlazor
+@using Microsoft.Extensions.Logging
+@inject ChatApiClient ChatApi
+@inject ChatStateService ChatState
+@inject ILogger<DocumentScopeSelector> Logger
+
+<div class="document-scope-selector">
+    <MudSelect T="DocumentCollectionModel"
+               Label="Document Collections"
+               Placeholder="All documents"
+               MultiSelection="true"
+               SelectedValues="_selected"
+               SelectedValuesChanged="OnSelectionChanged"
+               Clearable="true"
+               Dense="true"
+               Variant="Variant.Outlined"
+               AnchorOrigin="Origin.BottomLeft"
+               ToStringFunc="@(c => c?.Name ?? string.Empty)">
+        @foreach (var col in _collections)
+        {
+            <MudSelectItem T="DocumentCollectionModel" Value="col">
+                @col.Name
+                @if (col.DocumentCount > 0)
+                {
+                    <span class="ms-1 text-muted small">(@col.DocumentCount docs)</span>
+                }
+            </MudSelectItem>
+        }
+    </MudSelect>
+</div>
+
+@code {
+    private List<DocumentCollectionModel> _collections = new();
+    private IEnumerable<DocumentCollectionModel> _selected = Array.Empty<DocumentCollectionModel>();
+
+    /// <summary>Loaded collections. Exposed for testing.</summary>
+    public IReadOnlyList<DocumentCollectionModel> LoadedCollections => _collections;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var result = await ChatApi.GetCollectionsAsync();
+            _collections = result.Collections;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load document collections; the dropdown will be empty");
+            _collections = new List<DocumentCollectionModel>();
+        }
+    }
+
+    /// <summary>
+    /// Programmatically select collections (useful for testing and external state sync).
+    /// </summary>
+    public void SelectCollections(IEnumerable<DocumentCollectionModel> collections)
+    {
+        OnSelectionChanged(collections);
+    }
+
+    private void OnSelectionChanged(IEnumerable<DocumentCollectionModel> selected)
+    {
+        _selected = selected;
+        ChatState.SetSelectedCollections(selected);
+    }
+}

@@ -62,12 +62,14 @@ public interface IDocumentRepository
     /// <param name="repoUrl">Optional repository URL filter. When null, lists all documents.</param>
     /// <param name="skip">Number of documents to skip for pagination (default 0).</param>
     /// <param name="take">Number of documents to take. Maximum 1000.</param>
+    /// <param name="firstChunkOnly">When true, only returns rows where ChunkIndex == 0 (one row per file). Count and Skip/Take are applied after this filter so pagination is correct.</param>
     /// <param name="cancellationToken">Cancellation token for the operation.</param>
     /// <returns>Tuple of (Items, TotalCount).</returns>
     Task<(List<DeepWiki.Data.Entities.DocumentEntity> Items, int TotalCount)> ListAsync(
         string? repoUrl = null,
         int skip = 0,
         int take = 100,
+        bool firstChunkOnly = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -131,5 +133,15 @@ public interface IDocumentRepository
     /// </remarks>
     Task<bool> ExistsAsync(
         Guid id,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns one summary entry per distinct repository URL, with the count
+    /// of documents (ChunkIndex == 0 rows, i.e. distinct files) in each.
+    /// Used by GET /api/documents/collections.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>List of (RepoUrl, DocumentCount) tuples, ordered by RepoUrl.</returns>
+    Task<List<(string RepoUrl, int DocumentCount)>> GetCollectionSummariesAsync(
         CancellationToken cancellationToken = default);
 }

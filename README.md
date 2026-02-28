@@ -14,8 +14,11 @@ A production-grade, test-first data access layer for the DeepWiki knowledge base
 - **Bulk Operations**: Efficient batch upserts with automatic transaction management
 - **Health Checks**: Integrated health check endpoints with database version validation
 - **Streaming RAG Service**: Token-by-token generation with retrieval augmentation, HTTP/SignalR streaming, and provider fallback (Ollama/OpenAI)
+- **Chat UI**: Blazor-based interactive chat interface with streaming responses, source citations, document collection scoping, multi-turn context, and session management
 
 > **New**: Check out the [Streaming RAG Service Quick Start](specs/001-streaming-rag-service/quickstart.md) and [API Contracts](specs/001-streaming-rag-service/contracts/) for code generation with semantic retrieval.
+
+> **New**: The [Chat UI Quick Start](specs/004-initial-ui-core-chat/quickstart.md) covers the full chat interface — interactive AI conversations, document scope selection, source citations, and multi-turn context.
 
 ### 🏗️ Architecture
 
@@ -28,6 +31,35 @@ Three-project design for clean separation:
 All implementations share 100% test parity for consistency across databases.
 
 ## Quick Start
+
+### 🗨️ Chat UI Quick Start
+
+The DeepWiki web interface provides an AI-powered chat experience with document-grounded responses.
+
+**Full walkthrough**: [specs/004-initial-ui-core-chat/quickstart.md](specs/004-initial-ui-core-chat/quickstart.md)
+
+#### Steps in 60 seconds
+
+```bash
+# 1. Start all services (API + Web + database)
+docker compose up -d
+
+# 2. Open the web UI
+open https://localhost:5001   # or the port shown by Aspire Dashboard
+```
+
+1. Click **Chat** in the navigation menu.
+2. (Optional) Click **Document Scope** to restrict queries to specific collections.
+3. Type your question and press **Enter** — the response streams token-by-token.
+4. Source citations appear below assistant messages when results are document-grounded.
+5. Follow-up questions maintain full conversation context automatically.
+6. Click the **🗑️** icon to clear history while keeping your selected collections.
+
+> For ingesting documents, navigate to **Documents** → expand **"Add Documents"** → fill in the form.
+
+---
+
+### 📦 Data Layer Quick Start
 
 ### Prerequisites
 

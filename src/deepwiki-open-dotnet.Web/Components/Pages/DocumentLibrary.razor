@@ -1,0 +1,218 @@
+@page "/documents"
+@using deepwiki_open_dotnet.Web.Models
+@using deepwiki_open_dotnet.Web.Services
+@using deepwiki_open_dotnet.Web.Components.Shared
+@inject DocumentsApiClient DocsApi
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@namespace deepwiki_open_dotnet.Web.Components.Pages
+
+<PageTitle>Document Library</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 document-library">
+
+    <MudText Typo="Typo.h4" Class="mb-4">Document Library</MudText>
+
+    @* ── Add Documents expansion panel (T081) ──────────────────────────────── *@
+    <MudExpansionPanels Class="mb-4">
+        <MudExpansionPanel Text="Add Documents" Icon="@Icons.Material.Filled.Add">
+            <IngestForm OnIngested="OnDocumentIngested" />
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+
+    @* ── Filter bar ────────────────────────────────────────────────────────── *@
+    <MudTextField @bind-Value="_repoUrlFilter"
+                  Label="Filter by Repository URL"
+                  Placeholder="https://github.com/org/repo"
+                  Variant="Variant.Outlined"
+                  Clearable="true"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.FilterAlt"
+                  Class="mb-4"
+                  OnKeyUp="OnFilterKeyUp"
+                  OnClearButtonClick="ClearFilter"
+                  id="repo-filter"
+                  aria-label="Filter documents by repository URL" />
+
+    @* ── Documents table ───────────────────────────────────────────────────── *@
+    <MudTable Items="@_documents"
+              Dense="true"
+              Hover="true"
+              Loading="@_isLoading"
+              LoadingProgressColor="Color.Primary"
+              SortLabel="Sort By"
+              Class="mb-4"
+              aria-label="Document list">
+
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">
+                @_totalCount document(s)
+            </MudText>
+        </ToolBarContent>
+
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<DocumentSummaryDto, object>(x => x.Title)">Title</MudTableSortLabel></MudTh>
+            <MudTh>Repository URL</MudTh>
+            <MudTh>File Path</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<DocumentSummaryDto, object>(x => x.TokenCount)">Tokens</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<DocumentSummaryDto, object>(x => x.TotalChunks)">Chunks</MudTableSortLabel></MudTh>
+            <MudTh>Type</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<DocumentSummaryDto, object>(x => x.CreatedAt)">Created</MudTableSortLabel></MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+
+        <RowTemplate>
+            <MudTd DataLabel="Title">@context.Title</MudTd>
+            <MudTd DataLabel="Repository URL">
+                <MudTooltip Text="@context.RepoUrl">
+                    <span class="text-truncate" style="max-width:200px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                        @context.RepoUrl
+                    </span>
+                </MudTooltip>
+            </MudTd>
+            <MudTd DataLabel="File Path">@context.FilePath</MudTd>
+            <MudTd DataLabel="Tokens">@context.TokenCount</MudTd>
+            <MudTd DataLabel="Chunks">@context.TotalChunks</MudTd>
+            <MudTd DataLabel="Type">
+                @if (context.IsCode)
+                {
+                    <MudChip T="string" Color="Color.Info" Size="Size.Small">@(context.FileType ?? "code")</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Default" Size="Size.Small">@(context.FileType ?? "doc")</MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="Created">@context.CreatedAt.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                               Color="Color.Error"
+                               Size="Size.Small"
+                               aria-label="Delete document"
+                               data-testid="delete-btn"
+                               OnClick="@(async () => await ConfirmDeleteAsync(context))" />
+            </MudTd>
+        </RowTemplate>
+
+        <NoRecordsContent>
+            <MudText Class="pa-4" Typo="Typo.body2" Color="Color.Secondary">
+                No documents found. Use "Add Documents" above to ingest content.
+            </MudText>
+        </NoRecordsContent>
+
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50, 100 }" />
+        </PagerContent>
+
+    </MudTable>
+
+    @* ── Manual pagination controls (for the API-side pagination) ──────────── *@
+    @if (_totalPages > 1)
+    {
+        <div class="d-flex justify-center mt-2">
+            <MudPagination Count="@_totalPages"
+                           Selected="@_currentPage"
+                           SelectedChanged="OnPageChanged"
+                           Color="Color.Primary"
+                           ShowFirstButton="true"
+                           ShowLastButton="true" />
+        </div>
+    }
+
+</MudContainer>
+
+@code {
+    private List<DocumentSummaryDto> _documents = new();
+    private bool _isLoading;
+    private int _currentPage = 1;
+    private int _pageSize = 10;
+    private int _totalCount;
+    private int _totalPages;
+    private string? _repoUrlFilter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDocumentsAsync();
+    }
+
+    private async Task LoadDocumentsAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            var result = await DocsApi.ListAsync(
+                page: _currentPage,
+                pageSize: _pageSize,
+                repoUrl: string.IsNullOrWhiteSpace(_repoUrlFilter) ? null : _repoUrlFilter);
+
+            _documents = result.Items;
+            _totalCount = result.DocumentTotalCount;
+            _totalPages = result.TotalPages;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load documents: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnFilterKeyUp(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            _currentPage = 1;
+            await LoadDocumentsAsync();
+        }
+    }
+
+    private async Task ClearFilter()
+    {
+        _repoUrlFilter = null;
+        _currentPage = 1;
+        await LoadDocumentsAsync();
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        _currentPage = page;
+        await LoadDocumentsAsync();
+    }
+
+    private async Task OnDocumentIngested(IngestResponseDto result)
+    {
+        _currentPage = 1;
+        await LoadDocumentsAsync();
+        Snackbar.Add($"✅ Successfully ingested {result.SuccessCount} document(s) — {result.TotalChunks} chunks created.", Severity.Success);
+    }
+
+    private async Task ConfirmDeleteAsync(DocumentSummaryDto doc)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Delete Document",
+            $"Are you sure you want to delete \"{doc.Title}\"? This action cannot be undone.",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            await ExecuteDeleteAsync(doc);
+        }
+    }
+
+    private async Task ExecuteDeleteAsync(DocumentSummaryDto doc)
+    {
+        var deleted = await DocsApi.DeleteAsync(doc.Id);
+        if (deleted)
+        {
+            Snackbar.Add($"Document \"{doc.Title}\" deleted.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add($"Document \"{doc.Title}\" not found — it may have already been deleted.", Severity.Warning);
+        }
+        await LoadDocumentsAsync();
+    }
+}

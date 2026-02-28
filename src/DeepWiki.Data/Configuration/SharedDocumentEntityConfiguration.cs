@@ -46,6 +46,13 @@ public class SharedDocumentEntityConfiguration : IEntityTypeConfiguration<Docume
 
         builder.Property(d => d.MetadataJson);
 
+        // Chunk columns
+        builder.Property(d => d.ChunkIndex)
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.TotalChunks)
+            .HasDefaultValue(1);
+
         // Common indexes
         builder.HasIndex(d => d.RepoUrl);
         builder.HasIndex(d => d.CreatedAt);

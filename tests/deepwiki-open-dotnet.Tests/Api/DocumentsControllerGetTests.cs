@@ -39,18 +39,15 @@ public class DocumentsControllerGetTests : IClassFixture<ApiTestFixture>
             IsImplementation = false
         };
 
-        using var customFactory = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<DeepWiki.ApiService.Program>()
-            .WithWebHostBuilder(builder =>
+        using var customFactory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
             {
-                builder.ConfigureServices(services =>
-                {
-                    // Replace IDocumentRepository with mock
-                    var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
-                    if (descriptor != null) services.Remove(descriptor);
+                // Replace IDocumentRepository with mock
+                var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
+                if (descriptor != null) services.Remove(descriptor);
 
-                    services.AddScoped<IDocumentRepository>(_ => new MockRepository(entity));
-                });
-            });
+                services.AddScoped<IDocumentRepository>(_ => new MockRepository(entity));
+            }));
 
         var client = customFactory.CreateClient();
 
@@ -73,17 +70,14 @@ public class DocumentsControllerGetTests : IClassFixture<ApiTestFixture>
         // Arrange
         var id = Guid.NewGuid();
 
-        using var customFactory = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<DeepWiki.ApiService.Program>()
-            .WithWebHostBuilder(builder =>
+        using var customFactory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
             {
-                builder.ConfigureServices(services =>
-                {
-                    var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
-                    if (descriptor != null) services.Remove(descriptor);
+                var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRepository));
+                if (descriptor != null) services.Remove(descriptor);
 
-                    services.AddScoped<IDocumentRepository>(_ => new MockRepository(null));
-                });
-            });
+                services.AddScoped<IDocumentRepository>(_ => new MockRepository(null));
+            }));
 
         var client = customFactory.CreateClient();
 
@@ -112,6 +106,8 @@ public class DocumentsControllerGetTests : IClassFixture<ApiTestFixture>
         public Task<DocumentEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_entity);
         public Task UpdateAsync(DocumentEntity document, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_entity != null && _entity.Id == id);
-        public Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<(List<DocumentEntity> Items, int TotalCount)> ListAsync(string? repoUrl = null, int skip = 0, int take = 100, bool firstChunkOnly = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<List<(string RepoUrl, int DocumentCount)>> GetCollectionSummariesAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new List<(string RepoUrl, int DocumentCount)>());
     }
 }

@@ -182,6 +182,39 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
+    /// Returns one entry per repository URL with the count of indexed files.
+    /// Used by the Web UI Document Collections dropdown.
+    /// </summary>
+    [HttpGet("collections")]
+    [ProducesResponseType(typeof(DocumentCollectionResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetCollections(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var summaries = await _repository.GetCollectionSummariesAsync(cancellationToken);
+
+            var collections = summaries.Select(s => new DocumentCollectionSummary
+            {
+                Id = s.RepoUrl,
+                Name = DeriveCollectionName(s.RepoUrl),
+                DocumentCount = s.DocumentCount
+            }).ToList();
+
+            return Ok(new DocumentCollectionResponse
+            {
+                Collections = collections,
+                TotalCount = collections.Count
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve document collections");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new ErrorResponse { Detail = "An unexpected error occurred while retrieving document collections." });
+        }
+    }
+
+    /// <summary>
     /// Retrieves a single document by its ID.
     /// </summary>
     /// <param name="id">Document ID (GUID)</param>
@@ -266,7 +299,11 @@ public class DocumentsController : ControllerBase
         try
         {
             var skip = (page - 1) * pageSize;
-            var (items, total) = await _repository.ListAsync(repoUrl, skip, pageSize);
+            // firstChunkOnly:true pushes the ChunkIndex==0 filter into the DB query
+            // so Count and Skip/Take operate over distinct files, not raw chunks.
+            // Previously this filter was applied in-memory AFTER Skip/Take, which
+            // meant most pages were empty (skip consumed chunk rows that were discarded).
+            var (items, total) = await _repository.ListAsync(repoUrl, skip, pageSize, firstChunkOnly: true);
 
             var response = new DocumentListResponse
             {
@@ -322,8 +359,26 @@ public class DocumentsController : ControllerBase
             UpdatedAt = e.UpdatedAt,
             TokenCount = e.TokenCount,
             FileType = e.FileType ?? string.Empty,
-            IsCode = e.IsCode
+            IsCode = e.IsCode,
+            TotalChunks = e.TotalChunks
         };
+    }
+
+    /// <summary>
+    /// Derives a human-readable display name from a repository URL.
+    /// E.g. "https://github.com/org/repo" → "org/repo"
+    /// </summary>
+    private static string DeriveCollectionName(string repoUrl)
+    {
+        if (Uri.TryCreate(repoUrl, UriKind.Absolute, out var uri))
+        {
+            // Strip leading slash and return the path, e.g. "/org/repo" → "org/repo"
+            var path = uri.AbsolutePath.TrimStart('/');
+            if (!string.IsNullOrEmpty(path))
+                return path;
+        }
+
+        return repoUrl;
     }
 
     /// <summary>

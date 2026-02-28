@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using DeepWiki.ApiService.Models;
+using DeepWiki.ApiService.Tests.TestUtilities;
 using DeepWiki.Data.Abstractions.Models;
 using FluentAssertions;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -13,12 +14,12 @@ namespace DeepWiki.Tests.Integration;
 /// Validates that SignalR transport returns identical delta sequences as HTTP NDJSON.
 /// Per task T065a: HTTP NDJSON vs SignalR delta sequences match for same input, schema validation.
 /// </summary>
-public class SignalRParityTests : IClassFixture<WebApplicationFactory<Program>>
+public class SignalRParityTests : IClassFixture<IntegrationTestFixture>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly IntegrationTestFixture _factory;
     private readonly HttpClient _httpClient;
 
-    public SignalRParityTests(WebApplicationFactory<Program> factory)
+    public SignalRParityTests(IntegrationTestFixture factory)
     {
         _factory = factory;
         _httpClient = _factory.CreateClient();

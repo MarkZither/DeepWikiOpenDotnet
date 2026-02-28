@@ -31,6 +31,12 @@ namespace DeepWiki.Data.Postgres.Migrations
                         .HasColumnType("uuid")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<int>("ChunkIndex")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("chunk_index");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -90,6 +96,12 @@ namespace DeepWiki.Data.Postgres.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("token_count");
 
+                    b.Property<int>("TotalChunks")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("total_chunks");
+
                     b.Property<DateTime>("UpdatedAt")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAdd()
@@ -101,6 +113,14 @@ namespace DeepWiki.Data.Postgres.Migrations
 
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("ix_documents_created_at");
+
+                    b.HasIndex("Embedding")
+                        .HasDatabaseName("ix_documents_embedding_cosine")
+                        .HasAnnotation("Npgsql:StorageParameter:ef_construction", 64)
+                        .HasAnnotation("Npgsql:StorageParameter:m", 16);
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Embedding"), "hnsw");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Embedding"), new[] { "vector_cosine_ops" });
 
                     b.HasIndex("RepoUrl")
                         .HasDatabaseName("ix_documents_repo_url");

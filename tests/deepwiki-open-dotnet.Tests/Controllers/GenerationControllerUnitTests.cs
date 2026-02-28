@@ -137,7 +137,7 @@ namespace DeepWiki.ApiService.Tests.Controllers
             ms.Seek(0, SeekOrigin.Begin);
             var text = new StreamReader(ms).ReadToEnd();
             var err = JsonSerializer.Deserialize<DeepWiki.ApiService.Models.ErrorResponse>(text.Trim());
-            err!.Detail.Should().Contain("Session not found");
+            err!.Detail.Should().ContainEquivalentOf("session not found");
             ctx.Response.StatusCode.Should().Be(404);
             ctx.Response.ContentType.Should().Be("application/json");
         }

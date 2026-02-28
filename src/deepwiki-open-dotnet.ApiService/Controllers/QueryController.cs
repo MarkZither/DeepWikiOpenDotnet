@@ -1,6 +1,8 @@
+using DeepWiki.ApiService.Configuration;
 using DeepWiki.ApiService.Models;
 using DeepWiki.Data.Abstractions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Polly;
 using System.Text.Json;
 
@@ -19,17 +21,20 @@ public class QueryController : ControllerBase
     private readonly IEmbeddingService _embeddingService;
     private readonly ILogger<QueryController> _logger;
     private readonly ResiliencePipeline _embeddingResiliencePipeline;
+    private readonly EmbeddingOptions _embeddingOptions;
 
     public QueryController(
         IVectorStore vectorStore,
         IEmbeddingService embeddingService,
         ILogger<QueryController> logger,
-        ResiliencePipeline embeddingResiliencePipeline)
+        ResiliencePipeline embeddingResiliencePipeline,
+        IOptions<EmbeddingOptions> embeddingOptions)
     {
         _vectorStore = vectorStore ?? throw new ArgumentNullException(nameof(vectorStore));
         _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _embeddingResiliencePipeline = embeddingResiliencePipeline ?? throw new ArgumentNullException(nameof(embeddingResiliencePipeline));
+        _embeddingOptions = (embeddingOptions ?? throw new ArgumentNullException(nameof(embeddingOptions))).Value;
     }
 
     /// <summary>
@@ -72,9 +77,11 @@ public class QueryController : ControllerBase
             {
                 _logger.LogInformation("About to call embedding provider '{Provider}'", _embeddingService.Provider);
 
-                // Apply an embedding timeout in addition to the request cancellation token
+                // Apply an embedding timeout in addition to the request cancellation token.
+                // Default 120s — configurable via Embedding:TimeoutSeconds for slow local models.
+                var embedTimeoutSec = _embeddingOptions.TimeoutSeconds;
                 using var ctsEmbed = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                ctsEmbed.CancelAfter(TimeSpan.FromSeconds(15)); // short timeout for embed calls
+                ctsEmbed.CancelAfter(TimeSpan.FromSeconds(embedTimeoutSec));
 
                 queryEmbedding = await _embeddingResiliencePipeline.ExecuteAsync(
                     async ct => await _embeddingService.EmbedAsync(queryText, ct),
@@ -90,7 +97,7 @@ public class QueryController : ControllerBase
             }
             catch (OperationCanceledException)
             {
-                _logger.LogError("Embedding provider call timed out after 15s");
+                _logger.LogError("Embedding provider call timed out after {TimeoutSeconds}s", _embeddingOptions.TimeoutSeconds);
                 return StatusCode(StatusCodes.Status503ServiceUnavailable,
                     new ErrorResponse { Detail = "Embedding service timed out. Please try again later." });
             }

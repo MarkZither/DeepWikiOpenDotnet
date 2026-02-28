@@ -1,0 +1,110 @@
+@using deepwiki_open_dotnet.Web.Models
+@using Markdig
+@using MudBlazor
+@inject MarkdownPipeline MarkdownPipeline
+@inject IJSRuntime JS
+
+<div class="chat-message paper @RoleClass" id="@MessageId"
+     role="article"
+     aria-label="@($"{RoleLabel} message at {Message.Timestamp.ToLocalTime():t}")"
+     aria-busy="@Message.IsStreaming">
+    <div class="message-header d-flex align-items-center mb-2">
+        <div class="me-2 avatar-placeholder" aria-hidden="true">@RoleLabel</div>
+        <div class="text-muted small" aria-label="Sent at @Message.Timestamp.ToLocalTime().ToString("t")">@Message.Timestamp.ToLocalTime().ToString("t")</div>
+        @if (Message.Sources?.Count > 0)
+        {
+            <span class="grounded-badge badge ms-2"
+                  title="Document-grounded response"
+                  aria-label="Document-grounded response">
+                <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Small" Class="me-1" />Grounded
+            </span>
+        }
+    </div>
+
+    <div class="message-body markdown-content">
+        @if (Message.IsStreaming && string.IsNullOrEmpty(Message.Text))
+        {
+            <div class="text-muted">
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                Thinking...
+            </div>
+        }
+        else if (Message.IsStreaming)
+        {
+            @* Render as plain text while streaming to avoid Markdig stack overflow on partial/large markdown *@
+            <span style="white-space:pre-wrap">@Message.Text</span><span class="text-muted">▊</span>
+        }
+        else
+        {
+            @((MarkupString)Markdig.Markdown.ToHtml(PreprocessMath(Message.Text), MarkdownPipeline))
+        }
+    </div>
+
+    @if (Message.Sources?.Count > 0)
+    {
+        <div class="mt-2 source-citations small">
+            <div class="d-flex align-items-center mb-1 text-muted">
+                <MudIcon Icon="@Icons.Material.Filled.Source" Size="Size.Small" Class="me-1" />
+                <strong>Sources</strong>
+            </div>
+            <ul class="list-unstyled mb-0">
+                @foreach (var s in Message.Sources)
+                {
+                    <li class="mb-1">
+                        <a href="@s.Url" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+                            <MudIcon Icon="@Icons.Material.Filled.Link" Size="Size.Small" Class="me-1" />@s.Title
+                        </a>
+                        <span class="text-muted ms-1">(@s.Score.ToString("F2"))</span>
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Message.ErrorMessage))
+    {
+        <div class="mt-2 text-danger small">Error: @Message.ErrorMessage</div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public ChatMessageModel Message { get; set; } = default!;
+
+    private string RoleClass => Message.Role == MessageRole.User ? "message-user text-end" : "message-assistant text-start";
+    private string RoleLabel => Message.Role == MessageRole.User ? "You" : "Assistant";
+    private string MessageId => $"message-{Message.Id}";
+
+    // Track previous streaming state so we call KaTeX exactly once -
+    // on the render where IsStreaming flips true->false, or on first render if already done.
+    private bool _wasStreaming = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var justFinished = _wasStreaming && !Message.IsStreaming;
+        _wasStreaming = Message.IsStreaming;
+
+        if (!Message.IsStreaming && (firstRender || justFinished))
+        {
+            await JS.InvokeVoidAsync("chat.renderMathInElement", MessageId);
+        }
+    }
+
+    /// <summary>
+    /// Wraps bare LaTeX commands that are not already inside math delimiters so that
+    /// Markdig and KaTeX can render them. Reasoning models like phi4-mini-reasoning
+    /// often emit <c>\boxed{answer}</c> without surrounding dollar signs.
+    /// </summary>
+    private static string PreprocessMath(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+
+        // Wrap \boxed{...} (one level of nested braces) when not already inside a
+        // math delimiter ($, \(, \[). Converts to $$\boxed{...}$$ (display math).
+        return System.Text.RegularExpressions.Regex.Replace(
+            text,
+            @"(?<![\$\\(\[])\\boxed(\{(?:[^{}]|\{[^{}]*\})*\})",
+            @"$$\boxed$1$$"
+        );
+    }
+}

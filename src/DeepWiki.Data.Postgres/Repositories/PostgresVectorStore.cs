@@ -79,9 +79,9 @@ public class PostgresVectorStore : IPersistenceVectorStore
         if (document.Embedding != null && document.Embedding.Value.Length != 1536)
             throw new ArgumentException("Embedding must be exactly 1536 dimensions", nameof(document));
 
-        // Upsert by (RepoUrl, FilePath) to avoid duplicates — atomic per-document transaction
+        // Upsert by (RepoUrl, FilePath, ChunkIndex) — each chunk is a distinct row
         var existing = await _context.Documents
-            .FirstOrDefaultAsync(d => d.RepoUrl == document.RepoUrl && d.FilePath == document.FilePath, cancellationToken);
+            .FirstOrDefaultAsync(d => d.RepoUrl == document.RepoUrl && d.FilePath == document.FilePath && d.ChunkIndex == document.ChunkIndex, cancellationToken);
 
         if (existing != null)
         {
@@ -93,6 +93,7 @@ public class PostgresVectorStore : IPersistenceVectorStore
             existing.IsCode = document.IsCode;
             existing.IsImplementation = document.IsImplementation;
             existing.TokenCount = document.TokenCount;
+            existing.TotalChunks = document.TotalChunks;
             existing.UpdatedAt = DateTime.UtcNow;
 
             _context.Documents.Update(existing);
@@ -293,6 +294,22 @@ public class PostgresVectorStore : IPersistenceVectorStore
 
         var documents = await _context.Documents
             .Where(d => d.RepoUrl == repoUrl)
+            .ToListAsync(cancellationToken);
+
+        if (documents.Count > 0)
+        {
+            _context.Documents.RemoveRange(documents);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task DeleteChunksAsync(string repoUrl, string filePath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(repoUrl)) throw new ArgumentNullException(nameof(repoUrl));
+        if (string.IsNullOrEmpty(filePath)) throw new ArgumentNullException(nameof(filePath));
+
+        var documents = await _context.Documents
+            .Where(d => d.RepoUrl == repoUrl && d.FilePath == filePath)
             .ToListAsync(cancellationToken);
 
         if (documents.Count > 0)

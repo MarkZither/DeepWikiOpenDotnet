@@ -159,25 +159,27 @@ public sealed class VectorStoreFactory
     {
         try
         {
-            // Attempt runtime resolution of the provider adapter type to avoid compile-time dependency
             var adapterType = Type.GetType("DeepWiki.Data.SqlServer.VectorStore.SqlServerVectorStoreAdapter, DeepWiki.Data.SqlServer");
             if (adapterType != null)
             {
-                var adapterObj = serviceProvider.GetService(adapterType);
+                var adapterObj = serviceProvider.GetService(adapterType)
+                    ?? ActivatorUtilities.CreateInstance(serviceProvider, adapterType);
                 if (adapterObj is IVectorStore adapter)
                 {
-                    logger?.LogInformation("Created SQL Server vector store adapter instance via runtime type: {Adapter}", adapter.GetType().Name);
+                    logger?.LogInformation("Created SQL Server vector store: {Type}", adapter.GetType().Name);
                     return adapter;
                 }
             }
 
-            logger?.LogWarning("SQL Server vector store adapter not found in DI container. Falling back to NoOpVectorStore.");
-            return new NoOpVectorStore();
+            throw new InvalidOperationException(
+                "SQL Server vector store adapter (SqlServerVectorStoreAdapter) is not registered in the DI container. " +
+                "Ensure AddSqlServerDataLayer() was called with a valid connection string during startup.");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not InvalidOperationException)
         {
-            logger?.LogError(ex, "Failed to create SQL Server vector store. Falling back to NoOpVectorStore.");
-            return new NoOpVectorStore();
+            throw new InvalidOperationException(
+                "Failed to create SQL Server vector store. " +
+                "Ensure AddSqlServerDataLayer() was called with a valid connection string during startup.", ex);
         }
     }
 
@@ -185,42 +187,30 @@ public sealed class VectorStoreFactory
     {
         try
         {
-            // Attempt runtime resolution of the Postgres adapter type to avoid compile-time dependency and recursion
             var adapterType = Type.GetType("DeepWiki.Data.Postgres.VectorStore.PostgresVectorStoreAdapter, DeepWiki.Data.Postgres");
             if (adapterType != null)
             {
-                var adapterObj = serviceProvider.GetService(adapterType);
+                // GetService(concreteType) only succeeds when the type is registered directly;
+                // ActivatorUtilities.CreateInstance resolves constructor dependencies from the container
+                // so it works even when the type is only registered via its interface.
+                var adapterObj = serviceProvider.GetService(adapterType)
+                    ?? ActivatorUtilities.CreateInstance(serviceProvider, adapterType);
                 if (adapterObj is IVectorStore adapter)
                 {
-                    logger?.LogInformation("Created PostgreSQL vector store adapter instance via runtime type: {Adapter}", adapter.GetType().Name);
+                    logger?.LogInformation("Created PostgreSQL vector store: {Type}", adapter.GetType().Name);
                     return adapter;
                 }
             }
 
-            // As a fallback, try to resolve a persistence implementation and construct adapter if possible
-            var persistenceType = Type.GetType("DeepWiki.Data.Interfaces.IPersistenceVectorStore, DeepWiki.Data.Interfaces");
-            if (persistenceType != null)
-            {
-                var persistenceObj = serviceProvider.GetService(persistenceType);
-                if (persistenceObj != null)
-                {
-                    // Attempt to construct Postgres adapter via DI-provided logger if available
-                    var loggerType = typeof(Microsoft.Extensions.Logging.ILogger<>).MakeGenericType(adapterType ?? typeof(object));
-                    var loggerForAdapter = serviceProvider.GetService(loggerType) as Microsoft.Extensions.Logging.ILogger<object>;
-
-                    // If we cannot construct, fallback to NoOp
-                    logger?.LogWarning("Postgres persistence registered but adapter instance not available. Falling back to NoOpVectorStore.");
-                    return new NoOpVectorStore();
-                }
-            }
-
-            logger?.LogWarning("PostgreSQL vector store adapter not registered in DI container. Falling back to NoOpVectorStore.");
-            return new NoOpVectorStore();
+            throw new InvalidOperationException(
+                "PostgreSQL vector store adapter type could not be loaded from DeepWiki.Data.Postgres assembly. " +
+                "Ensure the assembly is referenced and AddPostgresDataLayer() was called during startup.");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not InvalidOperationException)
         {
-            logger?.LogError(ex, "Failed to create PostgreSQL vector store. Falling back to NoOpVectorStore.");
-            return new NoOpVectorStore();
+            throw new InvalidOperationException(
+                "Failed to create PostgreSQL vector store. " +
+                "Ensure AddPostgresDataLayer() was called with a valid connection string during startup.", ex);
         }
     }
 }
