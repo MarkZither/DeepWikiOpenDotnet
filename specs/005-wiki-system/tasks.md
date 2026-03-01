@@ -59,9 +59,9 @@
 
 ### Entity Tests
 
-- [ ] T021 [P] Create WikiEntityTests in tests/DeepWiki.Data.Abstractions.Tests/Entities/WikiEntityTests.cs — test entity construction, default values, status enum values, navigation property initialization
-- [ ] T021a [P] Create PostgresWikiRepositoryTests in tests/DeepWiki.Data.Postgres.Tests/WikiRepositoryTests.cs — Testcontainers integration tests using a real Postgres container: CreateWikiAsync persists all entities, GetWikiByIdAsync returns full graph, DeleteWikiAsync cascade-removes pages and relations, UpsertPageAsync is idempotent, ExistsGeneratingAsync returns true only during Generating status; use existing Testcontainers fixture pattern from project
-- [ ] T021b [P] Create SqlServerWikiRepositoryTests in tests/DeepWiki.Data.SqlServer.Tests/WikiRepositoryTests.cs — same test cases as T021a but against a SQL Server container, verifying 100% behaviour parity between providers; confirm UpsertPageAsync check-then-insert-or-update produces a single row under double-call
+- [X] T021 [P] Create WikiEntityTests in tests/DeepWiki.Data.Abstractions.Tests/Entities/WikiEntityTests.cs — test entity construction, default values, status enum values, navigation property initialization
+- [X] T021a [P] Create PostgresWikiRepositoryTests in tests/DeepWiki.Data.Postgres.Tests/WikiRepositoryTests.cs — Testcontainers integration tests using a real Postgres container: CreateWikiAsync persists all entities, GetWikiByIdAsync returns full graph, DeleteWikiAsync cascade-removes pages and relations, UpsertPageAsync is idempotent, ExistsGeneratingAsync returns true only during Generating status; use existing Testcontainers fixture pattern from project
+- [X] T021b [P] Create SqlServerWikiRepositoryTests in tests/DeepWiki.Data.SqlServer.Tests/WikiRepositoryTests.cs — same test cases as T021a but against a SQL Server container, verifying 100% behaviour parity between providers; confirm UpsertPageAsync check-then-insert-or-update produces a single row under double-call
 
 **Checkpoint**: Foundation ready — entities, migrations, repository implementations, and DI wiring complete. User story implementation can now begin.
 

@@ -193,7 +193,8 @@ public class SqlServerWikiRepository : IWikiRepository
     }
 
     /// <summary>
-    /// Upserts a page using a check-then-insert-or-update pattern within a transaction.
+    /// Upserts a page using a check-then-insert-or-update pattern, wrapped in the EF Core
+    /// execution strategy so it is compatible with <c>EnableRetryOnFailure</c>.
     /// SQL Server 2025 does not generate implicit MERGE from EF AddOrUpdate, so we
     /// explicitly check existence, then insert or update within the same transaction.
     /// This operation is idempotent — calling it twice with the same data produces a single row.
@@ -204,39 +205,49 @@ public class SqlServerWikiRepository : IWikiRepository
     {
         if (page == null) throw new ArgumentNullException(nameof(page));
 
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-        try
-        {
-            var existing = await _context.WikiPages.FindAsync([page.Id], cancellationToken);
-            if (existing == null)
-            {
-                // Insert path
-                if (page.Id == Guid.Empty) page.Id = Guid.NewGuid();
-                page.CreatedAt = DateTime.UtcNow;
-                page.UpdatedAt = DateTime.UtcNow;
-                _context.WikiPages.Add(page);
-            }
-            else
-            {
-                // Update path — overwrite mutable fields only
-                existing.Title = page.Title;
-                existing.Content = page.Content;
-                existing.SectionPath = page.SectionPath;
-                existing.SortOrder = page.SortOrder;
-                existing.ParentPageId = page.ParentPageId;
-                existing.Status = page.Status;
-                existing.UpdatedAt = DateTime.UtcNow;
-                page = existing;
-            }
+        // CreateExecutionStrategy is required when EnableRetryOnFailure is configured;
+        // BeginTransactionAsync cannot be called directly under a retrying strategy.
+        WikiPageEntity result = page;
+        var strategy = _context.Database.CreateExecutionStrategy();
 
-            await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return page;
-        }
-        catch
+        await strategy.ExecuteAsync(async () =>
         {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var existing = await _context.WikiPages.FindAsync([page.Id], cancellationToken);
+                if (existing == null)
+                {
+                    // Insert path
+                    if (page.Id == Guid.Empty) page.Id = Guid.NewGuid();
+                    page.CreatedAt = DateTime.UtcNow;
+                    page.UpdatedAt = DateTime.UtcNow;
+                    _context.WikiPages.Add(page);
+                    result = page;
+                }
+                else
+                {
+                    // Update path — overwrite mutable fields only
+                    existing.Title = page.Title;
+                    existing.Content = page.Content;
+                    existing.SectionPath = page.SectionPath;
+                    existing.SortOrder = page.SortOrder;
+                    existing.ParentPageId = page.ParentPageId;
+                    existing.Status = page.Status;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    result = existing;
+                }
+
+                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        });
+
+        return result;
     }
 }
