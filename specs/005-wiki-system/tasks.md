@@ -19,12 +19,12 @@
 
 **Purpose**: Project initialization — enums, entities, and abstractions that all stories depend on
 
-- [ ] T001 [P] Create WikiStatus enum in src/DeepWiki.Data.Abstractions/Entities/WikiStatus.cs — values: Generating, Complete, Partial, Error
-- [ ] T002 [P] Create PageStatus enum in src/DeepWiki.Data.Abstractions/Entities/PageStatus.cs — values: OK, Error, Generating
-- [ ] T003 [P] Create WikiEntity in src/DeepWiki.Data.Abstractions/Entities/WikiEntity.cs — Id (Guid), CollectionId (string), Name (string), Description (string?), Status (WikiStatus), CreatedAt (DateTime), UpdatedAt (DateTime), navigation: Pages collection
-- [ ] T004 [P] Create WikiPageEntity in src/DeepWiki.Data.Abstractions/Entities/WikiPageEntity.cs — Id (Guid), WikiId (Guid FK), Title (string), Content (string), SectionPath (string), SortOrder (int), ParentPageId (Guid? FK), Status (PageStatus), CreatedAt (DateTime), UpdatedAt (DateTime), navigation: Wiki, ParentPage, ChildPages, SourceRelations, TargetRelations
-- [ ] T005 [P] Create WikiPageRelation in src/DeepWiki.Data.Abstractions/Entities/WikiPageRelation.cs — composite PK (SourcePageId, TargetPageId), navigation: SourcePage, TargetPage
-- [ ] T006 Create IWikiRepository interface in src/DeepWiki.Data.Abstractions/Interfaces/IWikiRepository.cs — all 14 methods per plan (CreateWikiAsync, GetWikiByIdAsync, GetProjectsAsync, DeleteWikiAsync, UpdateWikiStatusAsync, GetPageByIdAsync, AddPageAsync, UpdatePageAsync, DeletePageAsync, GetPageCountAsync, GetRelatedPagesAsync, SetRelatedPagesAsync, ExistsGeneratingAsync, UpsertPageAsync)
+- [X] T001 [P] Create WikiStatus enum in src/DeepWiki.Data.Abstractions/Entities/WikiStatus.cs — values: Generating, Complete, Partial, Error
+- [X] T002 [P] Create PageStatus enum in src/DeepWiki.Data.Abstractions/Entities/PageStatus.cs — values: OK, Error, Generating
+- [X] T003 [P] Create WikiEntity in src/DeepWiki.Data.Abstractions/Entities/WikiEntity.cs — Id (Guid), CollectionId (string), Name (string), Description (string?), Status (WikiStatus), CreatedAt (DateTime), UpdatedAt (DateTime), navigation: Pages collection
+- [X] T004 [P] Create WikiPageEntity in src/DeepWiki.Data.Abstractions/Entities/WikiPageEntity.cs — Id (Guid), WikiId (Guid FK), Title (string), Content (string), SectionPath (string), SortOrder (int), ParentPageId (Guid? FK), Status (PageStatus), CreatedAt (DateTime), UpdatedAt (DateTime), navigation: Wiki, ParentPage, ChildPages, SourceRelations, TargetRelations
+- [X] T005 [P] Create WikiPageRelation in src/DeepWiki.Data.Abstractions/Entities/WikiPageRelation.cs — composite PK (SourcePageId, TargetPageId), navigation: SourcePage, TargetPage
+- [X] T006 Create IWikiRepository interface in src/DeepWiki.Data.Abstractions/Interfaces/IWikiRepository.cs — all 14 methods per plan (CreateWikiAsync, GetWikiByIdAsync, GetProjectsAsync, DeleteWikiAsync, UpdateWikiStatusAsync, GetPageByIdAsync, AddPageAsync, UpdatePageAsync, DeletePageAsync, GetPageCountAsync, GetRelatedPagesAsync, SetRelatedPagesAsync, ExistsGeneratingAsync, UpsertPageAsync)
 
 ---
 
@@ -36,26 +36,26 @@
 
 ### Postgres Provider
 
-- [ ] T007 [P] Create WikiEntityConfiguration in src/DeepWiki.Data.Postgres/Configuration/WikiEntityConfiguration.cs — table name, PK, required props, CollectionId index, snake_case naming per Postgres convention
-- [ ] T008 [P] Create WikiPageEntityConfiguration in src/DeepWiki.Data.Postgres/Configuration/WikiPageEntityConfiguration.cs — table name, PK, FK to Wiki (cascade delete), FK to ParentPage (nullable, restrict delete), WikiId index, SectionPath index, text column for Content
-- [ ] T009 [P] Create WikiPageRelationConfiguration in src/DeepWiki.Data.Postgres/Configuration/WikiPageRelationConfiguration.cs — composite PK (SourcePageId, TargetPageId), FKs to WikiPageEntity with cascade delete, TargetPageId index
-- [ ] T010 Add DbSet properties to Postgres DbContext in src/DeepWiki.Data.Postgres/DbContexts/PostgresVectorDbContext.cs — add DbSet<WikiEntity> Wikis, DbSet<WikiPageEntity> WikiPages, DbSet<WikiPageRelation> WikiPageRelations, apply configurations in OnModelCreating
-- [ ] T011 Generate EF Core migration for Postgres — run `dotnet ef migrations add AddWikiTables` in src/DeepWiki.Data.Postgres/; then document migration checklist in the migration file header comment: (1) index impact (CollectionId, WikiId, SectionPath, TargetPageId indexes added), (2) no downtime expected (additive-only schema change), (3) rollback: `dotnet ef migrations remove`; verify migration up/down on a clean local Postgres database
-- [ ] T012 Implement PostgresWikiRepository in src/DeepWiki.Data.Postgres/Repositories/PostgresWikiRepository.cs — implement all IWikiRepository methods using PostgresVectorDbContext, include eager loading for pages and relations; for `UpsertPageAsync` use EF Core ExecuteUpdate / AddOrUpdate pattern (Postgres `INSERT ON CONFLICT DO UPDATE` via EF); include an idempotency test in T021 verifying double-upsert produces a single row
+- [X] T007 [P] Create WikiEntityConfiguration in src/DeepWiki.Data.Postgres/Configuration/WikiEntityConfiguration.cs — table name, PK, required props, CollectionId index, snake_case naming per Postgres convention
+- [X] T008 [P] Create WikiPageEntityConfiguration in src/DeepWiki.Data.Postgres/Configuration/WikiPageEntityConfiguration.cs — table name, PK, FK to Wiki (cascade delete), FK to ParentPage (nullable, restrict delete), WikiId index, SectionPath index, text column for Content
+- [X] T009 [P] Create WikiPageRelationConfiguration in src/DeepWiki.Data.Postgres/Configuration/WikiPageRelationConfiguration.cs — composite PK (SourcePageId, TargetPageId), FKs to WikiPageEntity with cascade delete, TargetPageId index
+- [X] T010 Add DbSet properties to Postgres DbContext in src/DeepWiki.Data.Postgres/DbContexts/PostgresVectorDbContext.cs — add DbSet<WikiEntity> Wikis, DbSet<WikiPageEntity> WikiPages, DbSet<WikiPageRelation> WikiPageRelations, apply configurations in OnModelCreating
+- [X] T011 Generate EF Core migration for Postgres — run `dotnet ef migrations add AddWikiTables` in src/DeepWiki.Data.Postgres/; then document migration checklist in the migration file header comment: (1) index impact (CollectionId, WikiId, SectionPath, TargetPageId indexes added), (2) no downtime expected (additive-only schema change), (3) rollback: `dotnet ef migrations remove`; verify migration up/down on a clean local Postgres database
+- [X] T012 Implement PostgresWikiRepository in src/DeepWiki.Data.Postgres/Repositories/PostgresWikiRepository.cs — implement all IWikiRepository methods using PostgresVectorDbContext, include eager loading for pages and relations; for `UpsertPageAsync` use EF Core ExecuteUpdate / AddOrUpdate pattern (Postgres `INSERT ON CONFLICT DO UPDATE` via EF); include an idempotency test in T021 verifying double-upsert produces a single row
 
 ### SQL Server Provider
 
-- [ ] T013 [P] Create WikiEntityConfiguration in src/DeepWiki.Data.SqlServer/Configuration/WikiEntityConfiguration.cs — table name, PK, required props, CollectionId index per SQL Server conventions
-- [ ] T014 [P] Create WikiPageEntityConfiguration in src/DeepWiki.Data.SqlServer/Configuration/WikiPageEntityConfiguration.cs — table name, PK, FK to Wiki (cascade delete), FK to ParentPage (nullable, no action), WikiId index, SectionPath index, nvarchar(max) for Content
-- [ ] T015 [P] Create WikiPageRelationConfiguration in src/DeepWiki.Data.SqlServer/Configuration/WikiPageRelationConfiguration.cs — composite PK, FKs with cascade delete, TargetPageId index
-- [ ] T016 Add DbSet properties to SQL Server DbContext in src/DeepWiki.Data.SqlServer/DbContexts/SqlServerVectorDbContext.cs — add DbSet<WikiEntity>, DbSet<WikiPageEntity>, DbSet<WikiPageRelation>, apply configurations
-- [ ] T017 Generate EF Core migration for SQL Server — run `dotnet ef migrations add AddWikiTables` in src/DeepWiki.Data.SqlServer/; then document migration checklist in the migration file header comment: (1) index impact (CollectionId, WikiId, SectionPath, TargetPageId indexes added), (2) no downtime expected (additive-only schema change), (3) rollback: `dotnet ef migrations remove`; verify migration up/down on a clean local SQL Server database
-- [ ] T018 Implement SqlServerWikiRepository in src/DeepWiki.Data.SqlServer/Repositories/SqlServerWikiRepository.cs — implement all IWikiRepository methods using SqlServerVectorDbContext; for `UpsertPageAsync` use EF Core MERGE-equivalent (check-then-insert-or-update within a transaction; SQL Server 2025 does not generate implicit MERGE from EF AddOrUpdate); include idempotency test verifying double-upsert produces a single row
+- [X] T013 [P] Create WikiEntityConfiguration in src/DeepWiki.Data.SqlServer/Configuration/WikiEntityConfiguration.cs — table name, PK, required props, CollectionId index per SQL Server conventions
+- [X] T014 [P] Create WikiPageEntityConfiguration in src/DeepWiki.Data.SqlServer/Configuration/WikiPageEntityConfiguration.cs — table name, PK, FK to Wiki (cascade delete), FK to ParentPage (nullable, no action), WikiId index, SectionPath index, nvarchar(max) for Content
+- [X] T015 [P] Create WikiPageRelationConfiguration in src/DeepWiki.Data.SqlServer/Configuration/WikiPageRelationConfiguration.cs — composite PK, FKs with cascade delete, TargetPageId index
+- [X] T016 Add DbSet properties to SQL Server DbContext in src/DeepWiki.Data.SqlServer/DbContexts/SqlServerVectorDbContext.cs — add DbSet<WikiEntity>, DbSet<WikiPageEntity>, DbSet<WikiPageRelation>, apply configurations
+- [X] T017 Generate EF Core migration for SQL Server — run `dotnet ef migrations add AddWikiTables` in src/DeepWiki.Data.SqlServer/; then document migration checklist in the migration file header comment: (1) index impact (CollectionId, WikiId, SectionPath, TargetPageId indexes added), (2) no downtime expected (additive-only schema change), (3) rollback: `dotnet ef migrations remove`; verify migration up/down on a clean local SQL Server database
+- [X] T018 Implement SqlServerWikiRepository in src/DeepWiki.Data.SqlServer/Repositories/SqlServerWikiRepository.cs — implement all IWikiRepository methods using SqlServerVectorDbContext; for `UpsertPageAsync` use EF Core MERGE-equivalent (check-then-insert-or-update within a transaction; SQL Server 2025 does not generate implicit MERGE from EF AddOrUpdate); include idempotency test verifying double-upsert produces a single row
 
 ### DI Registration
 
-- [ ] T019 Register IWikiRepository in Postgres DI — add `services.AddScoped<IWikiRepository, PostgresWikiRepository>()` to AddPostgresDataLayer in src/DeepWiki.Data.Postgres/
-- [ ] T020 Register IWikiRepository in SQL Server DI — add `services.AddScoped<IWikiRepository, SqlServerWikiRepository>()` to AddSqlServerDataLayer in src/DeepWiki.Data.SqlServer/
+- [X] T019 Register IWikiRepository in Postgres DI — add `services.AddScoped<IWikiRepository, PostgresWikiRepository>()` to AddPostgresDataLayer in src/DeepWiki.Data.Postgres/
+- [X] T020 Register IWikiRepository in SQL Server DI — add `services.AddScoped<IWikiRepository, SqlServerWikiRepository>()` to AddSqlServerDataLayer in src/DeepWiki.Data.SqlServer/
 
 ### Entity Tests
 

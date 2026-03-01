@@ -1,3 +1,4 @@
+using DeepWiki.Data.Abstractions.Interfaces;
 using DeepWiki.Data.Interfaces;
 using DeepWiki.Data.Postgres.DbContexts;
 using DeepWiki.Data.Postgres.Repositories;
@@ -67,6 +68,7 @@ public static class ServiceCollectionExtensions
         // Register repository and vector store implementations
         services.AddScoped<IPersistenceVectorStore, PostgresVectorStore>();
         services.AddScoped<IDocumentRepository, PostgresDocumentRepository>();
+        services.AddScoped<IWikiRepository, PostgresWikiRepository>();
         
         // Register Abstractions adapter to provide DeepWiki.Data.Abstractions.IVectorStore backed by the provider implementation
         services.AddScoped<DeepWiki.Data.Abstractions.IVectorStore, PostgresVectorStoreAdapter>();
