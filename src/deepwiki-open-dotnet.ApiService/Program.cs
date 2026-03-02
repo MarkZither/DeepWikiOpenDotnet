@@ -355,6 +355,11 @@ public class Program
         // Register document ingestion service (Slice 4: orchestrates chunking, embedding, upsert)
         builder.Services.AddScoped<DeepWiki.Data.Abstractions.IDocumentIngestionService, DeepWiki.Rag.Core.Ingestion.DocumentIngestionService>();
 
+        // Wiki services (Phase 3: US1 MVP — CRUD operations)
+        builder.Services.AddScoped<DeepWiki.Rag.Core.Services.IWikiService, DeepWiki.Rag.Core.Services.WikiService>();
+        builder.Services.Configure<DeepWiki.Rag.Core.Models.WikiGenerationOptions>(
+            builder.Configuration.GetSection("Wiki:Generation"));
+
         var app = builder.Build();
 
 // Optional: Auto-run EF Core migrations for Postgres vector DB when requested

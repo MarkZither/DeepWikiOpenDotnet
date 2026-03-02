@@ -27,6 +27,9 @@ public interface IWikiRepository
     /// <summary>Updates only the <see cref="WikiStatus"/> and <see cref="WikiEntity.UpdatedAt"/> of an existing wiki.</summary>
     Task UpdateWikiStatusAsync(Guid wikiId, WikiStatus status, CancellationToken cancellationToken = default);
 
+    /// <summary>Updates only the description and <see cref="WikiEntity.UpdatedAt"/> of an existing wiki.</summary>
+    Task UpdateWikiDescriptionAsync(Guid wikiId, string? description, CancellationToken cancellationToken = default);
+
     // ── Page-level operations ──────────────────────────────────────────────
 
     /// <summary>Returns the page with the given ID, or null if not found.</summary>

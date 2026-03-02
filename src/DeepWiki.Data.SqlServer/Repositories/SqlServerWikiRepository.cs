@@ -80,6 +80,16 @@ public class SqlServerWikiRepository : IWikiRepository
                 cancellationToken);
     }
 
+    public async Task UpdateWikiDescriptionAsync(Guid wikiId, string? description, CancellationToken cancellationToken = default)
+    {
+        await _context.Wikis
+            .Where(w => w.Id == wikiId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(w => w.Description, description)
+                .SetProperty(w => w.UpdatedAt, DateTime.UtcNow),
+                cancellationToken);
+    }
+
     // ── Page-level operations ─────────────────────────────────────────────
 
     public async Task<WikiPageEntity?> GetPageByIdAsync(Guid pageId, CancellationToken cancellationToken = default)
