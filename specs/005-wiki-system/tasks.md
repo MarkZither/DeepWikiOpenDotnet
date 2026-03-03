@@ -101,14 +101,14 @@
 
 ### Tests for User Story 2
 
-- [ ] T031 [P] [US2] Create WikiProjectListTests in tests/deepwiki-open-dotnet.Web.Tests/Components/WikiProjectListTests.cs — bUnit tests: renders project table with name/collection/pageCount/lastModified columns, handles empty state with guidance message, handles pagination with >20 items, clicking a row triggers navigation callback
+- [X] T031 [P] [US2] Create WikiProjectListTests in tests/deepwiki-open-dotnet.Web.Tests/Components/WikiProjectListTests.cs — bUnit tests: renders project table with name/collection/pageCount/lastModified columns, handles empty state with guidance message, handles pagination with >20 items, clicking a row triggers navigation callback
 
 ### Implementation for User Story 2
 
-- [ ] T032 [US2] Create WikiApiClient in src/deepwiki-open-dotnet.Web/Services/WikiApiClient.cs — typed HttpClient with GetProjectsAsync, GetWikiByIdAsync, DeleteWikiAsync, CreateWikiAsync, AddPageAsync, UpdatePageAsync, DeletePageAsync methods; register in Web Program.cs with Aspire service discovery base address "https+http://apiservice"
-- [ ] T033 [US2] Create WikiProjectList component in src/deepwiki-open-dotnet.Web/Components/Shared/WikiProjectList.razor — MudTable with columns (Name, Collection, PageCount, LastModified), MudPagination, loading state with MudProgressLinear, empty state with MudAlert, OnProjectClick EventCallback<Guid>
-- [ ] T034 [US2] Create WikiProjects page in src/deepwiki-open-dotnet.Web/Components/Pages/WikiProjects.razor — @page "/wiki", loads project list on init via WikiApiClient, renders WikiProjectList component, on project click navigates to /wiki/{id}
-- [ ] T035 [US2] Add Wiki nav link to NavMenu in src/deepwiki-open-dotnet.Web/Components/Layout/NavMenu.razor — add nav-item with bi-journal-text icon, "Wiki" label, href="wiki", placed after Documents link
+- [X] T032 [US2] Create WikiApiClient in src/deepwiki-open-dotnet.Web/Services/WikiApiClient.cs — typed HttpClient with GetProjectsAsync, GetWikiByIdAsync, DeleteWikiAsync, CreateWikiAsync, AddPageAsync, UpdatePageAsync, DeletePageAsync methods; register in Web Program.cs with Aspire service discovery base address "https+http://apiservice"
+- [X] T033 [US2] Create WikiProjectList component in src/deepwiki-open-dotnet.Web/Components/Shared/WikiProjectList.razor — MudTable with columns (Name, Collection, PageCount, LastModified), MudPagination, loading state with MudProgressLinear, empty state with MudAlert, OnProjectClick EventCallback<Guid>
+- [X] T034 [US2] Create WikiProjects page in src/deepwiki-open-dotnet.Web/Components/Pages/WikiProjects.razor — @page "/wiki", loads project list on init via WikiApiClient, renders WikiProjectList component, on project click navigates to /wiki/{id}
+- [X] T035 [US2] Add Wiki nav link to NavMenu in src/deepwiki-open-dotnet.Web/Components/Layout/NavMenu.razor — add nav-item with bi-journal-text icon, "Wiki" label, href="wiki", placed after Documents link
 
 **Checkpoint**: Users can visit /wiki and see all wiki projects. Clicking a project navigates to /wiki/{id} (viewer not yet implemented — Phase 5).
 

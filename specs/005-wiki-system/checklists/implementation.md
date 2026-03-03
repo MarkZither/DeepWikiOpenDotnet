@@ -21,7 +21,7 @@
 
 ## REST API Contract Requirements
 
-- [ ] CHK009 — Is the pagination response envelope format for FR-005 consistent with existing paginated endpoints in the codebase (same `total`, `page`, `pageSize`, `items` shape)? [Consistency, Spec §FR-005]
+- [x] CHK009 — Is the pagination response envelope format for FR-005 consistent with existing paginated endpoints in the codebase (same `total`, `page`, `pageSize`, `items` shape)? [Consistency, Spec §FR-005] ✅ Resolved by T032: `GET /api/wiki/projects` returns `PagedResult<WikiSummaryResponse>` with `items`, `totalCount`, `page`, `pageSize` fields — matching the `DocumentListResponseDto` pattern used by `DocumentsApiClient`. `WikiApiClient` mirrors this via `PagedResultDto<WikiSummaryDto>` in the Web layer.
 - [ ] CHK010 — Is the 409 Conflict response body for FR-012 specified — does it include the conflicting wiki's ID or generation start time, or only a human-readable message? [Clarity, Spec §FR-012, Ambiguity]
 - [ ] CHK011 — Is `SortOrder` auto-assignment behaviour defined for FR-017 (POST new page) — does the system assign the next sequential value, or is it caller-provided with no default? [Completeness, Spec §FR-017]
 - [ ] CHK012 — Is the `collectionSource` field in `WikiSummaryResponse` (FR-005) defined as the raw `CollectionId` value or a display name resolved from the existing collection data model? [Clarity, Spec §FR-005, Ambiguity]
@@ -53,7 +53,7 @@
 - [ ] CHK028 — Is the responsive/mobile layout requirement defined for the `/wiki/{id}` two-column (sidebar + content) layout on smaller viewports? [Completeness, Gap]
 - [ ] CHK029 — Is the `WikiViewer` deep-link behaviour defined when `?page={pageId}` references a page that does not belong to the loaded wiki? [Edge Case, Spec §FR-009, Gap]
 - [ ] CHK030 — Is the generation cancel button interaction specified — does it disable optimistically on click, or does it wait for a `generation_cancelled` event before disabling? [Clarity, Spec §FR-014]
-- [ ] CHK031 — Are `WikiProjectList` column sort requirements defined — is the project list sortable and, if so, by which columns and in which default order? [Completeness, Spec §FR-005, Gap]
+- [x] CHK031 — Are `WikiProjectList` column sort requirements defined — is the project list sortable and, if so, by which columns and in which default order? [Completeness, Spec §FR-005, Gap] ✅ Resolved by T033: `WikiProjectList.razor` implements `MudTableSortLabel` for Name, Collection, Pages, and LastModified columns. Default display order is API-determined (server-side sort by UpdatedAt desc). Client-side sort of the current page is available for all four columns.
 - [x] CHK032 — Is the Markdown rendering scope defined precisely — are any extensions beyond CommonMark expected (math, Mermaid diagrams, syntax highlighting), and are these supported by the configured Markdig pipeline? [Clarity, Spec §Assumptions] ✅ spec.md Assumptions states "The existing Markdown rendering library handles all required formatting including code blocks, tables, and math expressions" — reuses existing Markdig pipeline from ChatMessage.razor
 
 ---

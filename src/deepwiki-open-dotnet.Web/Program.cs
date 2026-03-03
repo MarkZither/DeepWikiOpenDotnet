@@ -87,6 +87,12 @@ builder.Services.AddHttpClient<WeatherApiClient>(client =>
         client.BaseAddress = new("https+http://apiservice");
     });
 
+// Wiki API client (T032 – US2)
+builder.Services.AddHttpClient<WikiApiClient>(client =>
+{
+    client.BaseAddress = new("https+http://apiservice");
+});
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())

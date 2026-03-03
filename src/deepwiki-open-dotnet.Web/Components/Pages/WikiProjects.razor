@@ -1,0 +1,69 @@
+@page "/wiki"
+@using deepwiki_open_dotnet.Web.Components.Shared
+@using deepwiki_open_dotnet.Web.Models
+@using deepwiki_open_dotnet.Web.Services
+@inject WikiApiClient WikiApi
+@inject NavigationManager Navigation
+@namespace deepwiki_open_dotnet.Web.Components.Pages
+
+@* T034 – US2: Wiki project browser page *@
+
+<PageTitle>Wiki Projects</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+
+    <MudText Typo="Typo.h4" Class="mb-2">Wiki Projects</MudText>
+    <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">
+        Browse all generated wiki projects. Click a project to view its pages.
+    </MudText>
+
+    <WikiProjectList Projects="@_projects"
+                     TotalCount="@_totalCount"
+                     IsLoading="@_isLoading"
+                     Page="@_currentPage"
+                     PageSize="@PageSize"
+                     OnProjectClick="NavigateToWiki"
+                     OnPageChange="LoadPageAsync" />
+
+</MudContainer>
+
+@code {
+    private IReadOnlyList<WikiSummaryDto> _projects = [];
+    private int _totalCount;
+    private bool _isLoading = true;
+    private int _currentPage = 1;
+
+    private const int PageSize = 20;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPageAsync(_currentPage);
+    }
+
+    private async Task LoadPageAsync(int page)
+    {
+        _isLoading = true;
+        _currentPage = page;
+
+        try
+        {
+            var result = await WikiApi.GetProjectsAsync(page, PageSize);
+            _projects = result.Items;
+            _totalCount = result.TotalCount;
+        }
+        catch
+        {
+            _projects = [];
+            _totalCount = 0;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void NavigateToWiki(Guid wikiId)
+    {
+        Navigation.NavigateTo($"/wiki/{wikiId}");
+    }
+}
