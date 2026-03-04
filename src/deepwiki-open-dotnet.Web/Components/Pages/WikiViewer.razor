@@ -1,0 +1,187 @@
+@page "/wiki/{Id:guid}"
+@using deepwiki_open_dotnet.Web.Components.Shared
+@using deepwiki_open_dotnet.Web.Models
+@using deepwiki_open_dotnet.Web.Services
+@inject WikiApiClient WikiApi
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@namespace deepwiki_open_dotnet.Web.Components.Pages
+
+@* T040 – US3: Wiki viewer — sidebar navigation + Markdown content *@
+
+<PageTitle>@(_wiki?.Name ?? "Wiki Viewer")</PageTitle>
+
+@if (_isLoading)
+{
+    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+    </MudContainer>
+}
+else if (_notFound)
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4">
+        <MudAlert Severity="Severity.Warning">
+            Wiki not found. It may have been deleted or the ID is incorrect.
+            <MudLink Href="/wiki" Class="ml-2">Back to Wiki Projects</MudLink>
+        </MudAlert>
+    </MudContainer>
+}
+else if (_wiki is not null)
+{
+    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-0 pa-0" Style="height: calc(100vh - 64px); overflow: hidden;">
+
+        @* ── Top bar ── *@
+        <div class="d-flex align-items-center pa-3 gap-2" style="border-bottom: 1px solid var(--mud-palette-divider);">
+            <MudLink Href="/wiki" Underline="Underline.None">
+                <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small" Class="mr-1" />Wiki Projects
+            </MudLink>
+            <MudText Typo="Typo.h6" Class="flex-grow-1 mx-2">@_wiki.Name</MudText>
+            @if (!string.IsNullOrWhiteSpace(_wiki.Description))
+            {
+                <MudTooltip Text="@_wiki.Description">
+                    <MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small" Color="Color.Secondary" />
+                </MudTooltip>
+            }
+            <MudChip T="string" Size="Size.Small" Color="@StatusColor(_wiki.Status)" Variant="Variant.Outlined">
+                @_wiki.Status
+            </MudChip>
+            @* Export button — wired fully in T047 (Phase 6) *@
+            <MudButton Variant="Variant.Outlined"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Download"
+                       OnClick="@HandleExportClick"
+                       title="Export wiki (Markdown / JSON)">
+                Export
+            </MudButton>
+            <MudButton Variant="Variant.Outlined"
+                       Size="Size.Small"
+                       Color="Color.Error"
+                       StartIcon="@Icons.Material.Filled.Delete"
+                       OnClick="@HandleDeleteClick"
+                       title="Delete this wiki">
+                Delete
+            </MudButton>
+        </div>
+
+        @* ── Sidebar + content layout ── *@
+        <MudGrid Spacing="0" Style="height: 100%; overflow: hidden;">
+
+            @* Sidebar — Col 3 *@
+            <MudItem xs="3"
+                     Style="border-right: 1px solid var(--mud-palette-divider); height: 100%; overflow-y: auto; background: var(--mud-palette-background-grey);">
+                <div class="pa-2">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-1 pb-1">
+                        PAGES (@_wiki.Pages.Count)
+                    </MudText>
+                    <WikiSidebar Pages="@_pages"
+                                 SelectedPageId="@_selectedPageId"
+                                 OnPageSelected="@SelectPage" />
+                </div>
+            </MudItem>
+
+            @* Content — Col 9 *@
+            <MudItem xs="9" Style="height: 100%; overflow-y: auto; padding: 24px;">
+                <WikiPageContent Page="@_selectedPage"
+                                 OnRelatedPageClick="@SelectPage" />
+            </MudItem>
+
+        </MudGrid>
+
+    </MudContainer>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    /// <summary>Optional page ID passed as ?page={pageId} query param for direct page selection.</summary>
+    [SupplyParameterFromQuery(Name = "page")]
+    public Guid? PageQueryParam { get; set; }
+
+    private WikiDto? _wiki;
+    private IReadOnlyList<WikiPageDto> _pages = [];
+    private Guid? _selectedPageId;
+    private WikiPageDto? _selectedPage;
+    private bool _isLoading = true;
+    private bool _notFound;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWikiAsync();
+    }
+
+    private async Task LoadWikiAsync()
+    {
+        _isLoading = true;
+        _notFound = false;
+
+        try
+        {
+            _wiki = await WikiApi.GetWikiByIdAsync(Id);
+
+            if (_wiki is null)
+            {
+                _notFound = true;
+                return;
+            }
+
+            _pages = _wiki.Pages;
+
+            // Default: use query param if provided; otherwise first page by SortOrder
+            var targetId = PageQueryParam
+                ?? _pages.OrderBy(p => p.SortOrder).FirstOrDefault()?.Id;
+
+            if (targetId.HasValue)
+                SelectPage(targetId.Value);
+        }
+        catch
+        {
+            _notFound = true;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void SelectPage(Guid pageId)
+    {
+        _selectedPageId = pageId;
+        _selectedPage   = _pages.FirstOrDefault(p => p.Id == pageId);
+
+        // Update query string without full navigation so the URL is shareable
+        var uri = Navigation.GetUriWithQueryParameter("page", pageId.ToString());
+        Navigation.NavigateTo(uri, replace: true);
+    }
+
+    private async Task HandleDeleteClick()
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            title: "Delete Wiki",
+            message: $"Are you sure you want to delete \"{_wiki?.Name}\"? This cannot be undone.",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            var deleted = await WikiApi.DeleteWikiAsync(Id);
+            if (deleted)
+                Navigation.NavigateTo("/wiki");
+        }
+    }
+
+    private void HandleExportClick()
+    {
+        // Export is wired in T047 (Phase 6 — WikiExportService integration).
+        // Stub: navigate to export page or show dialog when implemented.
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "Complete"   => Color.Success,
+        "Generating" => Color.Warning,
+        "Partial"    => Color.Info,
+        "Error"      => Color.Error,
+        _            => Color.Default
+    };
+}

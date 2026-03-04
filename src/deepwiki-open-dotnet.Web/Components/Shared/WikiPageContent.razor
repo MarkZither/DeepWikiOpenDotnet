@@ -1,0 +1,79 @@
+@using deepwiki_open_dotnet.Web.Models
+@using Markdig
+@namespace deepwiki_open_dotnet.Web.Components.Shared
+@inject MarkdownPipeline MarkdownPipeline
+
+@* T039 – US3: Renders a single wiki page's Markdown content with related-page chips *@
+
+@if (Page is null)
+{
+    <MudText Color="Color.Secondary" Typo="Typo.body2">Select a page from the sidebar to begin reading.</MudText>
+}
+else
+{
+    <div class="wiki-page-content">
+
+        @* ── Page heading ── *@
+        <MudText Typo="Typo.h5" Class="mb-1">@Page.Title</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+            @Page.SectionPath
+        </MudText>
+        <MudDivider Class="mb-4" />
+
+        @* ── Markdown body ── *@
+        <div class="markdown-content wiki-markdown">
+            @((MarkupString)Markdig.Markdown.ToHtml(Page.Content ?? string.Empty, MarkdownPipeline))
+        </div>
+
+        @* ── Related pages ── *@
+        @if (Page.RelatedPages.Count > 0)
+        {
+            <MudDivider Class="mt-4 mb-2" />
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Related Pages</MudText>
+            <div class="d-flex flex-wrap gap-2">
+                @foreach (var related in Page.RelatedPages)
+                {
+                    @if (string.IsNullOrWhiteSpace(related.Title) || related.Id == Guid.Empty)
+                    {
+                        @* Deleted / unresolved page *@
+                        <MudChip T="string"
+                                 Disabled="true"
+                                 Size="Size.Small"
+                                 Variant="Variant.Outlined"
+                                 Color="Color.Default"
+                                 title="This page has been removed">
+                            (page removed)
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Variant="Variant.Outlined"
+                                 Color="Color.Primary"
+                                 data-related-id="@related.Id"
+                                 OnClick="@(() => HandleRelatedClick(related.Id))"
+                                 title="@($"Navigate to {related.Title}")">
+                            @related.Title
+                        </MudChip>
+                    }
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>The wiki page to display. Null renders a placeholder message.</summary>
+    [Parameter]
+    public WikiPageDto? Page { get; set; }
+
+    /// <summary>Raised when the user clicks a related-page chip.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnRelatedPageClick { get; set; }
+
+    private async Task HandleRelatedClick(Guid pageId)
+    {
+        await OnRelatedPageClick.InvokeAsync(pageId);
+    }
+}

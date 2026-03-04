@@ -1,0 +1,46 @@
+@using deepwiki_open_dotnet.Web.Models
+@namespace deepwiki_open_dotnet.Web.Components.Shared
+
+@* T038 – US3: Wiki sidebar with hierarchical section navigation *@
+
+<div class="wiki-sidebar" role="navigation" aria-label="Wiki sections">
+    @if (_rootNodes.Count == 0)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-2 pt-2">
+            No pages available.
+        </MudText>
+    }
+    else
+    {
+        <MudList T="WikiPageNode" Dense="true">
+            @foreach (var node in _rootNodes)
+            {
+                <WikiSidebarNode Node="@node"
+                                 SelectedPageId="@SelectedPageId"
+                                 OnPageSelected="@OnPageSelected"
+                                 Depth="0" />
+            }
+        </MudList>
+    }
+</div>
+
+@code {
+    /// <summary>All pages for this wiki. Used to build the section tree.</summary>
+    [Parameter]
+    public IReadOnlyList<WikiPageDto> Pages { get; set; } = [];
+
+    /// <summary>Currently selected page ID — highlighted in the sidebar.</summary>
+    [Parameter]
+    public Guid? SelectedPageId { get; set; }
+
+    /// <summary>Raised when the user clicks a page leaf in the sidebar.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnPageSelected { get; set; }
+
+    private List<WikiPageNode> _rootNodes = [];
+
+    protected override void OnParametersSet()
+    {
+        _rootNodes = WikiPageNode.BuildTree(Pages);
+    }
+}

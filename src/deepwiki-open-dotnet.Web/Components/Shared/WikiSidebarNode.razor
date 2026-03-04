@@ -1,0 +1,75 @@
+@using deepwiki_open_dotnet.Web.Models
+@namespace deepwiki_open_dotnet.Web.Components.Shared
+
+@* Recursive sidebar node — renders either a collapsible section or a clickable page leaf *@
+
+@if (Node.IsPage)
+{
+    @* Page leaf — clickable *@
+    <MudListItem T="WikiPageNode"
+                 Dense="true"
+                 Style="@($"padding-left: {(Depth + 1) * 16}px;")"
+                 Class="@PageClass"
+                 data-page-id="@Node.PageId"
+                 aria-current="@(IsSelected ? "page" : null)"
+                 OnClick="@HandlePageClick">
+        <div class="d-flex align-items-center gap-1">
+            <MudIcon Icon="@Icons.Material.Outlined.Article" Size="Size.Small" />
+            <MudText Typo="Typo.body2">@Node.Label</MudText>
+        </div>
+    </MudListItem>
+}
+else
+{
+    @* Section folder — non-clickable, collapsible *@
+    <MudListItem T="WikiPageNode"
+                 Dense="true"
+                 Style="@($"padding-left: {Depth * 16}px;")"
+                 OnClick="@ToggleExpand">
+        <div class="d-flex align-items-center gap-1" style="cursor: pointer;">
+            <MudIcon Icon="@(Node.IsExpanded ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)"
+                     Size="Size.Small" />
+            <MudIcon Icon="@Icons.Material.Outlined.Folder" Size="Size.Small" Color="Color.Secondary" />
+            <MudText Typo="Typo.body2" Style="font-weight: 500;">@Node.Label</MudText>
+        </div>
+    </MudListItem>
+
+    @if (Node.IsExpanded && Node.Children.Count > 0)
+    {
+        @foreach (var child in Node.Children)
+        {
+            <WikiSidebarNode Node="@child"
+                             SelectedPageId="@SelectedPageId"
+                             OnPageSelected="@OnPageSelected"
+                             Depth="@(Depth + 1)" />
+        }
+    }
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public WikiPageNode Node { get; set; } = null!;
+
+    [Parameter]
+    public Guid? SelectedPageId { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid> OnPageSelected { get; set; }
+
+    [Parameter]
+    public int Depth { get; set; }
+
+    private bool IsSelected => Node.IsPage && Node.PageId == SelectedPageId;
+
+    private string PageClass => IsSelected
+        ? "wiki-sidebar-page active mud-selected-item"
+        : "wiki-sidebar-page";
+
+    private async Task HandlePageClick()
+    {
+        if (Node.PageId.HasValue)
+            await OnPageSelected.InvokeAsync(Node.PageId.Value);
+    }
+
+    private void ToggleExpand() => Node.IsExpanded = !Node.IsExpanded;
+}
