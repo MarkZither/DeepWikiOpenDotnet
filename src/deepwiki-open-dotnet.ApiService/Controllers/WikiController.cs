@@ -1,6 +1,8 @@
 using DeepWiki.ApiService.Models;
+using DeepWiki.Rag.Core.Models;
 using DeepWiki.Rag.Core.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace DeepWiki.ApiService.Controllers;
 
@@ -14,10 +16,12 @@ namespace DeepWiki.ApiService.Controllers;
 public class WikiController : ControllerBase
 {
     private readonly IWikiService _wikiService;
+    private readonly IWikiGenerationService _wikiGenerationService;
 
-    public WikiController(IWikiService wikiService)
+    public WikiController(IWikiService wikiService, IWikiGenerationService wikiGenerationService)
     {
         _wikiService = wikiService;
+        _wikiGenerationService = wikiGenerationService;
     }
 
     // ── POST /api/wiki ────────────────────────────────────────────────────────
@@ -57,6 +61,65 @@ public class WikiController : ControllerBase
         catch (ArgumentException ex)
         {
             return BadRequest(new { detail = ex.Message });
+        }
+    }
+
+    // ── POST /api/wiki/generate ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Starts wiki generation for a collection and streams progress events via NDJSON.
+    /// Each newline-delimited JSON object is a <c>WikiGenerationProgress</c> event.
+    /// </summary>
+    /// <response code="200">Generation stream started.</response>
+    /// <response code="400">Validation failed.</response>
+    /// <response code="409">A wiki with this name is already being generated for this collection.</response>
+    [HttpPost("generate")]
+    [Produces("application/x-ndjson")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task GenerateWiki([FromBody] GenerateWikiRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
+        var coreRequest = new WikiGenerationRequest
+        {
+            CollectionId = request.CollectionId,
+            Name = request.Name,
+            Description = request.Description
+        };
+
+        IAsyncEnumerable<WikiGenerationProgress> stream;
+        try
+        {
+            stream = _wikiGenerationService.GenerateAsync(coreRequest, HttpContext.RequestAborted);
+        }
+        catch (InvalidOperationException ex)
+        {
+            HttpContext.Response.StatusCode = StatusCodes.Status409Conflict;
+            await HttpContext.Response.WriteAsJsonAsync(new { detail = ex.Message });
+            return;
+        }
+
+        HttpContext.Response.ContentType = "application/x-ndjson";
+        HttpContext.Response.Headers.CacheControl = "no-cache";
+
+        try
+        {
+            await foreach (var progress in stream.WithCancellation(HttpContext.RequestAborted))
+            {
+                var line = JsonSerializer.Serialize(progress) + "\n";
+                await HttpContext.Response.WriteAsync(line, HttpContext.RequestAborted);
+                await HttpContext.Response.Body.FlushAsync(HttpContext.RequestAborted);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected — graceful exit; orchestrator handles cancellation internally
         }
     }
 

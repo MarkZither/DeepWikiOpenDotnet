@@ -357,6 +357,8 @@ public class Program
 
         // Wiki services (Phase 3: US1 MVP — CRUD operations)
         builder.Services.AddScoped<DeepWiki.Rag.Core.Services.IWikiService, DeepWiki.Rag.Core.Services.WikiService>();
+        // Wiki generation service (Phase 7: US5 — Generate Wiki from Collection)
+        builder.Services.AddScoped<DeepWiki.Rag.Core.Services.IWikiGenerationService, DeepWiki.Rag.Core.Services.WikiGenerationOrchestrator>();
         builder.Services.Configure<DeepWiki.Rag.Core.Models.WikiGenerationOptions>(
             builder.Configuration.GetSection("Wiki:Generation"));
 

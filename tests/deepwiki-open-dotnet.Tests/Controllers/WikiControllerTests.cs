@@ -108,9 +108,9 @@ public class WikiControllerTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static WikiController CreateController(IWikiService? svc = null)
+    private static WikiController CreateController(IWikiService? svc = null, IWikiGenerationService? generationSvc = null)
     {
-        var controller = new WikiController(svc ?? new FakeWikiService());
+        var controller = new WikiController(svc ?? new FakeWikiService(), generationSvc ?? new StubWikiGenerationService());
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -400,5 +400,16 @@ public class WikiControllerTests
         var result = await controller.DeletePage(wiki.Id, Guid.NewGuid());
 
         result.Should().BeOfType<NotFoundResult>();
+    }
+
+    private sealed class StubWikiGenerationService : IWikiGenerationService
+    {
+        public async IAsyncEnumerable<DeepWiki.Rag.Core.Models.WikiGenerationProgress> GenerateAsync(
+            DeepWiki.Rag.Core.Models.WikiGenerationRequest request,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken ct = default)
+        {
+            await System.Threading.Tasks.Task.CompletedTask;
+            yield break;
+        }
     }
 }
