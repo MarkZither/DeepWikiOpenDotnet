@@ -1,0 +1,597 @@
+using System.Collections.Concurrent;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Channels;
+using DeepWiki.Data.Abstractions;
+using DeepWiki.Data.Abstractions.Entities;
+using DeepWiki.Data.Abstractions.Interfaces;
+using DeepWiki.Data.Abstractions.Models;
+using DeepWiki.Rag.Core.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace DeepWiki.Rag.Core.Services;
+
+/// <summary>
+/// Two-phase wiki generation orchestrator.
+/// Phase 1: calls IGenerationService with a TOC prompt to produce a structured outline.
+/// Phase 2: calls IGenerationService for each page, using RAG-retrieved context.
+/// Emits <see cref="WikiGenerationProgress"/> events as an NDJSON-streamable async sequence.
+/// </summary>
+public class WikiGenerationOrchestrator : IWikiGenerationService
+{
+    private readonly IWikiRepository _repository;
+    private readonly IGenerationService _generationService;
+    private readonly SessionManager _sessionManager;
+    private readonly IVectorStore? _vectorStore;
+    private readonly IEmbeddingService? _embeddingService;
+    private readonly WikiGenerationOptions _options;
+    private readonly WikiTocParser _tocParser = new();
+    private readonly WikiPageParser _pageParser = new();
+    private readonly ILogger<WikiGenerationOrchestrator>? _logger;
+
+    /// <summary>In-process concurrent generation guard: prevents double-triggering for the same collection+name pair.</summary>
+    private static readonly ConcurrentDictionary<string, bool> _activeGenerations = new();
+
+    private static readonly string TocPromptTemplate = LoadEmbeddedResource("DeepWiki.Rag.Core.Prompts.wiki-toc-prompt.txt");
+    private static readonly string PagePromptTemplate = LoadEmbeddedResource("DeepWiki.Rag.Core.Prompts.wiki-page-prompt.txt");
+
+    public WikiGenerationOrchestrator(
+        IWikiRepository repository,
+        IGenerationService generationService,
+        SessionManager sessionManager,
+        IVectorStore? vectorStore = null,
+        IEmbeddingService? embeddingService = null,
+        IOptions<WikiGenerationOptions>? options = null,
+        ILogger<WikiGenerationOrchestrator>? logger = null)
+    {
+        _repository = repository;
+        _generationService = generationService;
+        _sessionManager = sessionManager;
+        _vectorStore = vectorStore;
+        _embeddingService = embeddingService;
+        _options = options?.Value ?? new WikiGenerationOptions();
+        _logger = logger;
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// This synchronous method checks the concurrent generation guard BEFORE returning the async enumerable.
+    /// An <see cref="InvalidOperationException"/> is thrown synchronously (before any yield) when a duplicate
+    /// generation is detected, mapping to HTTP 409 Conflict in the controller.
+    /// </remarks>
+    public IAsyncEnumerable<WikiGenerationProgress> GenerateAsync(
+        WikiGenerationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (string.IsNullOrWhiteSpace(request.CollectionId))
+            throw new ArgumentException("CollectionId is required.", nameof(request));
+        if (string.IsNullOrWhiteSpace(request.Name))
+            throw new ArgumentException("Name is required.", nameof(request));
+
+        // ── Synchronous concurrent guard ─────────────────────────────────────
+        // Check is done here (outside the async iterator) so the exception is thrown
+        // synchronously, enabling the controller to return 409 before any streaming starts.
+        var key = BuildGuardKey(request.CollectionId, request.Name);
+
+        // Check in-memory guard first (fastest)
+        if (!_activeGenerations.TryAdd(key, true))
+            throw new InvalidOperationException(
+                $"A wiki generation is already in progress for collection '{request.CollectionId}' and name '{request.Name}'.");
+
+        // Check database for in-progress generation (covers multi-instance deployments)
+        bool existsInDb;
+        try
+        {
+            existsInDb = _repository.ExistsGeneratingAsync(request.CollectionId, request.Name, cancellationToken)
+                .GetAwaiter().GetResult();
+        }
+        catch
+        {
+            _activeGenerations.TryRemove(key, out _);
+            throw;
+        }
+
+        if (existsInDb)
+        {
+            _activeGenerations.TryRemove(key, out _);
+            throw new InvalidOperationException(
+                $"A wiki named '{request.Name}' is already being generated from collection '{request.CollectionId}'.");
+        }
+
+        return GenerateAsyncCore(request, key, cancellationToken);
+    }
+
+    private async IAsyncEnumerable<WikiGenerationProgress> GenerateAsyncCore(
+        WikiGenerationRequest request,
+        string guardKey,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        // C# prohibits yield inside try/catch blocks (CS1626/CS1631).
+        // Solution: use an unbounded Channel as a pipe between the producer
+        // (RunGenerationAsync) that owns all try/catch logic and this iterator
+        // that simply yields whatever the producer writes.
+        var channel = Channel.CreateUnbounded<WikiGenerationProgress>(
+            new UnboundedChannelOptions { SingleWriter = true, SingleReader = true });
+
+        // Producer runs in the background and terminates the channel when done.
+        // It must never throw — exceptions are conveyed via writer.Complete(ex).
+        var producerTask = RunGenerationAsync(channel.Writer, request, guardKey, cancellationToken);
+
+        // Read events until the producer closes the channel (CancellationToken.None
+        // ensures we drain the final cancelled/error event even after caller cancels).
+        await foreach (var progress in channel.Reader.ReadAllAsync(CancellationToken.None))
+            yield return progress;
+
+        // Re-throw unexpected escaped exceptions (e.g. OOM, Stack Overflow).
+        await producerTask;
+    }
+
+    private async Task RunGenerationAsync(
+        ChannelWriter<WikiGenerationProgress> writer,
+        WikiGenerationRequest request,
+        string guardKey,
+        CancellationToken cancellationToken)
+    {
+        var session = _sessionManager.CreateSession("wiki-generation");
+        var sessionId = session.SessionId;
+
+        WikiEntity? wiki = null;
+        var hasErrors = false;
+
+        try
+        {
+            // ── Create wiki shell (Status: Generating) ─────────────────────────
+            var now = DateTime.UtcNow;
+            wiki = await _repository.CreateWikiAsync(new WikiEntity
+            {
+                Id = Guid.NewGuid(),
+                CollectionId = request.CollectionId,
+                Name = request.Name,
+                Description = request.Description,
+                Status = WikiStatus.Generating,
+                CreatedAt = now,
+                UpdatedAt = now
+            }, cancellationToken);
+
+            await writer.WriteAsync(Progress(WikiGenerationProgress.EventWikiCreated, wiki.Id), CancellationToken.None);
+
+            // ── Phase 1: TOC Generation ────────────────────────────────────────
+            var tocEntries = await GenerateTocWithRetryAsync(
+                wiki, sessionId, request.CollectionId, cancellationToken);
+
+            // Persist empty page stubs (Status: Generating)
+            var pageEntities = new List<WikiPageEntity>();
+            for (var i = 0; i < tocEntries.Count; i++)
+            {
+                var entry = tocEntries[i];
+                var stub = new WikiPageEntity
+                {
+                    Id = Guid.NewGuid(),
+                    WikiId = wiki.Id,
+                    Title = entry.PageTitle,
+                    Content = string.Empty,
+                    SectionPath = entry.SectionPath,
+                    SortOrder = i,
+                    Status = PageStatus.Generating,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                var persisted = await _repository.UpsertPageAsync(stub, cancellationToken);
+                pageEntities.Add(persisted);
+            }
+
+            var tocJson = BuildTocJson(tocEntries);
+            await writer.WriteAsync(new WikiGenerationProgress
+            {
+                EventType = WikiGenerationProgress.EventTocComplete,
+                WikiId = wiki.Id,
+                TotalPages = tocEntries.Count
+            }, CancellationToken.None);
+
+            // ── Phase 2: Page Content Generation ──────────────────────────────
+            var pageIdByTitle = pageEntities.ToDictionary(
+                p => p.Title, p => p.Id, StringComparer.OrdinalIgnoreCase);
+
+            if (_options.Mode == "parallel" && _options.MaxParallelPages > 1)
+            {
+                var parallelResults = await GeneratePagesParallelAsync(
+                    wiki, sessionId, tocEntries, pageEntities, tocJson, pageIdByTitle, cancellationToken);
+
+                foreach (var evt in parallelResults.Events)
+                    await writer.WriteAsync(evt, CancellationToken.None);
+
+                hasErrors = parallelResults.HasErrors;
+            }
+            else
+            {
+                // Sequential mode
+                for (var i = 0; i < tocEntries.Count; i++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var entry = tocEntries[i];
+                    var pageEntity = pageEntities[i];
+
+                    await writer.WriteAsync(new WikiGenerationProgress
+                    {
+                        EventType = WikiGenerationProgress.EventPageStart,
+                        WikiId = wiki.Id,
+                        PageIndex = i,
+                        TotalPages = tocEntries.Count,
+                        PageTitle = entry.PageTitle
+                    }, CancellationToken.None);
+
+                    var (pageSucceeded, pageProgress) = await GenerateSinglePageAsync(
+                        wiki, sessionId, entry, pageEntity, tocJson, pageIdByTitle, i, tocEntries.Count, cancellationToken);
+
+                    foreach (var evt in pageProgress)
+                        await writer.WriteAsync(evt, CancellationToken.None);
+
+                    if (!pageSucceeded)
+                        hasErrors = true;
+                }
+            }
+
+            // ── Finalise wiki status ────────────────────────────────────────────
+            var finalStatus = hasErrors ? WikiStatus.Partial : WikiStatus.Complete;
+            await _repository.UpdateWikiStatusAsync(wiki.Id, finalStatus, cancellationToken);
+
+            await writer.WriteAsync(new WikiGenerationProgress
+            {
+                EventType = WikiGenerationProgress.EventGenerationComplete,
+                WikiId = wiki.Id,
+                Status = finalStatus.ToString()
+            }, CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
+            if (wiki is not null)
+            {
+                try
+                {
+                    await _repository.UpdateWikiStatusAsync(wiki.Id, WikiStatus.Partial, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to update wiki {WikiId} status to Partial after cancellation.", wiki.Id);
+                }
+            }
+
+            await writer.WriteAsync(new WikiGenerationProgress
+            {
+                EventType = WikiGenerationProgress.EventGenerationCancelled,
+                WikiId = wiki?.Id ?? Guid.Empty,
+                ErrorMessage = "Generation was cancelled by the caller.",
+                Status = WikiStatus.Partial.ToString()
+            }, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
+        {
+            _logger?.LogError(ex, "Wiki generation failed unexpectedly for wiki '{Name}'.", request.Name);
+            if (wiki is not null)
+            {
+                try
+                {
+                    await _repository.UpdateWikiStatusAsync(wiki.Id, WikiStatus.Error, CancellationToken.None);
+                }
+                catch { /* best effort */ }
+            }
+
+            writer.Complete(ex);
+            return;
+        }
+        finally
+        {
+            _activeGenerations.TryRemove(guardKey, out _);
+        }
+
+        writer.Complete();
+    }
+
+    // ── Phase 1: TOC with retry ──────────────────────────────────────────────
+
+    private async Task<IReadOnlyList<TocEntry>> GenerateTocWithRetryAsync(
+        WikiEntity wiki,
+        string sessionId,
+        string collectionId,
+        CancellationToken ct)
+    {
+        var documentSummaries = await GetDocumentSummariesAsync(collectionId, ct);
+        var maxPages = Math.Max(5, _options.PageTokenLimit / 200); // rough heuristic
+
+        var tocPrompt = TocPromptTemplate
+            .Replace("{document_summaries}", documentSummaries)
+            .Replace("{max_pages}", maxPages.ToString());
+
+        var maxAttempts = _options.MaxTocRetries + 1;
+        WikiTocParseException? lastException = null;
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var sb = new StringBuilder();
+            await foreach (var delta in _generationService.GenerateAsync(
+                sessionId, tocPrompt, topK: 0, cancellationToken: ct))
+            {
+                if (delta.Type == "token" && delta.Text is not null)
+                    sb.Append(delta.Text);
+            }
+
+            var response = sb.ToString();
+            try
+            {
+                return _tocParser.Parse(response);
+            }
+            catch (WikiTocParseException ex)
+            {
+                _logger?.LogWarning(ex, "TOC parse failed on attempt {Attempt}/{Max}. Response: {Response}",
+                    attempt + 1, maxAttempts, response.Length > 500 ? response[..500] : response);
+                lastException = ex;
+            }
+        }
+
+        throw lastException ?? new WikiTocParseException("TOC generation failed after all retries.");
+    }
+
+    // ── Phase 2: Single page ─────────────────────────────────────────────────
+
+    private async Task<(bool Succeeded, IReadOnlyList<WikiGenerationProgress> Events)> GenerateSinglePageAsync(
+        WikiEntity wiki,
+        string sessionId,
+        TocEntry entry,
+        WikiPageEntity pageEntity,
+        string tocJson,
+        Dictionary<string, Guid> pageIdByTitle,
+        int pageIndex,
+        int totalPages,
+        CancellationToken ct)
+    {
+        var events = new List<WikiGenerationProgress>();
+
+        try
+        {
+            var documentChunks = await GetPageChunksAsync(
+                entry.PageTitle, entry.SectionPath, entry.Keywords, ct);
+
+            var pagePrompt = PagePromptTemplate
+                .Replace("{wiki_name}", wiki.Name)
+                .Replace("{section_path}", entry.SectionPath)
+                .Replace("{page_title}", entry.PageTitle)
+                .Replace("{toc_json}", tocJson)
+                .Replace("{document_chunks}", documentChunks);
+
+            var sb = new StringBuilder();
+            await foreach (var delta in _generationService.GenerateAsync(
+                sessionId, pagePrompt, topK: 0, cancellationToken: ct))
+            {
+                if (delta.Type == "token" && delta.Text is not null)
+                {
+                    sb.Append(delta.Text);
+                    events.Add(new WikiGenerationProgress
+                    {
+                        EventType = WikiGenerationProgress.EventPageToken,
+                        WikiId = wiki.Id,
+                        PageIndex = pageIndex,
+                        TotalPages = totalPages,
+                        TokenText = delta.Text
+                    });
+                }
+            }
+
+            var fullResponse = sb.ToString();
+            var (content, relatedTitles) = _pageParser.Parse(fullResponse);
+
+            // Upsert page with content and OK status
+            pageEntity.Content = content;
+            pageEntity.Status = PageStatus.OK;
+            pageEntity.UpdatedAt = DateTime.UtcNow;
+            await _repository.UpsertPageAsync(pageEntity, ct);
+
+            // Resolve related page IDs and persist relations
+            var relatedIds = relatedTitles
+                .Where(t => pageIdByTitle.ContainsKey(t))
+                .Select(t => pageIdByTitle[t])
+                .Where(id => id != pageEntity.Id)
+                .Distinct()
+                .ToList();
+
+            if (relatedIds.Count > 0)
+                await _repository.SetRelatedPagesAsync(pageEntity.Id, relatedIds, ct);
+
+            events.Add(new WikiGenerationProgress
+            {
+                EventType = WikiGenerationProgress.EventPageComplete,
+                WikiId = wiki.Id,
+                PageIndex = pageIndex,
+                TotalPages = totalPages,
+                PageTitle = entry.PageTitle
+            });
+
+            return (true, events);
+        }
+        catch (OperationCanceledException)
+        {
+            throw; // propagate cancellation
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Page generation failed for '{PageTitle}' (index {PageIndex}).",
+                entry.PageTitle, pageIndex);
+
+            // Mark page as Error and continue
+            try
+            {
+                pageEntity.Status = PageStatus.Error;
+                pageEntity.UpdatedAt = DateTime.UtcNow;
+                await _repository.UpsertPageAsync(pageEntity, CancellationToken.None);
+            }
+            catch (Exception persistEx)
+            {
+                _logger?.LogError(persistEx, "Failed to persist Error status for page '{PageTitle}'.", entry.PageTitle);
+            }
+
+            events.Add(new WikiGenerationProgress
+            {
+                EventType = WikiGenerationProgress.EventPageError,
+                WikiId = wiki.Id,
+                PageIndex = pageIndex,
+                TotalPages = totalPages,
+                PageTitle = entry.PageTitle,
+                ErrorMessage = ex.Message
+            });
+
+            return (false, events);
+        }
+    }
+
+    // ── Parallel page generation ─────────────────────────────────────────────
+
+    private async Task<(IReadOnlyList<WikiGenerationProgress> Events, bool HasErrors)> GeneratePagesParallelAsync(
+        WikiEntity wiki,
+        string sessionId,
+        IReadOnlyList<TocEntry> tocEntries,
+        IReadOnlyList<WikiPageEntity> pageEntities,
+        string tocJson,
+        Dictionary<string, Guid> pageIdByTitle,
+        CancellationToken ct)
+    {
+        var semaphore = new SemaphoreSlim(_options.MaxParallelPages, _options.MaxParallelPages);
+        var allEvents = new ConcurrentDictionary<int, IReadOnlyList<WikiGenerationProgress>>();
+        var hasErrors = false;
+
+        var tasks = tocEntries.Select(async (entry, i) =>
+        {
+            await semaphore.WaitAsync(ct);
+            try
+            {
+                var pageEntity = pageEntities[i];
+                var startEvent = new WikiGenerationProgress
+                {
+                    EventType = WikiGenerationProgress.EventPageStart,
+                    WikiId = wiki.Id,
+                    PageIndex = i,
+                    TotalPages = tocEntries.Count,
+                    PageTitle = entry.PageTitle
+                };
+
+                var (succeeded, pageEvents) = await GenerateSinglePageAsync(
+                    wiki, sessionId, entry, pageEntity, tocJson, pageIdByTitle, i, tocEntries.Count, ct);
+
+                var combined = new[] { startEvent }.Concat(pageEvents).ToList();
+                allEvents[i] = combined;
+
+                if (!succeeded)
+                    Volatile.Write(ref hasErrors, true);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        }).ToList();
+
+        await Task.WhenAll(tasks);
+
+        // Reconstruct events in page-index order
+        var orderedEvents = allEvents.OrderBy(kv => kv.Key).SelectMany(kv => kv.Value).ToList();
+        return (orderedEvents, hasErrors);
+    }
+
+    // ── RAG helpers ──────────────────────────────────────────────────────────
+
+    private async Task<string> GetDocumentSummariesAsync(string collectionId, CancellationToken ct)
+    {
+        if (_vectorStore is null || _embeddingService is null)
+            return $"Collection: {collectionId}";
+
+        try
+        {
+            var embedding = await _embeddingService.EmbedAsync(collectionId, ct);
+            var results = await _vectorStore.QueryAsync(embedding, k: 20,
+                filters: new Dictionary<string, string> { { "repoUrl", collectionId } }, ct);
+
+            if (results.Count == 0)
+                return $"Collection: {collectionId} (no documents found)";
+
+            var sb = new StringBuilder();
+            foreach (var r in results)
+            {
+                var snippet = r.Document.Text.Length > 200 ? r.Document.Text[..200] : r.Document.Text;
+                sb.AppendLine($"- {r.Document.FilePath ?? "Document"}: {snippet}");
+            }
+            return sb.ToString().TrimEnd();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Vector store query failed during TOC generation. Proceeding with minimal context.");
+            return $"Collection: {collectionId}";
+        }
+    }
+
+    private async Task<string> GetPageChunksAsync(
+        string pageTitle, string sectionPath, IReadOnlyList<string> keywords, CancellationToken ct)
+    {
+        if (_vectorStore is null || _embeddingService is null)
+            return string.Empty;
+
+        try
+        {
+            var queryText = $"{pageTitle} {sectionPath} {string.Join(" ", keywords)}";
+            var embedding = await _embeddingService.EmbedAsync(queryText, ct);
+            var results = await _vectorStore.QueryAsync(embedding, k: 5, cancellationToken: ct);
+
+            if (results.Count == 0)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            for (var i = 0; i < results.Count; i++)
+            {
+                sb.AppendLine($"[{i + 1}] {results[i].Document.FilePath ?? "Document"}: {results[i].Document.Text}");
+            }
+            return sb.ToString().TrimEnd();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Vector store query failed for page '{PageTitle}'.", pageTitle);
+            return string.Empty;
+        }
+    }
+
+    // ── Utilities ──────────────────────────────────────────────────────────
+
+    private static string BuildGuardKey(string collectionId, string name) =>
+        $"{collectionId.ToLowerInvariant()}::{name.ToLowerInvariant()}";
+
+    private static WikiGenerationProgress Progress(string eventType, Guid wikiId) =>
+        new() { EventType = eventType, WikiId = wikiId };
+
+    private static string BuildTocJson(IReadOnlyList<TocEntry> entries)
+    {
+        var sections = entries
+            .GroupBy(e => e.SectionPath)
+            .Select(g => new
+            {
+                sectionPath = g.Key,
+                pages = g.Select(e => new { title = e.PageTitle }).ToList()
+            })
+            .ToList();
+
+        return JsonSerializer.Serialize(new { sections });
+    }
+
+    private static string LoadEmbeddedResource(string resourceName)
+    {
+        var assembly = typeof(WikiGenerationOrchestrator).Assembly;
+        using var stream = assembly.GetManifestResourceStream(resourceName);
+        if (stream is null)
+            throw new InvalidOperationException(
+                $"Embedded resource '{resourceName}' not found in assembly '{assembly.FullName}'. " +
+                $"Available resources: {string.Join(", ", assembly.GetManifestResourceNames())}");
+
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+}
