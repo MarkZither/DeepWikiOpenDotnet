@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
@@ -160,5 +164,52 @@ public class WikiApiClient
             .ConfigureAwait(false);
 
         return response.StatusCode == System.Net.HttpStatusCode.NoContent;
+    }
+
+    /// <summary>
+    /// Streams wiki generation progress events via POST /api/wiki/generate (NDJSON).
+    /// Each yielded <see cref="WikiGenerationProgressDto"/> maps to one progress event.
+    /// Throws <see cref="HttpRequestException"/> with StatusCode 409 when a generation
+    /// is already in progress for the same collection + name.
+    /// </summary>
+    public async IAsyncEnumerable<WikiGenerationProgressDto> GenerateWikiAsync(
+        object request,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/wiki/generate")
+        {
+            Content = JsonContent.Create(request)
+        };
+
+        using var response = await _httpClient
+            .SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+
+        response.EnsureSuccessStatusCode();
+
+        var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = new StreamReader(stream);
+
+        var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync().ConfigureAwait(false);
+            if (line is null) break;
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            WikiGenerationProgressDto? dto = null;
+            try
+            {
+                dto = JsonSerializer.Deserialize<WikiGenerationProgressDto>(line, jsonOptions);
+            }
+            catch (JsonException)
+            {
+                // skip malformed NDJSON lines
+            }
+
+            if (dto is not null)
+                yield return dto;
+        }
     }
 }

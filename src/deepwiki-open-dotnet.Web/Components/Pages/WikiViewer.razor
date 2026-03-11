@@ -6,8 +6,10 @@
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
 @namespace deepwiki_open_dotnet.Web.Components.Pages
+@implements IAsyncDisposable
 
 @* T040 – US3: Wiki viewer — sidebar navigation + Markdown content *@
+@* T061 – US5: Generation status display when wiki is Generating *@
 
 <PageTitle>@(_wiki?.Name ?? "Wiki Viewer")</PageTitle>
 
@@ -63,29 +65,47 @@ else if (_wiki is not null)
             </MudButton>
         </div>
 
-        @* ── Sidebar + content layout ── *@
-        <MudGrid Spacing="0" Style="height: 100%; overflow: hidden;">
+        @* ── Generation in-progress view ── *@
+        @if (_wiki.Status == "Generating")
+        {
+            <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-6">
+                <WikiGenerationProgress WikiName="@_wiki.Name"
+                                        Events="@_generationEvents"
+                                        TotalPages="@_generationTotalPages"
+                                        IsComplete="false"
+                                        IsFailed="false"
+                                        IsCancelling="false" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2 d-block text-center">
+                    Page will refresh automatically when generation completes.
+                </MudText>
+            </MudContainer>
+        }
+        else
+        {
+            @* ── Sidebar + content layout ── *@
+            <MudGrid Spacing="0" Style="height: 100%; overflow: hidden;">
 
-            @* Sidebar — Col 3 *@
-            <MudItem xs="3"
-                     Style="border-right: 1px solid var(--mud-palette-divider); height: 100%; overflow-y: auto; background: var(--mud-palette-background-grey);">
-                <div class="pa-2">
-                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-1 pb-1">
-                        PAGES (@_wiki.Pages.Count)
-                    </MudText>
-                    <WikiSidebar Pages="@_pages"
-                                 SelectedPageId="@_selectedPageId"
-                                 OnPageSelected="@SelectPage" />
-                </div>
-            </MudItem>
+                @* Sidebar — Col 3 *@
+                <MudItem xs="3"
+                         Style="border-right: 1px solid var(--mud-palette-divider); height: 100%; overflow-y: auto; background: var(--mud-palette-background-grey);">
+                    <div class="pa-2">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-1 pb-1">
+                            PAGES (@_wiki.Pages.Count)
+                        </MudText>
+                        <WikiSidebar Pages="@_pages"
+                                     SelectedPageId="@_selectedPageId"
+                                     OnPageSelected="@SelectPage" />
+                    </div>
+                </MudItem>
 
-            @* Content — Col 9 *@
-            <MudItem xs="9" Style="height: 100%; overflow-y: auto; padding: 24px;">
-                <WikiPageContent Page="@_selectedPage"
-                                 OnRelatedPageClick="@SelectPage" />
-            </MudItem>
+                @* Content — Col 9 *@
+                <MudItem xs="9" Style="height: 100%; overflow-y: auto; padding: 24px;">
+                    <WikiPageContent Page="@_selectedPage"
+                                     OnRelatedPageClick="@SelectPage" />
+                </MudItem>
 
-        </MudGrid>
+            </MudGrid>
+        }
 
     </MudContainer>
 }
@@ -104,6 +124,13 @@ else if (_wiki is not null)
     private WikiPageDto? _selectedPage;
     private bool _isLoading = true;
     private bool _notFound;
+
+    // ── Generation polling state ──────────────────────────────────────────────
+    private CancellationTokenSource? _pollCts;
+    private IReadOnlyList<WikiGenerationProgressDto> _generationEvents = [];
+    private int _generationTotalPages = 0;
+
+    private const int PollIntervalMs = 5_000;
 
     protected override async Task OnInitializedAsync()
     {
@@ -127,12 +154,19 @@ else if (_wiki is not null)
 
             _pages = _wiki.Pages;
 
-            // Default: use query param if provided; otherwise first page by SortOrder
-            var targetId = PageQueryParam
-                ?? _pages.OrderBy(p => p.SortOrder).FirstOrDefault()?.Id;
+            if (_wiki.Status == "Generating")
+            {
+                StartPolling();
+            }
+            else
+            {
+                // Default: use query param if provided; otherwise first page by SortOrder
+                var targetId = PageQueryParam
+                    ?? _pages.OrderBy(p => p.SortOrder).FirstOrDefault()?.Id;
 
-            if (targetId.HasValue)
-                SelectPage(targetId.Value);
+                if (targetId.HasValue)
+                    SelectPage(targetId.Value);
+            }
         }
         catch
         {
@@ -142,6 +176,57 @@ else if (_wiki is not null)
         {
             _isLoading = false;
         }
+    }
+
+    /// <summary>
+    /// Polls GET /api/wiki/{id} every <see cref="PollIntervalMs"/> ms until
+    /// the wiki status is no longer "Generating", then reloads the full wiki.
+    /// </summary>
+    private void StartPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts = new CancellationTokenSource();
+        var ct = _pollCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    await Task.Delay(PollIntervalMs, ct);
+
+                    var updated = await WikiApi.GetWikiByIdAsync(Id);
+                    if (updated is null) break;
+
+                    await InvokeAsync(() =>
+                    {
+                        _wiki = updated;
+                        StateHasChanged();
+                    });
+
+                    if (updated.Status != "Generating")
+                    {
+                        // Generation finished — reload with full page data
+                        await InvokeAsync(async () =>
+                        {
+                            _pages = _wiki!.Pages;
+
+                            var targetId = PageQueryParam
+                                ?? _pages.OrderBy(p => p.SortOrder).FirstOrDefault()?.Id;
+
+                            if (targetId.HasValue)
+                                SelectPage(targetId.Value);
+
+                            StateHasChanged();
+                        });
+                        break;
+                    }
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception) { /* polling errors are non-fatal */ }
+        }, ct);
     }
 
     private void SelectPage(Guid pageId)
@@ -184,4 +269,11 @@ else if (_wiki is not null)
         "Error"      => Color.Error,
         _            => Color.Default
     };
+
+    public ValueTask DisposeAsync()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        return ValueTask.CompletedTask;
+    }
 }
