@@ -21,4 +21,9 @@
     <ProjectReference Include="..\DeepWiki.Data.Abstractions\DeepWiki.Data.Abstractions.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Prompts\wiki-toc-prompt.txt" />
+    <EmbeddedResource Include="Prompts\wiki-page-prompt.txt" />
+  </ItemGroup>
+
 </Project>

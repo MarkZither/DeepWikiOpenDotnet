@@ -1,0 +1,26 @@
+# Version: 1.0.0 | Feature: wiki-toc-generation | Date: 2026-03-01
+You are a technical documentation expert. Given the following document summaries from a collection, produce a structured table of contents for a wiki.
+
+Documents:
+{document_summaries}
+
+Requirements:
+- Organize into logical sections (2-5 top-level sections)
+- Each section should have 1-5 pages
+- Total pages should be between 5 and {max_pages}
+- Each page should cover a distinct topic
+- Include keywords for each page (used to find relevant source documents)
+- Section and page titles should be clear, concise, and professional
+
+Output ONLY valid JSON in this exact format (no markdown code fences, no commentary):
+{
+  "sections": [
+    {
+      "sectionPath": "Architecture",
+      "pages": [
+        { "title": "Data Model", "keywords": ["entity", "database", "schema"] },
+        { "title": "Services", "keywords": ["service", "dependency injection"] }
+      ]
+    }
+  ]
+}
