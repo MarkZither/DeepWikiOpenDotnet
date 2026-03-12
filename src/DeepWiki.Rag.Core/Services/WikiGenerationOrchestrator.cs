@@ -319,12 +319,19 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         string collectionId,
         CancellationToken ct)
     {
+        var retrievalSw = Stopwatch.StartNew();
         var documentSummaries = await GetDocumentSummariesAsync(collectionId, ct);
+        retrievalSw.Stop();
+
         var maxPages = Math.Max(5, _options.PageTokenLimit / 200); // rough heuristic
 
         var tocPrompt = TocPromptTemplate
             .Replace("{document_summaries}", documentSummaries)
             .Replace("{max_pages}", maxPages.ToString());
+
+        _logger?.LogInformation(
+            "[Wiki] TOC prompt ready — {PromptChars} chars, doc-summaries {SummaryChars} chars, retrieval {RetrievalMs}ms",
+            tocPrompt.Length, documentSummaries.Length, retrievalSw.ElapsedMilliseconds);
 
         var maxAttempts = _options.MaxTocRetries + 1;
         WikiTocParseException? lastException = null;
@@ -339,18 +346,34 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
 
             var sw = Stopwatch.StartNew();
             var sb = new StringBuilder();
+            var tokenCount = 0;
+            var firstToken = true;
             await foreach (var delta in _generationService.GenerateAsync(
                 sessionId, tocPrompt, topK: 0, cancellationToken: ct))
             {
                 if (delta.Type == "token" && delta.Text is not null)
+                {
+                    if (firstToken)
+                    {
+                        firstToken = false;
+                        _logger?.LogInformation(
+                            "[Wiki] TOC first token received after {ElapsedMs}ms (attempt {Attempt}/{Max})",
+                            sw.ElapsedMilliseconds, attempt + 1, maxAttempts);
+                    }
                     sb.Append(delta.Text);
+                    tokenCount++;
+                    if (tokenCount % 100 == 0)
+                        _logger?.LogDebug(
+                            "[Wiki] TOC streaming — {Tokens} tokens so far, {ElapsedMs}ms elapsed (attempt {Attempt}/{Max})",
+                            tokenCount, sw.ElapsedMilliseconds, attempt + 1, maxAttempts);
+                }
             }
             sw.Stop();
 
             var response = sb.ToString();
             _logger?.LogInformation(
-                "[Wiki] TOC LLM response received — attempt {Attempt}/{Max}, {Chars} chars in {ElapsedMs}ms",
-                attempt + 1, maxAttempts, response.Length, sw.ElapsedMilliseconds);
+                "[Wiki] TOC LLM response complete — attempt {Attempt}/{Max}, {Tokens} tokens, {Chars} chars in {ElapsedMs}ms",
+                attempt + 1, maxAttempts, tokenCount, response.Length, sw.ElapsedMilliseconds);
 
             try
             {

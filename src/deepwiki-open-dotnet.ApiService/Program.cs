@@ -431,15 +431,28 @@ using (var scope = app.Services.CreateScope())
         // Early request logging middleware to help diagnose requests that never reach controllers
         app.Use(async (context, next) =>
         {
-            app.Logger.LogInformation("Incoming request {Method} {Path} from {RemoteIp}", context.Request.Method, context.Request.Path, context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+            // Skip health / metrics / static-asset paths — they are called frequently and add noise
+            var path = context.Request.Path.Value ?? string.Empty;
+            var isNoisy = path.StartsWith("/health", StringComparison.OrdinalIgnoreCase)
+                       || path.StartsWith("/alive", StringComparison.OrdinalIgnoreCase)
+                       || path.StartsWith("/metrics", StringComparison.OrdinalIgnoreCase)
+                       || path.StartsWith("/_", StringComparison.OrdinalIgnoreCase);
+
+            if (!isNoisy)
+                app.Logger.LogInformation("Incoming {Method} {Path} from {RemoteIp}",
+                    context.Request.Method, context.Request.Path,
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
             try
             {
                 await next();
-                app.Logger.LogInformation("Request {Method} {Path} completed with status {StatusCode}", context.Request.Method, context.Request.Path, context.Response.StatusCode);
+                if (!isNoisy)
+                    app.Logger.LogInformation("{Method} {Path} → {StatusCode}",
+                        context.Request.Method, context.Request.Path, context.Response.StatusCode);
             }
             catch (Exception ex)
             {
-                app.Logger.LogError(ex, "Unhandled exception while processing request {Method} {Path}", context.Request.Method, context.Request.Path);
+                app.Logger.LogError(ex, "Unhandled exception: {Method} {Path}",
+                    context.Request.Method, context.Request.Path);
                 throw;
             }
         });
