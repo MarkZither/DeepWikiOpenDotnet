@@ -69,6 +69,25 @@ else if (_wiki is not null)
         @if (_wiki.Status == "Generating")
         {
             <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-6">
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                    <MudText Typo="Typo.body2">
+                        Wiki generation is running on the server. Depending on the size of the
+                        collection, each page can take <strong>several minutes</strong>. You can
+                        safely close this tab and return later — the result will be saved automatically.
+                    </MudText>
+                </MudAlert>
+
+                <MudPaper Elevation="1" Class="pa-3 mb-3 d-flex align-center gap-3">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
+                    <div>
+                        <MudText Typo="Typo.body2">Generation in progress…</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Running for @_generationElapsedDisplay
+                            &mdash; started @_wiki.CreatedAt.ToLocalTime().ToString("HH:mm:ss")
+                        </MudText>
+                    </div>
+                </MudPaper>
+
                 <WikiGenerationProgress WikiName="@_wiki.Name"
                                         Events="@_generationEvents"
                                         TotalPages="@_generationTotalPages"
@@ -76,7 +95,7 @@ else if (_wiki is not null)
                                         IsFailed="false"
                                         IsCancelling="false" />
                 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2 d-block text-center">
-                    Page will refresh automatically when generation completes.
+                    Status refreshes every 5 seconds.
                 </MudText>
             </MudContainer>
         }
@@ -128,8 +147,8 @@ else if (_wiki is not null)
     // ── Generation polling state ──────────────────────────────────────────────
     private CancellationTokenSource? _pollCts;
     private IReadOnlyList<WikiGenerationProgressDto> _generationEvents = [];
-    private int _generationTotalPages = 0;
-
+    private int _generationTotalPages = 0;    private string _generationElapsedDisplay = "…";
+    private System.Threading.Timer? _elapsedViewTimer;
     private const int PollIntervalMs = 5_000;
 
     protected override async Task OnInitializedAsync()
@@ -157,6 +176,7 @@ else if (_wiki is not null)
             if (_wiki.Status == "Generating")
             {
                 StartPolling();
+                StartElapsedTimer();
             }
             else
             {
@@ -176,6 +196,22 @@ else if (_wiki is not null)
         {
             _isLoading = false;
         }
+    }
+
+    private void StartElapsedTimer()
+    {
+        _elapsedViewTimer?.Dispose();
+        _elapsedViewTimer = new System.Threading.Timer(async _ =>
+        {
+            if (_wiki is null) return;
+            var elapsed = DateTime.UtcNow - _wiki.CreatedAt;
+            _generationElapsedDisplay = elapsed.TotalHours >= 1
+                ? $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m {elapsed.Seconds}s"
+                : elapsed.TotalMinutes >= 1
+                    ? $"{elapsed.Minutes}m {elapsed.Seconds}s"
+                    : $"{elapsed.Seconds}s";
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
     }
 
     /// <summary>
@@ -207,7 +243,9 @@ else if (_wiki is not null)
 
                     if (updated.Status != "Generating")
                     {
-                        // Generation finished — reload with full page data
+                        // Generation finished — stop elapsed timer and reload with full page data
+                        _elapsedViewTimer?.Dispose();
+                        _elapsedViewTimer = null;
                         await InvokeAsync(async () =>
                         {
                             _pages = _wiki!.Pages;
@@ -274,6 +312,7 @@ else if (_wiki is not null)
     {
         _pollCts?.Cancel();
         _pollCts?.Dispose();
+        _elapsedViewTimer?.Dispose();
         return ValueTask.CompletedTask;
     }
 }

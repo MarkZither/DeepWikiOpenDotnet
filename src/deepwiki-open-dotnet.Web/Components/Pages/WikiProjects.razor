@@ -6,6 +6,7 @@
 @inject ChatApiClient ChatApi
 @inject NavigationManager Navigation
 @namespace deepwiki_open_dotnet.Web.Components.Pages
+@implements IAsyncDisposable
 
 @* T034 – US2: Wiki project browser page *@
 @* T060 – US5: Add wiki generation trigger *@
@@ -93,12 +94,25 @@
                           Lines="2"
                           Disabled="@_isGenerating" />
 
-            @if (_isGenerating)
+            @if (_isGenerating || _dialogProgressEvents.Count > 0)
             {
-                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Rounded="true" />
-                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                    Creating wiki… you will be redirected shortly.
-                </MudText>
+                <WikiGenerationProgress WikiName="@_wikiName"
+                                        Events="@_dialogProgressEvents"
+                                        TotalPages="@_dialogTotalPages"
+                                        IsComplete="@_dialogGenerationComplete"
+                                        IsFailed="false"
+                                        IsCancelling="false" />
+                <div class="d-flex justify-space-between align-center mt-1">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Elapsed: @_elapsedDisplay
+                    </MudText>
+                    @if (_generationWikiId.HasValue && !_dialogGenerationComplete)
+                    {
+                        <MudLink Href="@($"/wiki/{_generationWikiId}")" Typo="Typo.caption">
+                            View partial wiki →
+                        </MudLink>
+                    }
+                </div>
             }
 
             @if (!string.IsNullOrWhiteSpace(_dialogError))
@@ -108,13 +122,33 @@
         </MudStack>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="CloseDialog" Disabled="@_isGenerating">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   OnClick="StartGenerationAsync"
-                   Disabled="@(_isGenerating || string.IsNullOrWhiteSpace(_selectedCollectionId) || string.IsNullOrWhiteSpace(_wikiName))">
-            @(_isGenerating ? "Generating…" : "Generate")
-        </MudButton>
+        @if (_isGenerating)
+        {
+            <MudButton OnClick="CloseDialog" Color="Color.Warning" Variant="Variant.Outlined">
+                Stop Generation
+            </MudButton>
+        }
+        else
+        {
+            <MudButton OnClick="CloseDialog">
+                @(_dialogGenerationComplete || (_generationWikiId.HasValue && _dialogProgressEvents.Count > 0) ? "Close" : "Cancel")
+            </MudButton>
+            @if (_dialogProgressEvents.Count == 0)
+            {
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="StartGenerationAsync"
+                           Disabled="@(string.IsNullOrWhiteSpace(_selectedCollectionId) || string.IsNullOrWhiteSpace(_wikiName))">
+                    Generate
+                </MudButton>
+            }
+            @if (_generationWikiId.HasValue)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="NavigateToGeneratedWiki">
+                    Open Wiki
+                </MudButton>
+            }
+        }
     </DialogActions>
 </MudDialog>
 
@@ -137,9 +171,18 @@
     private List<DocumentCollectionModel> _collections = [];
     private CancellationTokenSource? _generateCts;
 
+    // ── Live generation progress (collected while dialog is open) ───────────
+    private List<WikiGenerationProgressDto> _dialogProgressEvents = [];
+    private int _dialogTotalPages;
+    private bool _dialogGenerationComplete;
+    private Guid? _generationWikiId;
+    private string _elapsedDisplay = "0:00";
+    private System.Threading.Timer? _elapsedTimer;
+    private DateTime _generateStartTime;
+
     private readonly DialogOptions _dialogOptions = new()
     {
-        MaxWidth = MaxWidth.Small,
+        MaxWidth = MaxWidth.Medium,
         FullWidth = true,
         CloseOnEscapeKey = true
     };
@@ -198,14 +241,44 @@
         _wikiDescription = null;
         _dialogError = null;
         _isGenerating = false;
+        _dialogProgressEvents = [];
+        _dialogTotalPages = 0;
+        _dialogGenerationComplete = false;
+        _generationWikiId = null;
+        _elapsedDisplay = "0:00";
         _isDialogOpen = true;
     }
 
     private void CloseDialog()
     {
         _generateCts?.Cancel();
+        _elapsedTimer?.Dispose();
+        _elapsedTimer = null;
         _isDialogOpen = false;
         _isGenerating = false;
+    }
+
+    private void NavigateToGeneratedWiki()
+    {
+        if (_generationWikiId.HasValue)
+        {
+            _isDialogOpen = false;
+            Navigation.NavigateTo($"/wiki/{_generationWikiId}");
+        }
+    }
+
+    private void StartElapsedTimer()
+    {
+        _generateStartTime = DateTime.UtcNow;
+        _elapsedTimer?.Dispose();
+        _elapsedTimer = new System.Threading.Timer(async _ =>
+        {
+            var elapsed = DateTime.UtcNow - _generateStartTime;
+            _elapsedDisplay = elapsed.TotalHours >= 1
+                ? $"{(int)elapsed.TotalHours}:{elapsed.Minutes:D2}:{elapsed.Seconds:D2}"
+                : $"{elapsed.Minutes}:{elapsed.Seconds:D2}";
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
     }
 
     private async Task StartGenerationAsync()
@@ -215,7 +288,13 @@
 
         _isGenerating = true;
         _dialogError = null;
+        _dialogProgressEvents = [];
+        _dialogTotalPages = 0;
+        _dialogGenerationComplete = false;
+        _generationWikiId = null;
         StateHasChanged();
+
+        StartElapsedTimer();
 
         _generateCts?.Cancel();
         _generateCts = new CancellationTokenSource();
@@ -227,21 +306,48 @@
                 new { collectionId = _selectedCollectionId, name = _wikiName, description = _wikiDescription },
                 ct))
             {
-                if (evt.EventType == WikiGenerationProgressDto.WikiCreated)
+                // Skip high-frequency token events — they're too noisy for the dialog view
+                if (evt.EventType != WikiGenerationProgressDto.PageToken)
+                    _dialogProgressEvents = [.._dialogProgressEvents, evt];
+
+                switch (evt.EventType)
                 {
-                    // Navigate immediately — WikiViewer will poll for completion
-                    _isDialogOpen = false;
-                    Navigation.NavigateTo($"/wiki/{evt.WikiId}");
-                    return;
+                    case WikiGenerationProgressDto.WikiCreated:
+                        _generationWikiId = evt.WikiId == Guid.Empty ? null : (Guid?)evt.WikiId;
+                        break;
+
+                    case WikiGenerationProgressDto.TocComplete:
+                        _dialogTotalPages = evt.TotalPages;
+                        break;
+
+                    case WikiGenerationProgressDto.GenerationComplete:
+                        _dialogGenerationComplete = true;
+                        _elapsedTimer?.Dispose();
+                        _elapsedTimer = null;
+                        await InvokeAsync(StateHasChanged);
+                        // Brief pause so the user sees the completion banner, then navigate
+                        await Task.Delay(1800, CancellationToken.None);
+                        _isDialogOpen = false;
+                        Navigation.NavigateTo($"/wiki/{evt.WikiId}");
+                        return;
+
+                    case WikiGenerationProgressDto.GenerationCancelled:
+                        _elapsedTimer?.Dispose();
+                        _elapsedTimer = null;
+                        await InvokeAsync(StateHasChanged);
+                        return;
                 }
+
+                await InvokeAsync(StateHasChanged);
             }
 
-            // Stream ended without wiki_created — unexpected
-            _dialogError = "Generation did not produce a wiki. Please try again.";
+            // Stream ended without a terminal event
+            if (!_dialogGenerationComplete && !_generationWikiId.HasValue)
+                _dialogError = "Generation did not produce a wiki. Please try again.";
         }
         catch (OperationCanceledException)
         {
-            // User cancelled
+            // User stopped generation via Stop Generation button
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
         {
@@ -253,8 +359,18 @@
         }
         finally
         {
+            _elapsedTimer?.Dispose();
+            _elapsedTimer = null;
             _isGenerating = false;
-            StateHasChanged();
+            await InvokeAsync(StateHasChanged);
         }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _generateCts?.Cancel();
+        _generateCts?.Dispose();
+        _elapsedTimer?.Dispose();
+        return ValueTask.CompletedTask;
     }
 }

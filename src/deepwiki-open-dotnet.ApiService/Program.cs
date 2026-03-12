@@ -212,12 +212,14 @@ public class Program
             .RemoveAllResilienceHandlers()
             .AddStandardResilienceHandler(options =>
             {
-                // Local Ollama can take 60-120s per request — override the Aspire default of 30s
-                var localModelTimeout = TimeSpan.FromMinutes(2);
+                // Wiki generation can produce large pages that take > 2 min on local models.
+                // Match the OllamaProvider stall timeout (default 5 min) so Polly never
+                // fires before the stall-detection mechanism has a chance to act.
+                var localModelTimeout = TimeSpan.FromMinutes(8);
                 options.AttemptTimeout.Timeout      = localModelTimeout;
-                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(10);
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(30);
                 // SamplingDuration must be >= 2× AttemptTimeout per Polly validation
-                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(5);
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(20);
             });
 #pragma warning restore EXTEXP0001
             builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
@@ -251,10 +253,10 @@ public class Program
             .RemoveAllResilienceHandlers()
             .AddStandardResilienceHandler(options =>
             {
-                var localModelTimeout = TimeSpan.FromMinutes(2);
+                var localModelTimeout = TimeSpan.FromMinutes(8);
                 options.AttemptTimeout.Timeout      = localModelTimeout;
-                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(10);
-                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(5);
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(30);
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(20);
             });
 #pragma warning restore EXTEXP0001
 
