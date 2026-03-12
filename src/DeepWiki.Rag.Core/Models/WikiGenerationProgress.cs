@@ -19,6 +19,9 @@ public class WikiGenerationProgress
     /// <summary>A page generation pass has started.</summary>
     public const string EventPageStart = "page_start";
 
+    /// <summary>A streaming token chunk from the TOC LLM call (carries cumulative token count).</summary>
+    public const string EventTocToken = "toc_token";
+
     /// <summary>A streaming token chunk from the page generation LLM call.</summary>
     public const string EventPageToken = "page_token";
 
@@ -71,4 +74,8 @@ public class WikiGenerationProgress
     /// <summary>Wiki status string at completion (only for generation_complete / generation_cancelled).</summary>
     [JsonPropertyName("status")]
     public string? Status { get; set; }
+
+    /// <summary>Cumulative token count (only for toc_token events).</summary>
+    [JsonPropertyName("tokenCount")]
+    public int? TokenCount { get; set; }
 }

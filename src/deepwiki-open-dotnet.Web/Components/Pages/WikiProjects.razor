@@ -307,8 +307,20 @@
                 ct))
             {
                 // Skip high-frequency token events — they're too noisy for the dialog view
-                if (evt.EventType != WikiGenerationProgressDto.PageToken)
+                if (evt.EventType != WikiGenerationProgressDto.PageToken
+                    && evt.EventType != WikiGenerationProgressDto.TocToken)
                     _dialogProgressEvents = [.._dialogProgressEvents, evt];
+
+                // For toc_token, update the component status in-place via a synthetic event
+                // by appending/replacing the last toc_token entry so RebuildFromEvents reflects it
+                if (evt.EventType == WikiGenerationProgressDto.TocToken)
+                {
+                    var filtered = _dialogProgressEvents
+                        .Where(e => e.EventType != WikiGenerationProgressDto.TocToken)
+                        .Append(evt)
+                        .ToList();
+                    _dialogProgressEvents = filtered;
+                }
 
                 switch (evt.EventType)
                 {

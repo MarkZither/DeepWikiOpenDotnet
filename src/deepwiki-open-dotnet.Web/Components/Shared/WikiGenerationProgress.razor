@@ -136,6 +136,10 @@
                     _statusText = "Wiki created, generating table of contents…";
                     break;
 
+                case WikiGenerationProgressDto.TocToken:
+                    _statusText = $"Generating table of contents… {ev.TokenCount} tokens";
+                    break;
+
                 case WikiGenerationProgressDto.TocComplete:
                     _statusText = $"Table of contents ready — generating {ev.TotalPages} pages…";
                     break;

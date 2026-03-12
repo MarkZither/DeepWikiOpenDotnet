@@ -12,6 +12,7 @@ public class WikiGenerationProgressDto
     // ── Event type constants ──────────────────────────────────────────────────
     public const string WikiCreated        = "wiki_created";
     public const string TocComplete        = "toc_complete";
+    public const string TocToken           = "toc_token";
     public const string PageStart          = "page_start";
     public const string PageToken          = "page_token";
     public const string PageComplete       = "page_complete";
@@ -42,4 +43,7 @@ public class WikiGenerationProgressDto
 
     [JsonPropertyName("status")]
     public string? Status { get; set; }
+
+    [JsonPropertyName("tokenCount")]
+    public int? TokenCount { get; set; }
 }

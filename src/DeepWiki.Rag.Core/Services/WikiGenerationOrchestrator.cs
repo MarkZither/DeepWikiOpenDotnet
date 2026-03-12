@@ -167,7 +167,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
             // ── Phase 1: TOC Generation ────────────────────────────────────────
             _logger?.LogInformation("[Wiki] Phase 1 — calling LLM for table of contents (wiki: {WikiId})", wiki.Id);
             var tocEntries = await GenerateTocWithRetryAsync(
-                wiki, sessionId, request.CollectionId, cancellationToken);
+                wiki, sessionId, request.CollectionId, writer, cancellationToken);
 
             // Persist empty page stubs (Status: Generating)
             var pageEntities = new List<WikiPageEntity>();
@@ -317,6 +317,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         WikiEntity wiki,
         string sessionId,
         string collectionId,
+        ChannelWriter<WikiGenerationProgress> writer,
         CancellationToken ct)
     {
         var retrievalSw = Stopwatch.StartNew();
@@ -362,10 +363,18 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                     }
                     sb.Append(delta.Text);
                     tokenCount++;
-                    if (tokenCount % 100 == 0)
+                    if (tokenCount % 50 == 0)
+                    {
                         _logger?.LogDebug(
                             "[Wiki] TOC streaming — {Tokens} tokens so far, {ElapsedMs}ms elapsed (attempt {Attempt}/{Max})",
                             tokenCount, sw.ElapsedMilliseconds, attempt + 1, maxAttempts);
+                        await writer.WriteAsync(new WikiGenerationProgress
+                        {
+                            EventType  = WikiGenerationProgress.EventTocToken,
+                            WikiId     = wiki.Id,
+                            TokenCount = tokenCount
+                        }, CancellationToken.None);
+                    }
                 }
             }
             sw.Stop();
