@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -157,9 +158,14 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                 UpdatedAt = now
             }, cancellationToken);
 
+            _logger?.LogInformation(
+                "[Wiki] Starting generation for '{WikiName}' (id: {WikiId}, collection: {CollectionId})",
+                wiki.Name, wiki.Id, wiki.CollectionId);
+
             await writer.WriteAsync(Progress(WikiGenerationProgress.EventWikiCreated, wiki.Id), CancellationToken.None);
 
             // ── Phase 1: TOC Generation ────────────────────────────────────────
+            _logger?.LogInformation("[Wiki] Phase 1 — calling LLM for table of contents (wiki: {WikiId})", wiki.Id);
             var tocEntries = await GenerateTocWithRetryAsync(
                 wiki, sessionId, request.CollectionId, cancellationToken);
 
@@ -185,6 +191,10 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
             }
 
             var tocJson = BuildTocJson(tocEntries);
+            _logger?.LogInformation(
+                "[Wiki] Phase 1 complete — TOC has {PageCount} pages for wiki '{WikiName}' (id: {WikiId})",
+                tocEntries.Count, wiki.Name, wiki.Id);
+
             await writer.WriteAsync(new WikiGenerationProgress
             {
                 EventType = WikiGenerationProgress.EventTocComplete,
@@ -198,6 +208,9 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
 
             if (_options.Mode == "parallel" && _options.MaxParallelPages > 1)
             {
+                _logger?.LogInformation(
+                    "[Wiki] Phase 2 — generating {PageCount} pages in parallel (max {MaxParallel}) for wiki '{WikiName}'",
+                    tocEntries.Count, _options.MaxParallelPages, wiki.Name);
                 var parallelResults = await GeneratePagesParallelAsync(
                     wiki, sessionId, tocEntries, pageEntities, tocJson, pageIdByTitle, cancellationToken);
 
@@ -209,6 +222,9 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
             else
             {
                 // Sequential mode
+                _logger?.LogInformation(
+                    "[Wiki] Phase 2 — generating {PageCount} pages sequentially for wiki '{WikiName}'",
+                    tocEntries.Count, wiki.Name);
                 for (var i = 0; i < tocEntries.Count; i++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -238,6 +254,10 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
             // ── Finalise wiki status ────────────────────────────────────────────
             var finalStatus = hasErrors ? WikiStatus.Partial : WikiStatus.Complete;
             await _repository.UpdateWikiStatusAsync(wiki.Id, finalStatus, cancellationToken);
+
+            _logger?.LogInformation(
+                "[Wiki] Generation finished for '{WikiName}' (id: {WikiId}) — status: {Status}",
+                wiki.Name, wiki.Id, finalStatus);
 
             await writer.WriteAsync(new WikiGenerationProgress
             {
@@ -313,6 +333,11 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         {
             ct.ThrowIfCancellationRequested();
 
+            _logger?.LogInformation(
+                "[Wiki] TOC LLM call — attempt {Attempt}/{Max} for wiki '{WikiName}' (collection: {CollectionId})",
+                attempt + 1, maxAttempts, wiki.Name, collectionId);
+
+            var sw = Stopwatch.StartNew();
             var sb = new StringBuilder();
             await foreach (var delta in _generationService.GenerateAsync(
                 sessionId, tocPrompt, topK: 0, cancellationToken: ct))
@@ -320,11 +345,20 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                 if (delta.Type == "token" && delta.Text is not null)
                     sb.Append(delta.Text);
             }
+            sw.Stop();
 
             var response = sb.ToString();
+            _logger?.LogInformation(
+                "[Wiki] TOC LLM response received — attempt {Attempt}/{Max}, {Chars} chars in {ElapsedMs}ms",
+                attempt + 1, maxAttempts, response.Length, sw.ElapsedMilliseconds);
+
             try
             {
-                return _tocParser.Parse(response);
+                var entries = _tocParser.Parse(response);
+                _logger?.LogInformation(
+                    "[Wiki] TOC parsed successfully — {PageCount} pages for wiki '{WikiName}'",
+                    entries.Count, wiki.Name);
+                return entries;
             }
             catch (WikiTocParseException ex)
             {
@@ -364,6 +398,11 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                 .Replace("{toc_json}", tocJson)
                 .Replace("{document_chunks}", documentChunks);
 
+            _logger?.LogInformation(
+                "[Wiki] Page LLM call starting — [{PageNum}/{Total}] '{PageTitle}' (wiki: {WikiId})",
+                pageIndex + 1, totalPages, entry.PageTitle, wiki.Id);
+
+            var sw = Stopwatch.StartNew();
             var sb = new StringBuilder();
             await foreach (var delta in _generationService.GenerateAsync(
                 sessionId, pagePrompt, topK: 0, cancellationToken: ct))
@@ -381,8 +420,12 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                     });
                 }
             }
+            sw.Stop();
 
             var fullResponse = sb.ToString();
+            _logger?.LogInformation(
+                "[Wiki] Page LLM call complete — [{PageNum}/{Total}] '{PageTitle}' — {Chars} chars in {ElapsedMs}ms",
+                pageIndex + 1, totalPages, entry.PageTitle, fullResponse.Length, sw.ElapsedMilliseconds);
             var (content, relatedTitles) = _pageParser.Parse(fullResponse);
 
             // Upsert page with content and OK status
@@ -415,12 +458,16 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         }
         catch (OperationCanceledException)
         {
+            _logger?.LogWarning(
+                "[Wiki] Page generation cancelled — [{PageNum}/{Total}] '{PageTitle}'",
+                pageIndex + 1, totalPages, entry.PageTitle);
             throw; // propagate cancellation
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Page generation failed for '{PageTitle}' (index {PageIndex}).",
-                entry.PageTitle, pageIndex);
+            _logger?.LogError(ex,
+                "[Wiki] Page generation FAILED — [{PageNum}/{Total}] '{PageTitle}': {ErrorMessage}",
+                pageIndex + 1, totalPages, entry.PageTitle, ex.Message);
 
             // Mark page as Error and continue
             try
