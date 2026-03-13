@@ -52,7 +52,13 @@
             @foreach (var entry in _pageStatuses)
             {
                 <MudListItem Icon="@entry.Icon" IconColor="@entry.IconColor" Dense="true">
-                    <MudText Typo="Typo.body2">@entry.Title</MudText>
+                    <div class="d-flex align-center gap-2">
+                        <MudText Typo="Typo.body2">@entry.Title</MudText>
+                        @if (entry.IsActive && CurrentPageTokenCount > 0)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">— @CurrentPageTokenCount tokens…</MudText>
+                        }
+                    </div>
                     @if (!string.IsNullOrWhiteSpace(entry.Error))
                     {
                         <MudText Typo="Typo.caption" Color="Color.Error">@entry.Error</MudText>
@@ -108,6 +114,9 @@
     /// <summary>Raised when the user clicks Cancel.</summary>
     [Parameter] public EventCallback OnCancel { get; set; }
 
+    /// <summary>Live token count for the page currently being generated (resets on each new page).</summary>
+    [Parameter] public int CurrentPageTokenCount { get; set; }
+
     // ── Derived state ─────────────────────────────────────────────────────────
 
     private List<PageEntry> _pageStatuses = [];
@@ -147,11 +156,14 @@
                 case WikiGenerationProgressDto.PageStart:
                     if (!string.IsNullOrWhiteSpace(ev.PageTitle))
                     {
+                        // Mark any previous in-progress page as no longer active
+                        foreach (var e in pagesMap.Values) e.IsActive = false;
                         pagesMap[ev.PageIndex] = new PageEntry
                         {
-                            Title = ev.PageTitle,
-                            Icon  = Icons.Material.Filled.AutoStories,
-                            IconColor = Color.Info
+                            Title     = ev.PageTitle,
+                            Icon      = Icons.Material.Filled.AutoStories,
+                            IconColor = Color.Info,
+                            IsActive  = true
                         };
                     }
                     break;
@@ -161,6 +173,7 @@
                     {
                         completedEntry.Icon      = Icons.Material.Filled.CheckCircle;
                         completedEntry.IconColor = Color.Success;
+                        completedEntry.IsActive  = false;
                         _completedPages++;
                     }
                     break;
@@ -171,6 +184,7 @@
                         errorEntry.Icon      = Icons.Material.Filled.Error;
                         errorEntry.IconColor = Color.Error;
                         errorEntry.Error     = ev.ErrorMessage ?? "Page generation failed";
+                        errorEntry.IsActive  = false;
                     }
                     break;
 
@@ -199,5 +213,6 @@
         public string Icon      { get; set; } = Icons.Material.Outlined.Article;
         public Color  IconColor { get; set; } = Color.Default;
         public string? Error    { get; set; }
+        public bool IsActive    { get; set; }
     }
 }

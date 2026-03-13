@@ -147,7 +147,10 @@ public class PostgresVectorStore : IPersistenceVectorStore
     }
 
     /// <summary>
-    /// Native pgvector query using the &lt;=&gt; cosine distance operator via FromSqlInterpolated.
+    /// Native pgvector query using the &lt;=&gt; cosine distance operator via FromSqlRaw.
+    /// Uses FromSqlRaw (not FromSqlInterpolated) so that the comparison operator ("=" / "LIKE")
+    /// can be embedded as a raw SQL fragment — FromSqlInterpolated would parameterize it,
+    /// producing invalid SQL like: AND "RepoUrl" $1 $2.
     /// </summary>
     private async Task<List<DocumentEntity>> QueryNearestNativeAsync(
         ReadOnlyMemory<float> queryEmbedding,
@@ -156,59 +159,39 @@ public class PostgresVectorStore : IPersistenceVectorStore
         string? filePathFilter,
         CancellationToken cancellationToken)
     {
-        // Convert embedding to pgvector literal format: '[0.1, 0.2, ...]'
-        var vectorLiteral = FormatVectorLiteral(queryEmbedding);
+        // Build SQL with operators embedded directly; only values are {n} placeholders.
+        var sqlBuilder = new System.Text.StringBuilder();
+        sqlBuilder.Append(
+            @"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
+                     ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
+              FROM ""Documents""
+              WHERE ""Embedding"" IS NOT NULL");
 
-        // Build parameterized SQL using <=> cosine distance operator (lower = more similar)
-        FormattableString sql;
-        if (!string.IsNullOrEmpty(repoUrlFilter) && !string.IsNullOrEmpty(filePathFilter))
+        var parameters = new List<object>();
+        var p = 0; // EF Core FromSqlRaw uses {0}, {1}, … placeholders
+
+        if (!string.IsNullOrEmpty(repoUrlFilter))
         {
-            // Check if filters contain LIKE wildcards
-            var repoOp = (repoUrlFilter.Contains('%') || repoUrlFilter.Contains('_')) ? "LIKE" : "=";
-            var fileOp = (filePathFilter.Contains('%') || filePathFilter.Contains('_')) ? "LIKE" : "=";
-            sql = $@"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
-                            ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
-                     FROM ""Documents""
-                     WHERE ""Embedding"" IS NOT NULL
-                       AND ""RepoUrl"" {repoOp:raw} {repoUrlFilter}
-                       AND ""FilePath"" {fileOp:raw} {filePathFilter}
-                     ORDER BY ""Embedding"" <=> {vectorLiteral}::vector
-                     LIMIT {k}";
+            var op = (repoUrlFilter.Contains('%') || repoUrlFilter.Contains('_')) ? "LIKE" : "=";
+            sqlBuilder.Append($@" AND ""RepoUrl"" {op} {{{p++}}}");
+            parameters.Add(repoUrlFilter);
         }
-        else if (!string.IsNullOrEmpty(repoUrlFilter))
+
+        if (!string.IsNullOrEmpty(filePathFilter))
         {
-            var repoOp = (repoUrlFilter.Contains('%') || repoUrlFilter.Contains('_')) ? "LIKE" : "=";
-            sql = $@"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
-                            ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
-                     FROM ""Documents""
-                     WHERE ""Embedding"" IS NOT NULL
-                       AND ""RepoUrl"" {repoOp:raw} {repoUrlFilter}
-                     ORDER BY ""Embedding"" <=> {vectorLiteral}::vector
-                     LIMIT {k}";
+            var op = (filePathFilter.Contains('%') || filePathFilter.Contains('_')) ? "LIKE" : "=";
+            sqlBuilder.Append($@" AND ""FilePath"" {op} {{{p++}}}");
+            parameters.Add(filePathFilter);
         }
-        else if (!string.IsNullOrEmpty(filePathFilter))
-        {
-            var fileOp = (filePathFilter.Contains('%') || filePathFilter.Contains('_')) ? "LIKE" : "=";
-            sql = $@"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
-                            ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
-                     FROM ""Documents""
-                     WHERE ""Embedding"" IS NOT NULL
-                       AND ""FilePath"" {fileOp:raw} {filePathFilter}
-                     ORDER BY ""Embedding"" <=> {vectorLiteral}::vector
-                     LIMIT {k}";
-        }
-        else
-        {
-            sql = $@"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
-                            ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
-                     FROM ""Documents""
-                     WHERE ""Embedding"" IS NOT NULL
-                     ORDER BY ""Embedding"" <=> {vectorLiteral}::vector
-                     LIMIT {k}";
-        }
+
+        // Vector literal and k are appended last; vector uses ::vector cast after the placeholder.
+        var vectorLiteral = FormatVectorLiteral(queryEmbedding);
+        sqlBuilder.Append($@" ORDER BY ""Embedding"" <=> {{{p++}}}::vector LIMIT {{{p}}}");
+        parameters.Add(vectorLiteral);
+        parameters.Add(k);
 
         return await _context.Documents
-            .FromSqlInterpolated(sql)
+            .FromSqlRaw(sqlBuilder.ToString(), parameters.ToArray())
             .AsNoTracking()
             .ToListAsync(cancellationToken);
     }

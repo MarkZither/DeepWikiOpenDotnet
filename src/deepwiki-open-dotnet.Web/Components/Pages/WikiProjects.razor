@@ -101,7 +101,8 @@
                                         TotalPages="@_dialogTotalPages"
                                         IsComplete="@_dialogGenerationComplete"
                                         IsFailed="false"
-                                        IsCancelling="false" />
+                                        IsCancelling="false"
+                                        CurrentPageTokenCount="@_currentPageTokenCount" />
                 <div class="d-flex justify-space-between align-center mt-1">
                     <MudText Typo="Typo.caption" Color="Color.Secondary">
                         Elapsed: @_elapsedDisplay
@@ -179,6 +180,7 @@
     private string _elapsedDisplay = "0:00";
     private System.Threading.Timer? _elapsedTimer;
     private DateTime _generateStartTime;
+    private int _currentPageTokenCount;  // resets on each page_start
 
     private readonly DialogOptions _dialogOptions = new()
     {
@@ -246,6 +248,7 @@
         _dialogGenerationComplete = false;
         _generationWikiId = null;
         _elapsedDisplay = "0:00";
+        _currentPageTokenCount = 0;
         _isDialogOpen = true;
     }
 
@@ -306,26 +309,39 @@
                 new { collectionId = _selectedCollectionId, name = _wikiName, description = _wikiDescription },
                 ct))
             {
-                // Skip high-frequency token events — they're too noisy for the dialog view
-                if (evt.EventType != WikiGenerationProgressDto.PageToken
-                    && evt.EventType != WikiGenerationProgressDto.TocToken)
-                    _dialogProgressEvents = [.._dialogProgressEvents, evt];
+                // page_token: increment counter; throttle re-renders to every 25 tokens
+                if (evt.EventType == WikiGenerationProgressDto.PageToken)
+                {
+                    _currentPageTokenCount++;
+                    if (_currentPageTokenCount % 25 != 0)
+                        continue;
+                    await InvokeAsync(StateHasChanged);
+                    continue;
+                }
 
-                // For toc_token, update the component status in-place via a synthetic event
-                // by appending/replacing the last toc_token entry so RebuildFromEvents reflects it
+                // toc_token: keep only the latest in the events list so the component
+                // status text updates without accumulating thousands of entries
                 if (evt.EventType == WikiGenerationProgressDto.TocToken)
                 {
-                    var filtered = _dialogProgressEvents
+                    _dialogProgressEvents = _dialogProgressEvents
                         .Where(e => e.EventType != WikiGenerationProgressDto.TocToken)
                         .Append(evt)
                         .ToList();
-                    _dialogProgressEvents = filtered;
+                    await InvokeAsync(StateHasChanged);
+                    continue;
                 }
+
+                // All other events go into the list normally
+                _dialogProgressEvents = [.._dialogProgressEvents, evt];
 
                 switch (evt.EventType)
                 {
                     case WikiGenerationProgressDto.WikiCreated:
                         _generationWikiId = evt.WikiId == Guid.Empty ? null : (Guid?)evt.WikiId;
+                        break;
+
+                    case WikiGenerationProgressDto.PageStart:
+                        _currentPageTokenCount = 0;
                         break;
 
                     case WikiGenerationProgressDto.TocComplete:
