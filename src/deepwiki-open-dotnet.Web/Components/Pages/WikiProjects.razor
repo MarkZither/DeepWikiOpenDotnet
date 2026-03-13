@@ -362,6 +362,10 @@
                     case WikiGenerationProgressDto.GenerationCancelled:
                         _elapsedTimer?.Dispose();
                         _elapsedTimer = null;
+                        // Status="Error" means the server failed (not a user-initiated cancel).
+                        // Surface the error message so the user knows what went wrong.
+                        if (evt.Status == "Error" && !string.IsNullOrWhiteSpace(evt.ErrorMessage))
+                            _dialogError = evt.ErrorMessage;
                         await InvokeAsync(StateHasChanged);
                         return;
                 }
@@ -369,9 +373,15 @@
                 await InvokeAsync(StateHasChanged);
             }
 
-            // Stream ended without a terminal event
-            if (!_dialogGenerationComplete && !_generationWikiId.HasValue)
-                _dialogError = "Generation did not produce a wiki. Please try again.";
+            // Stream ended without a terminal event.
+            // If a wiki was created but no completion/cancel event arrived, the server
+            // likely failed mid-generation — surface that clearly rather than silently.
+            if (!_dialogGenerationComplete)
+            {
+                _dialogError = _generationWikiId.HasValue
+                    ? "Generation stopped unexpectedly. The wiki may be incomplete — check the logs for details."
+                    : "Generation did not produce a wiki. Please try again.";
+            }
         }
         catch (OperationCanceledException)
         {

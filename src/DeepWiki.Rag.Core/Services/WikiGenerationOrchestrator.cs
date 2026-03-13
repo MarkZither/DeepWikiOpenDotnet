@@ -290,7 +290,9 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         }
         catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
         {
-            _logger?.LogError(ex, "Wiki generation failed unexpectedly for wiki '{Name}'.", request.Name);
+            _logger?.LogError(ex, "[Wiki] Generation FAILED for wiki '{Name}' (id: {WikiId}) — {ErrorMessage}",
+                request.Name, wiki?.Id, ex.Message);
+
             if (wiki is not null)
             {
                 try
@@ -300,7 +302,17 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                 catch { /* best effort */ }
             }
 
-            writer.Complete(ex);
+            // Write an explicit error event before closing the channel so the client
+            // receives a terminal event and can show a failure state rather than hanging.
+            await writer.WriteAsync(new WikiGenerationProgress
+            {
+                EventType    = WikiGenerationProgress.EventGenerationCancelled,
+                WikiId       = wiki?.Id ?? Guid.Empty,
+                ErrorMessage = $"Generation failed: {ex.Message}",
+                Status       = WikiStatus.Error.ToString()
+            }, CancellationToken.None);
+
+            writer.Complete();
             return;
         }
         finally
@@ -605,7 +617,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Vector store query failed during TOC generation. Proceeding with minimal context.");
+            _logger?.LogError(ex, "[Wiki] Vector store retrieval FAILED for collection '{CollectionId}' — TOC will have no document context.", collectionId);
             return $"Collection: {collectionId}";
         }
     }
