@@ -25,6 +25,9 @@ public class WikiGenerationProgress
     /// <summary>A streaming token chunk from the page generation LLM call.</summary>
     public const string EventPageToken = "page_token";
 
+    /// <summary>A human-readable status update describing what the orchestrator is doing right now.</summary>
+    public const string EventStatusUpdate = "status_update";
+
     /// <summary>A page has been generated and persisted successfully.</summary>
     public const string EventPageComplete = "page_complete";
 
@@ -78,4 +81,8 @@ public class WikiGenerationProgress
     /// <summary>Cumulative token count (only for toc_token events).</summary>
     [JsonPropertyName("tokenCount")]
     public int? TokenCount { get; set; }
+
+    /// <summary>Human-readable status message (only for status_update events).</summary>
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
 }

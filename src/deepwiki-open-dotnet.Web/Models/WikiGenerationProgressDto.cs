@@ -19,6 +19,7 @@ public class WikiGenerationProgressDto
     public const string PageError          = "page_error";
     public const string GenerationComplete = "generation_complete";
     public const string GenerationCancelled = "generation_cancelled";
+    public const string StatusUpdate       = "status_update";
 
     [JsonPropertyName("eventType")]
     public string EventType { get; set; } = string.Empty;
@@ -46,4 +47,7 @@ public class WikiGenerationProgressDto
 
     [JsonPropertyName("tokenCount")]
     public int? TokenCount { get; set; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
 }

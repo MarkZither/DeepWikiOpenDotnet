@@ -333,6 +333,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         CancellationToken ct)
     {
         var retrievalSw = Stopwatch.StartNew();
+        await writer.WriteAsync(StatusUpdate(wiki.Id, "Retrieving document context from vector store…"), CancellationToken.None);
         var documentSummaries = await GetDocumentSummariesAsync(collectionId, ct);
         retrievalSw.Stop();
 
@@ -346,6 +347,8 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
             "[Wiki] TOC prompt ready — {PromptChars} chars, doc-summaries {SummaryChars} chars, retrieval {RetrievalMs}ms",
             tocPrompt.Length, documentSummaries.Length, retrievalSw.ElapsedMilliseconds);
 
+        await writer.WriteAsync(StatusUpdate(wiki.Id, $"Document context ready — building table of contents prompt ({retrievalSw.ElapsedMilliseconds}ms)"), CancellationToken.None);
+
         var maxAttempts = _options.MaxTocRetries + 1;
         WikiTocParseException? lastException = null;
 
@@ -356,6 +359,11 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
             _logger?.LogInformation(
                 "[Wiki] TOC LLM call — attempt {Attempt}/{Max} for wiki '{WikiName}' (collection: {CollectionId})",
                 attempt + 1, maxAttempts, wiki.Name, collectionId);
+
+            await writer.WriteAsync(StatusUpdate(wiki.Id,
+                attempt == 0
+                    ? "Calling LLM for table of contents — this may take several minutes…"
+                    : $"Retrying table of contents (attempt {attempt + 1}/{maxAttempts})…"), CancellationToken.None);
 
             var sw = Stopwatch.StartNew();
             var sb = new StringBuilder();
@@ -372,6 +380,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                         _logger?.LogInformation(
                             "[Wiki] TOC first token received after {ElapsedMs}ms (attempt {Attempt}/{Max})",
                             sw.ElapsedMilliseconds, attempt + 1, maxAttempts);
+                        await writer.WriteAsync(StatusUpdate(wiki.Id, $"LLM responding — generating table of contents… (first token after {sw.ElapsedMilliseconds}ms)"), CancellationToken.None);
                     }
                     sb.Append(delta.Text);
                     tokenCount++;
@@ -658,6 +667,9 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
 
     private static WikiGenerationProgress Progress(string eventType, Guid wikiId) =>
         new() { EventType = eventType, WikiId = wikiId };
+
+    private static WikiGenerationProgress StatusUpdate(Guid wikiId, string message) =>
+        new() { EventType = WikiGenerationProgress.EventStatusUpdate, WikiId = wikiId, Message = message };
 
     private static string BuildTocJson(IReadOnlyList<TocEntry> entries)
     {
