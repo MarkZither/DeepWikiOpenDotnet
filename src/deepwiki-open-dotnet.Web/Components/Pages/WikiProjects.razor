@@ -5,6 +5,8 @@
 @inject WikiApiClient WikiApi
 @inject ChatApiClient ChatApi
 @inject NavigationManager Navigation
+@inject WikiProgressHubClient _hubClient
+@inject ILogger<WikiProjects> Logger
 @namespace deepwiki_open_dotnet.Web.Components.Pages
 @implements IAsyncDisposable
 
@@ -94,15 +96,11 @@
                           Lines="2"
                           Disabled="@_isGenerating" />
 
-            @if (_isGenerating || _dialogProgressEvents.Count > 0)
+            @if (_isGenerating || _generationWikiId.HasValue)
             {
-                <WikiGenerationProgress WikiName="@_wikiName"
-                                        Events="@_dialogProgressEvents"
-                                        TotalPages="@_dialogTotalPages"
-                                        IsComplete="@_dialogGenerationComplete"
-                                        IsFailed="false"
-                                        IsCancelling="false"
-                                        CurrentPageTokenCount="@_currentPageTokenCount" />
+                <WikiGenerationProgress @ref="_progressComp"
+                                        WikiName="@_wikiName"
+                                        OnCancel="StopGeneration" />
                 <div class="d-flex justify-space-between align-center mt-1">
                     <MudText Typo="Typo.caption" Color="Color.Secondary">
                         Elapsed: @_elapsedDisplay
@@ -125,16 +123,16 @@
     <DialogActions>
         @if (_isGenerating)
         {
-            <MudButton OnClick="CloseDialog" Color="Color.Warning" Variant="Variant.Outlined">
+            <MudButton OnClick="StopGeneration" Color="Color.Warning" Variant="Variant.Outlined">
                 Stop Generation
             </MudButton>
         }
         else
         {
             <MudButton OnClick="CloseDialog">
-                @(_dialogGenerationComplete || (_generationWikiId.HasValue && _dialogProgressEvents.Count > 0) ? "Close" : "Cancel")
+                @(_dialogGenerationComplete || _generationWikiId.HasValue ? "Close" : "Cancel")
             </MudButton>
-            @if (_dialogProgressEvents.Count == 0)
+            @if (!_generationWikiId.HasValue && !_isGenerating)
             {
                 <MudButton Variant="Variant.Filled"
                            Color="Color.Primary"
@@ -170,17 +168,16 @@
     private string? _dialogError;
     private string? _generateError;
     private List<DocumentCollectionModel> _collections = [];
-    private CancellationTokenSource? _generateCts;
 
-    // ── Live generation progress (collected while dialog is open) ───────────
-    private List<WikiGenerationProgressDto> _dialogProgressEvents = [];
-    private int _dialogTotalPages;
+    // Reference to the progress component — events are pushed into it directly.
+    private WikiGenerationProgress? _progressComp;
+
+    // ── Generation monitoring state ───────────────────────────────────────────
     private bool _dialogGenerationComplete;
     private Guid? _generationWikiId;
     private string _elapsedDisplay = "0:00";
     private System.Threading.Timer? _elapsedTimer;
     private DateTime _generateStartTime;
-    private int _currentPageTokenCount;  // resets on each page_start
 
     private readonly DialogOptions _dialogOptions = new()
     {
@@ -243,22 +240,26 @@
         _wikiDescription = null;
         _dialogError = null;
         _isGenerating = false;
-        _dialogProgressEvents = [];
-        _dialogTotalPages = 0;
         _dialogGenerationComplete = false;
         _generationWikiId = null;
         _elapsedDisplay = "0:00";
-        _currentPageTokenCount = 0;
         _isDialogOpen = true;
     }
 
     private void CloseDialog()
     {
-        _generateCts?.Cancel();
         _elapsedTimer?.Dispose();
         _elapsedTimer = null;
         _isDialogOpen = false;
         _isGenerating = false;
+    }
+
+    private void StopGeneration()
+    {
+        // Unsubscribe from live SignalR updates — generation continues on the server.
+        if (_generationWikiId.HasValue)
+            _ = _hubClient.UnsubscribeAsync(_generationWikiId.Value);
+        CloseDialog();
     }
 
     private void NavigateToGeneratedWiki()
@@ -291,101 +292,81 @@
 
         _isGenerating = true;
         _dialogError = null;
-        _dialogProgressEvents = [];
-        _dialogTotalPages = 0;
         _dialogGenerationComplete = false;
         _generationWikiId = null;
         StateHasChanged();
 
-        StartElapsedTimer();
+        if (_progressComp is not null)
+            await _progressComp.ResetAsync();
 
-        _generateCts?.Cancel();
-        _generateCts = new CancellationTokenSource();
-        var ct = _generateCts.Token;
+        StartElapsedTimer();
 
         try
         {
-            await foreach (var evt in WikiApi.GenerateWikiAsync(
-                new { collectionId = _selectedCollectionId, name = _wikiName, description = _wikiDescription },
-                ct))
+            Logger.LogInformation("[UI] Requesting wiki generation for '{Name}'", _wikiName);
+
+            // POST /api/wiki/generate → 202 Accepted with { wikiId }
+            var wikiId = await WikiApi.StartGenerationAsync(new
             {
-                // page_token: increment counter; throttle re-renders to every 25 tokens
-                if (evt.EventType == WikiGenerationProgressDto.PageToken)
-                {
-                    _currentPageTokenCount++;
-                    if (_currentPageTokenCount % 25 != 0)
-                        continue;
-                    await InvokeAsync(StateHasChanged);
-                    continue;
-                }
+                collectionId = _selectedCollectionId,
+                name = _wikiName,
+                description = _wikiDescription
+            });
 
-                // toc_token: keep only the latest in the events list so the component
-                // status text updates without accumulating thousands of entries
-                if (evt.EventType == WikiGenerationProgressDto.TocToken)
-                {
-                    _dialogProgressEvents = _dialogProgressEvents
-                        .Where(e => e.EventType != WikiGenerationProgressDto.TocToken)
-                        .Append(evt)
-                        .ToList();
-                    await InvokeAsync(StateHasChanged);
-                    continue;
-                }
+            _generationWikiId = wikiId;
+            await InvokeAsync(StateHasChanged);
 
-                // All other events go into the list normally
-                _dialogProgressEvents = [.._dialogProgressEvents, evt];
+            Logger.LogInformation("[UI] Generation started — wiki {WikiId}; subscribing to SignalR group", wikiId);
 
+            // Subscribe to SignalR hub progress for this wiki.
+            // The callback is called from a background SignalR thread;
+            // ApplyEventAsync marshals back onto the Blazor render thread.
+            await _hubClient.SubscribeAsync(wikiId, async evt =>
+            {
+                // Push into the progress component (handles its own state + render)
+                if (_progressComp is not null)
+                    await _progressComp.ApplyEventAsync(evt);
+
+                // Handle terminal / structural events that affect parent page state
                 switch (evt.EventType)
                 {
-                    case WikiGenerationProgressDto.WikiCreated:
-                        _generationWikiId = evt.WikiId == Guid.Empty ? null : (Guid?)evt.WikiId;
-                        break;
-
-                    case WikiGenerationProgressDto.PageStart:
-                        _currentPageTokenCount = 0;
-                        break;
-
-                    case WikiGenerationProgressDto.TocComplete:
-                        _dialogTotalPages = evt.TotalPages;
-                        break;
-
                     case WikiGenerationProgressDto.GenerationComplete:
                         _dialogGenerationComplete = true;
+                        _isGenerating = false;
                         _elapsedTimer?.Dispose();
                         _elapsedTimer = null;
                         await InvokeAsync(StateHasChanged);
-                        // Brief pause so the user sees the completion banner, then navigate
                         await Task.Delay(1800, CancellationToken.None);
-                        _isDialogOpen = false;
-                        Navigation.NavigateTo($"/wiki/{evt.WikiId}");
-                        return;
+                        await InvokeAsync(() =>
+                        {
+                            _isDialogOpen = false;
+                            Navigation.NavigateTo($"/wiki/{evt.WikiId}");
+                        });
+                        await _hubClient.UnsubscribeAsync(wikiId);
+                        break;
 
                     case WikiGenerationProgressDto.GenerationCancelled:
+                        _isGenerating = false;
                         _elapsedTimer?.Dispose();
                         _elapsedTimer = null;
-                        // Status="Error" means the server failed (not a user-initiated cancel).
-                        // Surface the error message so the user knows what went wrong.
                         if (evt.Status == "Error" && !string.IsNullOrWhiteSpace(evt.ErrorMessage))
-                            _dialogError = evt.ErrorMessage;
-                        await InvokeAsync(StateHasChanged);
-                        return;
+                            await InvokeAsync(() => { _dialogError = evt.ErrorMessage; StateHasChanged(); });
+                        else
+                            await InvokeAsync(StateHasChanged);
+                        await _hubClient.UnsubscribeAsync(wikiId);
+                        break;
+
+                    default:
+                        // Nudge parent for page_start / toc_complete so elapsed timer / partial link re-renders
+                        if (evt.EventType is WikiGenerationProgressDto.PageStart
+                                           or WikiGenerationProgressDto.TocComplete)
+                            await InvokeAsync(StateHasChanged);
+                        break;
                 }
+            });
 
-                await InvokeAsync(StateHasChanged);
-            }
-
-            // Stream ended without a terminal event.
-            // If a wiki was created but no completion/cancel event arrived, the server
-            // likely failed mid-generation — surface that clearly rather than silently.
-            if (!_dialogGenerationComplete)
-            {
-                _dialogError = _generationWikiId.HasValue
-                    ? "Generation stopped unexpectedly. The wiki may be incomplete — check the logs for details."
-                    : "Generation did not produce a wiki. Please try again.";
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // User stopped generation via Stop Generation button
+            // StartGenerationAsync returns here; _isGenerating stays true while monitoring.
+            return;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
         {
@@ -393,22 +374,23 @@
         }
         catch (Exception ex)
         {
-            _dialogError = $"Generation failed: {ex.Message}";
+            _dialogError = $"Failed to start generation: {ex.Message}";
         }
-        finally
-        {
-            _elapsedTimer?.Dispose();
-            _elapsedTimer = null;
-            _isGenerating = false;
-            await InvokeAsync(StateHasChanged);
-        }
+
+        // Reached only on early failure (before subscription succeeded).
+        _elapsedTimer?.Dispose();
+        _elapsedTimer = null;
+        _isGenerating = false;
+        await InvokeAsync(StateHasChanged);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        _generateCts?.Cancel();
-        _generateCts?.Dispose();
         _elapsedTimer?.Dispose();
-        return ValueTask.CompletedTask;
+        if (_generationWikiId.HasValue)
+        {
+            try { await _hubClient.UnsubscribeAsync(_generationWikiId.Value); }
+            catch { /* best effort */ }
+        }
     }
 }

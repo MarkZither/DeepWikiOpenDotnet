@@ -1,10 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
-using System.Runtime.CompilerServices;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
@@ -167,49 +164,31 @@ public class WikiApiClient
     }
 
     /// <summary>
-    /// Streams wiki generation progress events via POST /api/wiki/generate (NDJSON).
-    /// Each yielded <see cref="WikiGenerationProgressDto"/> maps to one progress event.
-    /// Throws <see cref="HttpRequestException"/> with StatusCode 409 when a generation
-    /// is already in progress for the same collection + name.
+    /// Starts wiki generation via POST /api/wiki/generate.
+    /// Returns the <see cref="Guid"/> wiki ID from the 202 Accepted response; all
+    /// subsequent progress events arrive via SignalR (<see cref="WikiProgressHubClient"/>).
+    /// Throws <see cref="HttpRequestException"/> with <see cref="System.Net.HttpStatusCode.Conflict"/>
+    /// when a generation is already in progress for the same collection + name.
     /// </summary>
-    public async IAsyncEnumerable<WikiGenerationProgressDto> GenerateWikiAsync(
+    public async Task<Guid> StartGenerationAsync(
         object request,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
-        var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/wiki/generate")
-        {
-            Content = JsonContent.Create(request)
-        };
-
-        using var response = await _httpClient
-            .SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+        var response = await _httpClient
+            .PostAsJsonAsync("/api/wiki/generate", request, cancellationToken)
             .ConfigureAwait(false);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            throw new HttpRequestException("Conflict", null, System.Net.HttpStatusCode.Conflict);
 
         response.EnsureSuccessStatusCode();
 
-        var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        using var reader = new StreamReader(stream);
+        var body = await response.Content
+            .ReadFromJsonAsync<StartGenerationResponse>(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
 
-        var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            var line = await reader.ReadLineAsync().ConfigureAwait(false);
-            if (line is null) break;
-            if (string.IsNullOrWhiteSpace(line)) continue;
-
-            WikiGenerationProgressDto? dto = null;
-            try
-            {
-                dto = JsonSerializer.Deserialize<WikiGenerationProgressDto>(line, jsonOptions);
-            }
-            catch (JsonException)
-            {
-                // skip malformed NDJSON lines
-            }
-
-            if (dto is not null)
-                yield return dto;
-        }
+        return body?.WikiId ?? throw new InvalidOperationException("API returned 202 but no wikiId in response body.");
     }
+
+    private sealed record StartGenerationResponse(Guid WikiId);
 }
