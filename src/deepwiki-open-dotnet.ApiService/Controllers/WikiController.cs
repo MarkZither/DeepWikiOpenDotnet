@@ -17,11 +17,16 @@ public class WikiController : ControllerBase
 {
     private readonly IWikiService _wikiService;
     private readonly IWikiGenerationService _wikiGenerationService;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public WikiController(IWikiService wikiService, IWikiGenerationService wikiGenerationService)
+    public WikiController(
+        IWikiService wikiService,
+        IWikiGenerationService wikiGenerationService,
+        IServiceScopeFactory scopeFactory)
     {
         _wikiService = wikiService;
         _wikiGenerationService = wikiGenerationService;
+        _scopeFactory = scopeFactory;
     }
 
     // ── POST /api/wiki ────────────────────────────────────────────────────────
@@ -67,24 +72,22 @@ public class WikiController : ControllerBase
     // ── POST /api/wiki/generate ───────────────────────────────────────────────
 
     /// <summary>
-    /// Starts wiki generation for a collection and streams progress events via NDJSON.
-    /// Each newline-delimited JSON object is a <c>WikiGenerationProgress</c> event.
+    /// Starts wiki generation for a collection.
+    /// Returns 202 Accepted with <c>{ wikiId }</c> as soon as the wiki entity is created;
+    /// all subsequent progress events are delivered to SignalR clients subscribed to the
+    /// <c>wiki:{wikiId}</c> group on <c>WikiProgressHub</c> (/hubs/wiki-progress).
     /// </summary>
-    /// <response code="200">Generation stream started.</response>
+    /// <response code="202">Generation started — body contains <c>{ wikiId }</c>.</response>
     /// <response code="400">Validation failed.</response>
     /// <response code="409">A wiki with this name is already being generated for this collection.</response>
     [HttpPost("generate")]
-    [Produces("application/x-ndjson")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task GenerateWiki([FromBody] GenerateWikiRequest request)
+    public async Task<IActionResult> GenerateWiki([FromBody] GenerateWikiRequest request)
     {
         if (!ModelState.IsValid)
-        {
-            HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            return;
-        }
+            return BadRequest(ModelState);
 
         var coreRequest = new WikiGenerationRequest
         {
@@ -93,34 +96,81 @@ public class WikiController : ControllerBase
             Description = request.Description
         };
 
+        // Create a long-lived DI scope for background generation.
+        // The scope outlives the HTTP request and is disposed only after the entire
+        // generation pipeline completes (success, cancellation, or error).
+        var scope = _scopeFactory.CreateAsyncScope();
+        var generationService = scope.ServiceProvider.GetRequiredService<IWikiGenerationService>();
+
+        // GenerateAsync is synchronous up to the return — it validates duplicate guards and
+        // returns the lazy IAsyncEnumerable without starting any async work yet.
         IAsyncEnumerable<WikiGenerationProgress> stream;
         try
         {
-            stream = _wikiGenerationService.GenerateAsync(coreRequest, HttpContext.RequestAborted);
+            stream = generationService.GenerateAsync(coreRequest, CancellationToken.None);
         }
         catch (InvalidOperationException ex)
         {
-            HttpContext.Response.StatusCode = StatusCodes.Status409Conflict;
-            await HttpContext.Response.WriteAsJsonAsync(new { detail = ex.Message });
-            return;
+            await scope.DisposeAsync();
+            return Conflict(new { detail = ex.Message });
         }
 
-        HttpContext.Response.ContentType = "application/x-ndjson";
-        HttpContext.Response.Headers.CacheControl = "no-cache";
+        // The background task drives the entire generation pipeline.
+        // It signals the TCS with the wiki ID once the wiki entity is created
+        // (before any LLM call), enabling us to return 202 within seconds.
+        // All progress events are also pushed to SignalR by IWikiProgressNotifier
+        // inside WikiGenerationOrchestrator — no extra work is needed here.
+        var tcs = new TaskCompletionSource<Guid>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var requestAborted = HttpContext.RequestAborted;
 
+        _ = Task.Run(async () =>
+        {
+            await using (scope)
+            {
+                try
+                {
+                    await foreach (var evt in stream)
+                    {
+                        if (evt.EventType == WikiGenerationProgress.EventWikiCreated)
+                            tcs.TrySetResult(evt.WikiId);
+                    }
+                    // If wiki_created was never emitted the pipeline failed early.
+                    tcs.TrySetException(new InvalidOperationException(
+                        "Generation pipeline ended without a wiki_created event."));
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetException(ex);
+                }
+            }
+        });
+
+        Guid wikiId;
         try
         {
-            await foreach (var progress in stream.WithCancellation(HttpContext.RequestAborted))
-            {
-                var line = JsonSerializer.Serialize(progress) + "\n";
-                await HttpContext.Response.WriteAsync(line, HttpContext.RequestAborted);
-                await HttpContext.Response.Body.FlushAsync(HttpContext.RequestAborted);
-            }
+            // Wait up to 30 s for the wiki entity to be created (fast DB insert).
+            wikiId = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(30), requestAborted);
+        }
+        catch (TimeoutException)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { detail = "Wiki creation timed out. Check the API service logs." });
         }
         catch (OperationCanceledException)
         {
-            // Client disconnected — graceful exit; orchestrator handles cancellation internally
+            return StatusCode(499, new { detail = "Request aborted by client." });
         }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { detail = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { detail = $"Generation failed to start: {ex.Message}" });
+        }
+
+        return Accepted((string?)null, new { wikiId });
     }
 
     // ── GET /api/wiki/{id} ────────────────────────────────────────────────────

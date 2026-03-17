@@ -110,7 +110,9 @@ public class WikiControllerTests
 
     private static WikiController CreateController(IWikiService? svc = null, IWikiGenerationService? generationSvc = null)
     {
-        var controller = new WikiController(svc ?? new FakeWikiService(), generationSvc ?? new StubWikiGenerationService());
+        // Provide a stub IServiceScopeFactory so the 202 generate endpoint can create a scope.
+        var scopeFactory = new StubServiceScopeFactory(svc, generationSvc);
+        var controller = new WikiController(svc ?? new FakeWikiService(), generationSvc ?? new StubWikiGenerationService(), scopeFactory);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -410,6 +412,33 @@ public class WikiControllerTests
         {
             await System.Threading.Tasks.Task.CompletedTask;
             yield break;
+        }
+    }
+
+    /// <summary>
+    /// Minimal <see cref="IServiceScopeFactory"/> stub that resolves the registered
+    /// wiki services from a pre-built <see cref="ServiceProvider"/> so that the
+    /// 202 fire-and-forget generate endpoint can create a scope in tests.
+    /// </summary>
+    private sealed class StubServiceScopeFactory : IServiceScopeFactory
+    {
+        private readonly IWikiService _wikiService;
+        private readonly IWikiGenerationService _generationService;
+
+        public StubServiceScopeFactory(IWikiService? wikiService, IWikiGenerationService? generationService)
+        {
+            _wikiService = wikiService ?? new FakeWikiService();
+            _generationService = generationService ?? new StubWikiGenerationService();
+        }
+
+        public IServiceScope CreateScope()
+        {
+            var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+            services.AddSingleton(_wikiService);
+            services.AddSingleton(_generationService);
+            services.AddSingleton<IWikiGenerationService>(_generationService);
+            var provider = services.BuildServiceProvider();
+            return provider.CreateScope();
         }
     }
 }
