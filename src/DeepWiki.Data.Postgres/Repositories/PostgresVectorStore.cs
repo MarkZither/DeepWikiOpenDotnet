@@ -160,12 +160,16 @@ public class PostgresVectorStore : IPersistenceVectorStore
         CancellationToken cancellationToken)
     {
         // Build SQL with operators embedded directly; only values are {n} placeholders.
+        // Column names match the names configured in DocumentEntityConfiguration.
+        // Note: "Id" retains PascalCase because no HasColumnName() was applied to it —
+        // EF Core used the CLR property name verbatim, so the DB column is "Id", not "id".
         var sqlBuilder = new System.Text.StringBuilder();
         sqlBuilder.Append(
-            @"SELECT ""Id"", ""RepoUrl"", ""FilePath"", ""Title"", ""Text"", ""Embedding"", ""MetadataJson"",
-                     ""FileType"", ""IsCode"", ""IsImplementation"", ""TokenCount"", ""CreatedAt"", ""UpdatedAt""
-              FROM ""Documents""
-              WHERE ""Embedding"" IS NOT NULL");
+            @"SELECT ""Id"", ""repo_url"", ""file_path"", ""title"", ""text"", ""embedding"", ""metadata_json"",
+                     ""file_type"", ""is_code"", ""is_implementation"", ""token_count"", ""created_at"", ""updated_at"",
+                     ""chunk_index"", ""total_chunks""
+              FROM ""documents""
+              WHERE ""embedding"" IS NOT NULL");
 
         var parameters = new List<object>();
         var p = 0; // EF Core FromSqlRaw uses {0}, {1}, … placeholders
@@ -173,20 +177,20 @@ public class PostgresVectorStore : IPersistenceVectorStore
         if (!string.IsNullOrEmpty(repoUrlFilter))
         {
             var op = (repoUrlFilter.Contains('%') || repoUrlFilter.Contains('_')) ? "LIKE" : "=";
-            sqlBuilder.Append($@" AND ""RepoUrl"" {op} {{{p++}}}");
+            sqlBuilder.Append($@" AND ""repo_url"" {op} {{{p++}}}");
             parameters.Add(repoUrlFilter);
         }
 
         if (!string.IsNullOrEmpty(filePathFilter))
         {
             var op = (filePathFilter.Contains('%') || filePathFilter.Contains('_')) ? "LIKE" : "=";
-            sqlBuilder.Append($@" AND ""FilePath"" {op} {{{p++}}}");
+            sqlBuilder.Append($@" AND ""file_path"" {op} {{{p++}}}");
             parameters.Add(filePathFilter);
         }
 
         // Vector literal and k are appended last; vector uses ::vector cast after the placeholder.
         var vectorLiteral = FormatVectorLiteral(queryEmbedding);
-        sqlBuilder.Append($@" ORDER BY ""Embedding"" <=> {{{p++}}}::vector LIMIT {{{p}}}");
+        sqlBuilder.Append($@" ORDER BY ""embedding"" <=> {{{p++}}}::vector LIMIT {{{p}}}");
         parameters.Add(vectorLiteral);
         parameters.Add(k);
 
