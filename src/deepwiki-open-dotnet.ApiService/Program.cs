@@ -20,6 +20,13 @@ public class Program
         builder.Host.UseDefaultServiceProvider(opts => { opts.ValidateScopes = true; opts.ValidateOnBuild = true; });
 
         // Add service defaults & Aspire client integrations.
+        // Stamp every console log line with HH:mm:ss so timing is visible in Aspire and terminal.
+        builder.Logging.AddSimpleConsole(options =>
+        {
+            options.TimestampFormat = "HH:mm:ss ";
+            options.SingleLine      = true;
+        });
+
         builder.AddServiceDefaults();
 
         // Add services to the container.
@@ -363,6 +370,9 @@ public class Program
         builder.Services.AddScoped<DeepWiki.Rag.Core.Services.IWikiGenerationService, DeepWiki.Rag.Core.Services.WikiGenerationOrchestrator>();
         builder.Services.Configure<DeepWiki.Rag.Core.Models.WikiGenerationOptions>(
             builder.Configuration.GetSection("Wiki:Generation"));
+        // SignalR notifier for wiki generation progress (singleton — IHubContext is thread-safe)
+        builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.IWikiProgressNotifier,
+            DeepWiki.ApiService.Services.SignalRWikiProgressNotifier>();
 
         var app = builder.Build();
 
@@ -508,6 +518,8 @@ using (var scope = app.Services.CreateScope())
 
         // Task T069: Map SignalR hub for streaming generation
         app.MapHub<DeepWiki.ApiService.Hubs.GenerationHub>("/hubs/generation");
+        // Wiki progress hub — clients subscribe by wiki ID for real-time generation progress
+        app.MapHub<DeepWiki.ApiService.Hubs.WikiProgressHub>("/hubs/wiki-progress");
 
         // Optionally expose Prometheus-compatible /metrics endpoint for scraping when enabled in configuration
         var promEnabled = app.Configuration.GetValue<bool?>("OpenTelemetry:Prometheus:Enabled") ?? false;

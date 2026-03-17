@@ -32,6 +32,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
     private readonly WikiTocParser _tocParser = new();
     private readonly WikiPageParser _pageParser = new();
     private readonly ILogger<WikiGenerationOrchestrator>? _logger;
+    private readonly IWikiProgressNotifier? _progressNotifier;
 
     /// <summary>In-process concurrent generation guard: prevents double-triggering for the same collection+name pair.</summary>
     private static readonly ConcurrentDictionary<string, bool> _activeGenerations = new();
@@ -46,7 +47,8 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         IVectorStore? vectorStore = null,
         IEmbeddingService? embeddingService = null,
         IOptions<WikiGenerationOptions>? options = null,
-        ILogger<WikiGenerationOrchestrator>? logger = null)
+        ILogger<WikiGenerationOrchestrator>? logger = null,
+        IWikiProgressNotifier? progressNotifier = null)
     {
         _repository = repository;
         _generationService = generationService;
@@ -55,6 +57,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         _embeddingService = embeddingService;
         _options = options?.Value ?? new WikiGenerationOptions();
         _logger = logger;
+        _progressNotifier = progressNotifier;
     }
 
     /// <inheritdoc/>
@@ -162,7 +165,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                 "[Wiki] Starting generation for '{WikiName}' (id: {WikiId}, collection: {CollectionId})",
                 wiki.Name, wiki.Id, wiki.CollectionId);
 
-            await writer.WriteAsync(Progress(WikiGenerationProgress.EventWikiCreated, wiki.Id), CancellationToken.None);
+            await EmitAsync(writer, Progress(WikiGenerationProgress.EventWikiCreated, wiki.Id));
 
             // ── Phase 1: TOC Generation ────────────────────────────────────────
             _logger?.LogInformation("[Wiki] Phase 1 — calling LLM for table of contents (wiki: {WikiId})", wiki.Id);
@@ -195,12 +198,12 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                 "[Wiki] Phase 1 complete — TOC has {PageCount} pages for wiki '{WikiName}' (id: {WikiId})",
                 tocEntries.Count, wiki.Name, wiki.Id);
 
-            await writer.WriteAsync(new WikiGenerationProgress
+            await EmitAsync(writer, new WikiGenerationProgress
             {
                 EventType = WikiGenerationProgress.EventTocComplete,
                 WikiId = wiki.Id,
                 TotalPages = tocEntries.Count
-            }, CancellationToken.None);
+            });
 
             // ── Phase 2: Page Content Generation ──────────────────────────────
             var pageIdByTitle = pageEntities.ToDictionary(
@@ -215,7 +218,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                     wiki, sessionId, tocEntries, pageEntities, tocJson, pageIdByTitle, cancellationToken);
 
                 foreach (var evt in parallelResults.Events)
-                    await writer.WriteAsync(evt, CancellationToken.None);
+                    await EmitAsync(writer, evt);
 
                 hasErrors = parallelResults.HasErrors;
             }
@@ -231,20 +234,20 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                     var entry = tocEntries[i];
                     var pageEntity = pageEntities[i];
 
-                    await writer.WriteAsync(new WikiGenerationProgress
+                    await EmitAsync(writer, new WikiGenerationProgress
                     {
                         EventType = WikiGenerationProgress.EventPageStart,
                         WikiId = wiki.Id,
                         PageIndex = i,
                         TotalPages = tocEntries.Count,
                         PageTitle = entry.PageTitle
-                    }, CancellationToken.None);
+                    });
 
                     var (pageSucceeded, pageProgress) = await GenerateSinglePageAsync(
                         wiki, sessionId, entry, pageEntity, tocJson, pageIdByTitle, i, tocEntries.Count, cancellationToken);
 
                     foreach (var evt in pageProgress)
-                        await writer.WriteAsync(evt, CancellationToken.None);
+                        await EmitAsync(writer, evt);
 
                     if (!pageSucceeded)
                         hasErrors = true;
@@ -259,12 +262,12 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                 "[Wiki] Generation finished for '{WikiName}' (id: {WikiId}) — status: {Status}",
                 wiki.Name, wiki.Id, finalStatus);
 
-            await writer.WriteAsync(new WikiGenerationProgress
+            await EmitAsync(writer, new WikiGenerationProgress
             {
                 EventType = WikiGenerationProgress.EventGenerationComplete,
                 WikiId = wiki.Id,
                 Status = finalStatus.ToString()
-            }, CancellationToken.None);
+            });
         }
         catch (OperationCanceledException)
         {
@@ -280,13 +283,13 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                 }
             }
 
-            await writer.WriteAsync(new WikiGenerationProgress
+            await EmitAsync(writer, new WikiGenerationProgress
             {
                 EventType = WikiGenerationProgress.EventGenerationCancelled,
                 WikiId = wiki?.Id ?? Guid.Empty,
                 ErrorMessage = "Generation was cancelled by the caller.",
                 Status = WikiStatus.Partial.ToString()
-            }, CancellationToken.None);
+            });
         }
         catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
         {
@@ -304,13 +307,13 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
 
             // Write an explicit error event before closing the channel so the client
             // receives a terminal event and can show a failure state rather than hanging.
-            await writer.WriteAsync(new WikiGenerationProgress
+            await EmitAsync(writer, new WikiGenerationProgress
             {
                 EventType    = WikiGenerationProgress.EventGenerationCancelled,
                 WikiId       = wiki?.Id ?? Guid.Empty,
                 ErrorMessage = $"Generation failed: {ex.Message}",
                 Status       = WikiStatus.Error.ToString()
-            }, CancellationToken.None);
+            });
 
             writer.Complete();
             return;
@@ -333,7 +336,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         CancellationToken ct)
     {
         var retrievalSw = Stopwatch.StartNew();
-        await writer.WriteAsync(StatusUpdate(wiki.Id, "Retrieving document context from vector store…"), CancellationToken.None);
+        await EmitAsync(writer, StatusUpdate(wiki.Id, "Retrieving document context from vector store…"));
         var documentSummaries = await GetDocumentSummariesAsync(collectionId, ct);
         retrievalSw.Stop();
 
@@ -347,7 +350,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
             "[Wiki] TOC prompt ready — {PromptChars} chars, doc-summaries {SummaryChars} chars, retrieval {RetrievalMs}ms",
             tocPrompt.Length, documentSummaries.Length, retrievalSw.ElapsedMilliseconds);
 
-        await writer.WriteAsync(StatusUpdate(wiki.Id, $"Document context ready — building table of contents prompt ({retrievalSw.ElapsedMilliseconds}ms)"), CancellationToken.None);
+        await EmitAsync(writer, StatusUpdate(wiki.Id, $"Document context ready — building table of contents prompt ({retrievalSw.ElapsedMilliseconds}ms)"));
 
         var maxAttempts = _options.MaxTocRetries + 1;
         WikiTocParseException? lastException = null;
@@ -360,10 +363,10 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                 "[Wiki] TOC LLM call — attempt {Attempt}/{Max} for wiki '{WikiName}' (collection: {CollectionId})",
                 attempt + 1, maxAttempts, wiki.Name, collectionId);
 
-            await writer.WriteAsync(StatusUpdate(wiki.Id,
+            await EmitAsync(writer, StatusUpdate(wiki.Id,
                 attempt == 0
                     ? "Calling LLM for table of contents — this may take several minutes…"
-                    : $"Retrying table of contents (attempt {attempt + 1}/{maxAttempts})…"), CancellationToken.None);
+                    : $"Retrying table of contents (attempt {attempt + 1}/{maxAttempts})…"));
 
             var sw = Stopwatch.StartNew();
             var sb = new StringBuilder();
@@ -380,7 +383,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                         _logger?.LogInformation(
                             "[Wiki] TOC first token received after {ElapsedMs}ms (attempt {Attempt}/{Max})",
                             sw.ElapsedMilliseconds, attempt + 1, maxAttempts);
-                        await writer.WriteAsync(StatusUpdate(wiki.Id, $"LLM responding — generating table of contents… (first token after {sw.ElapsedMilliseconds}ms)"), CancellationToken.None);
+                        await EmitAsync(writer, StatusUpdate(wiki.Id, $"LLM responding — generating table of contents… (first token after {sw.ElapsedMilliseconds}ms)"));
                     }
                     sb.Append(delta.Text);
                     tokenCount++;
@@ -389,12 +392,12 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                         _logger?.LogDebug(
                             "[Wiki] TOC streaming — {Tokens} tokens so far, {ElapsedMs}ms elapsed (attempt {Attempt}/{Max})",
                             tokenCount, sw.ElapsedMilliseconds, attempt + 1, maxAttempts);
-                        await writer.WriteAsync(new WikiGenerationProgress
+                        await EmitAsync(writer, new WikiGenerationProgress
                         {
                             EventType  = WikiGenerationProgress.EventTocToken,
                             WikiId     = wiki.Id,
                             TokenCount = tokenCount
-                        }, CancellationToken.None);
+                        });
                     }
                 }
             }
@@ -657,6 +660,30 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         {
             _logger?.LogWarning(ex, "Vector store query failed for page '{PageTitle}'.", pageTitle);
             return string.Empty;
+        }
+    }
+
+    // ── Emit helper ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Writes a progress event to the channel for HTTP/NDJSON consumers AND fires a
+    /// fire-and-forget SignalR notification via <see cref="IWikiProgressNotifier"/>.
+    /// SignalR errors are swallowed so they never kill the generation pipeline.
+    /// </summary>
+    private async ValueTask EmitAsync(ChannelWriter<WikiGenerationProgress> writer, WikiGenerationProgress progress)
+    {
+        await writer.WriteAsync(progress, CancellationToken.None);
+        if (_progressNotifier is not null)
+        {
+            try
+            {
+                await _progressNotifier.NotifyAsync(progress);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "[Wiki] SignalR notification failed for event {EventType} on wiki {WikiId} — generation continues.",
+                    progress.EventType, progress.WikiId);
+            }
         }
     }
 
