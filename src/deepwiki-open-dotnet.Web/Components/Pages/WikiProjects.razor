@@ -326,6 +326,8 @@
                 // Push into the progress component (handles its own state + render)
                 if (_progressComp is not null)
                     await _progressComp.ApplyEventAsync(evt);
+                else
+                    Logger.LogWarning("[UI] WikiProgress event {EventType} arrived but _progressComp is null (dialog closed?)", evt.EventType);
 
                 // Handle terminal / structural events that affect parent page state
                 switch (evt.EventType)
