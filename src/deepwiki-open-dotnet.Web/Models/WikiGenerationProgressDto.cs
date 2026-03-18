@@ -28,10 +28,10 @@ public class WikiGenerationProgressDto
     public Guid WikiId { get; set; }
 
     [JsonPropertyName("pageIndex")]
-    public int PageIndex { get; set; }
+    public int? PageIndex { get; set; }
 
     [JsonPropertyName("totalPages")]
-    public int TotalPages { get; set; }
+    public int? TotalPages { get; set; }
 
     [JsonPropertyName("pageTitle")]
     public string? PageTitle { get; set; }

@@ -187,8 +187,8 @@
                 break;
 
             case WikiGenerationProgressDto.TocComplete:
-                _totalPages = ev.TotalPages;
-                _statusText = $"Table of contents ready — generating {ev.TotalPages} pages…";
+                _totalPages = ev.TotalPages ?? 0;
+                _statusText = $"Table of contents ready — generating {_totalPages} pages…";
                 break;
 
             case WikiGenerationProgressDto.PageStart:
@@ -196,7 +196,7 @@
                 {
                     foreach (var e in _pagesMap.Values) e.IsActive = false;
                     _currentPageTokenCount = 0;
-                    _pagesMap[ev.PageIndex] = new PageEntry
+                    _pagesMap[ev.PageIndex ?? 0] = new PageEntry
                     {
                         Title     = ev.PageTitle,
                         Icon      = Icons.Material.Filled.AutoStories,
@@ -212,7 +212,7 @@
                 break;
 
             case WikiGenerationProgressDto.PageComplete:
-                if (_pagesMap.TryGetValue(ev.PageIndex, out var completedEntry))
+                if (_pagesMap.TryGetValue(ev.PageIndex ?? -1, out var completedEntry))
                 {
                     completedEntry.Icon      = Icons.Material.Filled.CheckCircle;
                     completedEntry.IconColor = Color.Success;
@@ -224,7 +224,7 @@
                 break;
 
             case WikiGenerationProgressDto.PageError:
-                if (_pagesMap.TryGetValue(ev.PageIndex, out var errorEntry))
+                if (_pagesMap.TryGetValue(ev.PageIndex ?? -1, out var errorEntry))
                 {
                     errorEntry.Icon      = Icons.Material.Filled.Error;
                     errorEntry.IconColor = Color.Error;
