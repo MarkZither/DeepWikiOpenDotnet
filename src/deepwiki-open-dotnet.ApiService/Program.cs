@@ -273,7 +273,17 @@ public class Program
                 var apiKey = cfg.GetValue<string>("OpenAI:ApiKey") ?? cfg.GetValue<string>("OpenAI__ApiKey");
                 var providerType = cfg.GetValue<string>("OpenAI:Provider") ?? "openai";
                 var modelId = cfg.GetValue<string>("OpenAI:ModelId") ?? "phi4-mini";
+                var baseUrl = cfg.GetValue<string>("OpenAI:BaseUrl") ?? "(not set)";
                 var logger = sp.GetRequiredService<ILogger<DeepWiki.Rag.Core.Providers.OpenAIProvider>>();
+
+                // Startup diagnostic — confirm what the provider resolved to
+                var keyStatus = string.IsNullOrEmpty(apiKey)
+                    ? "NOT SET"
+                    : $"set ({apiKey.Length} chars, ends ...{apiKey[^Math.Min(4, apiKey.Length)..]})";
+                logger.LogInformation(
+                    "OpenAI provider resolved — BaseUrl={BaseUrl}, Provider={Provider}, Model={Model}, ApiKey={KeyStatus}",
+                    baseUrl, providerType, modelId, keyStatus);
+
                 var clientFactory = sp.GetRequiredService<IHttpClientFactory>();
                 var client = clientFactory.CreateClient("OpenAIProvider");
                 return new DeepWiki.Rag.Core.Providers.OpenAIProvider(client, apiKey, providerType, modelId, logger);
