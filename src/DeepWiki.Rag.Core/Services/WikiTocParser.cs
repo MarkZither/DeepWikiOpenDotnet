@@ -61,10 +61,21 @@ public class WikiTocParser
             }
         }
 
-        if (entries.Count == 0)
+        // Deduplicate: the LLM may emit multiple section objects with the same sectionPath,
+        // or repeated page titles within a section. Keep only the first occurrence of each
+        // (SectionPath, PageTitle) pair so the persisted stubs never produce duplicate TOC headings.
+        var seen = new HashSet<(string Section, string Title)>(StringComparer.OrdinalIgnoreCase);
+        var deduped = new List<TocEntry>(entries.Count);
+        foreach (var entry in entries)
+        {
+            if (seen.Add((entry.SectionPath, entry.PageTitle)))
+                deduped.Add(entry);
+        }
+
+        if (deduped.Count == 0)
             throw new WikiTocParseException("TOC contains no pages after parsing.");
 
-        return entries.AsReadOnly();
+        return deduped.AsReadOnly();
     }
 
     /// <summary>

@@ -187,4 +187,92 @@ public class WikiTocParserTests
 
         act.Should().Throw<WikiTocParseException>();
     }
+
+    // ── Deduplication ───────────────────────────────────────────────────────
+
+    [Fact]
+    public void Parse_DuplicateSectionPaths_MergesAndDeduplicates()
+    {
+        // LLM emits "Architecture" twice as separate section objects — a known failure mode
+        // that was causing duplicate section headings in the rendered TOC.
+        var json = """
+            {
+              "sections": [
+                {
+                  "sectionPath": "Architecture",
+                  "pages": [
+                    { "title": "Data Layer", "keywords": ["repository"] }
+                  ]
+                },
+                {
+                  "sectionPath": "Architecture",
+                  "pages": [
+                    { "title": "Service Layer", "keywords": ["service"] }
+                  ]
+                }
+              ]
+            }
+            """;
+
+        var result = _parser.Parse(json);
+
+        // Both pages should be present exactly once
+        result.Should().HaveCount(2);
+        result.Should().AllSatisfy(e => e.SectionPath.Should().Be("Architecture"));
+        result.Select(e => e.PageTitle).Should().BeEquivalentTo(["Data Layer", "Service Layer"]);
+    }
+
+    [Fact]
+    public void Parse_DuplicatePageTitleWithinSection_KeepsFirstOccurrenceOnly()
+    {
+        var json = """
+            {
+              "sections": [
+                {
+                  "sectionPath": "Core Concepts",
+                  "pages": [
+                    { "title": "Overview", "keywords": ["intro"] },
+                    { "title": "Overview", "keywords": ["duplicate"] }
+                  ]
+                }
+              ]
+            }
+            """;
+
+        var result = _parser.Parse(json);
+
+        result.Should().HaveCount(1);
+        result[0].PageTitle.Should().Be("Overview");
+        result[0].Keywords.Should().Contain("intro");
+    }
+
+    [Fact]
+    public void Parse_DuplicatePageTitleAcrossDifferentSections_BothAreKept()
+    {
+        // Same title in different sections is allowed — dedup is scoped to (section, title) pair
+        var json = """
+            {
+              "sections": [
+                {
+                  "sectionPath": "Getting Started",
+                  "pages": [
+                    { "title": "Overview", "keywords": ["intro"] }
+                  ]
+                },
+                {
+                  "sectionPath": "Architecture",
+                  "pages": [
+                    { "title": "Overview", "keywords": ["design"] }
+                  ]
+                }
+              ]
+            }
+            """;
+
+        var result = _parser.Parse(json);
+
+        result.Should().HaveCount(2);
+        result[0].SectionPath.Should().Be("Getting Started");
+        result[1].SectionPath.Should().Be("Architecture");
+    }
 }
