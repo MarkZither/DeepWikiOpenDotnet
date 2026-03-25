@@ -2,6 +2,7 @@ using DeepWiki.ApiService.Models;
 using DeepWiki.Rag.Core.Models;
 using DeepWiki.Rag.Core.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 using System.Text.Json;
 
 namespace DeepWiki.ApiService.Controllers;
@@ -17,15 +18,18 @@ public class WikiController : ControllerBase
 {
     private readonly IWikiService _wikiService;
     private readonly IWikiGenerationService _wikiGenerationService;
+    private readonly IWikiExportService _wikiExportService;
     private readonly IServiceScopeFactory _scopeFactory;
 
     public WikiController(
         IWikiService wikiService,
         IWikiGenerationService wikiGenerationService,
+        IWikiExportService wikiExportService,
         IServiceScopeFactory scopeFactory)
     {
         _wikiService = wikiService;
         _wikiGenerationService = wikiGenerationService;
+        _wikiExportService = wikiExportService;
         _scopeFactory = scopeFactory;
     }
 
@@ -353,5 +357,61 @@ public class WikiController : ControllerBase
     {
         var deleted = await _wikiService.DeletePageAsync(id, pageId, HttpContext.RequestAborted);
         return deleted ? NoContent() : NotFound();
+    }
+
+    // ── POST /api/wiki/export ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Exports a wiki as a single downloadable file in Markdown or JSON format.
+    /// </summary>
+    /// <response code="200">Export file produced — check Content-Disposition for filename.</response>
+    /// <response code="400">Missing or invalid WikiId / Format.</response>
+    /// <response code="404">Wiki not found.</response>
+    [HttpPost("export")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ExportWiki([FromBody] WikiExportRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var wiki = await _wikiService.GetWikiByIdAsync(request.WikiId, HttpContext.RequestAborted);
+        if (wiki is null)
+            return NotFound();
+
+        var pages = wiki.Pages
+            .OrderBy(p => p.SortOrder)
+            .ToList();
+
+        // Build related-pages map: pageId → list of related WikiPageEntity
+        var relatedPages = new Dictionary<Guid, IReadOnlyList<Data.Abstractions.Entities.WikiPageEntity>>();
+        foreach (var page in pages)
+        {
+            var related = await _wikiService.GetRelatedPagesAsync(page.Id, HttpContext.RequestAborted);
+            if (related.Count > 0)
+                relatedPages[page.Id] = related;
+        }
+
+        var format = request.Format.ToLowerInvariant();
+        var isMarkdown = format == "markdown";
+        var safeName = string.Concat(wiki.Name.Where(c => !Path.GetInvalidFileNameChars().Contains(c)));
+        var fileName = isMarkdown ? $"{safeName}.md" : $"{safeName}.json";
+        var contentType = isMarkdown ? "text/markdown" : "application/json";
+
+        var outputStream = new MemoryStream();
+        if (isMarkdown)
+            await _wikiExportService.ExportAsMarkdownAsync(wiki, pages, relatedPages, outputStream, HttpContext.RequestAborted);
+        else
+            await _wikiExportService.ExportAsJsonAsync(wiki, pages, relatedPages, outputStream, HttpContext.RequestAborted);
+
+        outputStream.Position = 0;
+
+        Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment")
+        {
+            FileName = fileName
+        }.ToString();
+
+        return File(outputStream, contentType, fileName);
     }
 }

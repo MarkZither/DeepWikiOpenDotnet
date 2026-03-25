@@ -190,5 +190,30 @@ public class WikiApiClient
         return body?.WikiId ?? throw new InvalidOperationException("API returned 202 but no wikiId in response body.");
     }
 
+    /// <summary>
+    /// Exports a wiki as Markdown or JSON via POST /api/wiki/export.
+    /// Returns the raw response stream for download; the caller is responsible for disposing it.
+    /// </summary>
+    /// <param name="wikiId">ID of the wiki to export.</param>
+    /// <param name="format">Export format: <c>"markdown"</c> or <c>"json"</c>.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The raw content stream, or <c>null</c> if the wiki was not found (404).</returns>
+    public async Task<Stream?> ExportWikiAsync(
+        Guid wikiId,
+        string format,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient
+            .PostAsJsonAsync("/api/wiki/export", new { wikiId, format }, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private sealed record StartGenerationResponse(Guid WikiId);
 }

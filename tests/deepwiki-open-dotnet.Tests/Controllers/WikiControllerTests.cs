@@ -112,7 +112,7 @@ public class WikiControllerTests
     {
         // Provide a stub IServiceScopeFactory so the 202 generate endpoint can create a scope.
         var scopeFactory = new StubServiceScopeFactory(svc, generationSvc);
-        var controller = new WikiController(svc ?? new FakeWikiService(), generationSvc ?? new StubWikiGenerationService(), scopeFactory);
+        var controller = new WikiController(svc ?? new FakeWikiService(), generationSvc ?? new StubWikiGenerationService(), new StubWikiExportService(), scopeFactory);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -413,6 +413,23 @@ public class WikiControllerTests
             await System.Threading.Tasks.Task.CompletedTask;
             yield break;
         }
+    }
+
+    private sealed class StubWikiExportService : IWikiExportService
+    {
+        public Task ExportAsMarkdownAsync(
+            DeepWiki.Data.Abstractions.Entities.WikiEntity wiki,
+            IReadOnlyList<DeepWiki.Data.Abstractions.Entities.WikiPageEntity> pages,
+            IDictionary<Guid, IReadOnlyList<DeepWiki.Data.Abstractions.Entities.WikiPageEntity>> relatedPages,
+            Stream output,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task ExportAsJsonAsync(
+            DeepWiki.Data.Abstractions.Entities.WikiEntity wiki,
+            IReadOnlyList<DeepWiki.Data.Abstractions.Entities.WikiPageEntity> pages,
+            IDictionary<Guid, IReadOnlyList<DeepWiki.Data.Abstractions.Entities.WikiPageEntity>> relatedPages,
+            Stream output,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     /// <summary>

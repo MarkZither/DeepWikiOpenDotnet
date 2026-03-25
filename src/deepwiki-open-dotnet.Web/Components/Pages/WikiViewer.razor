@@ -5,6 +5,7 @@
 @inject WikiApiClient WikiApi
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
+@inject IJSRuntime JS
 @namespace deepwiki_open_dotnet.Web.Components.Pages
 @implements IAsyncDisposable
 
@@ -293,10 +294,45 @@ else if (_wiki is not null)
         }
     }
 
-    private void HandleExportClick()
+    private async Task HandleExportClick()
     {
-        // Export is wired in T047 (Phase 6 — WikiExportService integration).
-        // Stub: navigate to export page or show dialog when implemented.
+        if (_wiki is null) return;
+
+        // Ask user which format to export
+        bool? chooseMarkdown = await DialogService.ShowMessageBox(
+            title: "Export Wiki",
+            message: $"Export \"{_wiki.Name}\" as:",
+            yesText: "Markdown (.md)",
+            noText: "JSON (.json)",
+            cancelText: "Cancel");
+
+        if (chooseMarkdown is null) return; // cancelled
+
+        var format = chooseMarkdown == true ? "markdown" : "json";
+        var extension = chooseMarkdown == true ? ".md" : ".json";
+        var safeName = string.Concat(_wiki.Name.Where(c => c != '/' && c != '\\' && c != ':' && c != '*' && c != '?' && c != '"' && c != '<' && c != '>' && c != '|'));
+        var fileName = $"{safeName}{extension}";
+
+        try
+        {
+            var stream = await WikiApi.ExportWikiAsync(_wiki.Id, format);
+            if (stream is null)
+            {
+                await DialogService.ShowMessageBox("Export Failed", "Wiki not found on server.", yesText: "OK");
+                return;
+            }
+
+            using var ms = new System.IO.MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            using var streamRef = new DotNetStreamReference(ms, leaveOpen: false);
+            await JS.InvokeVoidAsync("fileDownload.downloadFileFromStream", fileName, streamRef);
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBox("Export Failed", $"Could not export wiki: {ex.Message}", yesText: "OK");
+        }
     }
 
     private static Color StatusColor(string status) => status switch
