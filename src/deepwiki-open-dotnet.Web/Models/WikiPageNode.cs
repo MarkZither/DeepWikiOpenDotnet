@@ -26,9 +26,11 @@ public class WikiPageNode
     public List<WikiPageNode> Children { get; init; } = [];
 
     /// <summary>
-    /// Builds a tree from a flat list of page DTOs using their SectionPath.
-    /// Each SectionPath is split by "/" — all but the last segment are section folders;
-    /// the last segment becomes the page leaf node.
+    /// Builds a tree from a flat list of page DTOs using SectionPath as the folder hierarchy
+    /// and Title as the leaf node label. A page with SectionPath "Architecture" and Title
+    /// "Data Model" becomes a leaf "Data Model" inside a folder "Architecture".
+    /// SectionPath may contain "/" for deeper nesting (e.g. "Architecture/Patterns").
+    /// Pages with an empty SectionPath are placed at the root level.
     /// </summary>
     public static List<WikiPageNode> BuildTree(IEnumerable<WikiPageDto> pages)
     {
@@ -37,7 +39,13 @@ public class WikiPageNode
 
         foreach (var page in pages)
         {
-            var path = page.SectionPath?.Trim('/') ?? page.Title;
+            // SectionPath is the folder hierarchy; Title is the leaf node label.
+            // Combine them so "Architecture" + "Data Model" → "Architecture/Data Model",
+            // which renders as a folder "Architecture" containing a leaf "Data Model".
+            var section = page.SectionPath?.Trim('/');
+            var path = string.IsNullOrEmpty(section)
+                ? page.Title
+                : $"{section}/{page.Title}";
             var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
             if (segments.Length == 0)

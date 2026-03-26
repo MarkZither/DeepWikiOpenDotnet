@@ -372,36 +372,65 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
             var sb = new StringBuilder();
             var tokenCount = 0;
             var firstToken = true;
-            await foreach (var delta in _generationService.GenerateAsync(
-                sessionId, tocPrompt, topK: 0, cancellationToken: ct))
+
+            // Capture any 429 without discarding the retry attempt.
+            // GenerationService performs its own inner retries first; this is a safety net
+            // for cases where all provider-level retries are also exhausted.
+            DeepWiki.Rag.Core.Providers.RateLimitException? rateLimitHit = null;
+            try
             {
-                if (delta.Type == "token" && delta.Text is not null)
+                await foreach (var delta in _generationService.GenerateAsync(
+                    sessionId, tocPrompt, topK: 0, cancellationToken: ct))
                 {
-                    if (firstToken)
+                    if (delta.Type == "token" && delta.Text is not null)
                     {
-                        firstToken = false;
-                        _logger?.LogInformation(
-                            "[Wiki] TOC first token received after {ElapsedMs}ms (attempt {Attempt}/{Max})",
-                            sw.ElapsedMilliseconds, attempt + 1, maxAttempts);
-                        await EmitAsync(writer, StatusUpdate(wiki.Id, $"LLM responding — generating table of contents… (first token after {sw.ElapsedMilliseconds}ms)"));
-                    }
-                    sb.Append(delta.Text);
-                    tokenCount++;
-                    if (tokenCount % 50 == 0)
-                    {
-                        _logger?.LogDebug(
-                            "[Wiki] TOC streaming — {Tokens} tokens so far, {ElapsedMs}ms elapsed (attempt {Attempt}/{Max})",
-                            tokenCount, sw.ElapsedMilliseconds, attempt + 1, maxAttempts);
-                        await EmitAsync(writer, new WikiGenerationProgress
+                        if (firstToken)
                         {
-                            EventType  = WikiGenerationProgress.EventTocToken,
-                            WikiId     = wiki.Id,
-                            TokenCount = tokenCount
-                        });
+                            firstToken = false;
+                            _logger?.LogInformation(
+                                "[Wiki] TOC first token received after {ElapsedMs}ms (attempt {Attempt}/{Max})",
+                                sw.ElapsedMilliseconds, attempt + 1, maxAttempts);
+                            await EmitAsync(writer, StatusUpdate(wiki.Id, $"LLM responding — generating table of contents… (first token after {sw.ElapsedMilliseconds}ms)"));
+                        }
+                        sb.Append(delta.Text);
+                        tokenCount++;
+                        if (tokenCount % 50 == 0)
+                        {
+                            _logger?.LogDebug(
+                                "[Wiki] TOC streaming — {Tokens} tokens so far, {ElapsedMs}ms elapsed (attempt {Attempt}/{Max})",
+                                tokenCount, sw.ElapsedMilliseconds, attempt + 1, maxAttempts);
+                            await EmitAsync(writer, new WikiGenerationProgress
+                            {
+                                EventType  = WikiGenerationProgress.EventTocToken,
+                                WikiId     = wiki.Id,
+                                TokenCount = tokenCount
+                            });
+                        }
                     }
                 }
             }
+            catch (DeepWiki.Rag.Core.Providers.RateLimitException rle)
+            {
+                rateLimitHit = rle;
+            }
+
             sw.Stop();
+
+            // If the provider was rate-limited, honour the Retry-After window and retry the
+            // entire TOC call as one of the existing maxAttempts iterations.
+            if (rateLimitHit != null)
+            {
+                var delay = rateLimitHit.RetryAfter ?? TimeSpan.FromSeconds(60);
+                _logger?.LogWarning(
+                    "[Wiki] TOC rate-limited (attempt {Attempt}/{Max}). Applying Retry-After delay: {Delay}s.",
+                    attempt + 1, maxAttempts, delay.TotalSeconds);
+                await EmitAsync(writer, StatusUpdate(wiki.Id,
+                    $"LLM rate limit reached — waiting {(int)delay.TotalSeconds}s before retry…"));
+                await Task.Delay(delay, ct);
+                lastException = new WikiTocParseException(
+                    $"Rate limited (429): {rateLimitHit.Message}", rateLimitHit);
+                continue;
+            }
 
             var response = sb.ToString();
             _logger?.LogInformation(

@@ -129,12 +129,40 @@ public class OpenAIProvider : IModelProvider
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
 
         using var resp = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        
+
         if (!resp.IsSuccessStatusCode)
         {
             var errorBody = await resp.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogError("OpenAI provider returned status {StatusCode}: {ErrorBody}", resp.StatusCode, errorBody);
-            throw new HttpRequestException($"OpenAI provider returned status {resp.StatusCode}: {errorBody}");
+
+            if (resp.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                // Extract Retry-After header so callers can honour the provider's backoff window.
+                // Groq (and most OpenAI-compatible providers) sends it as a delta in seconds.
+                TimeSpan? retryAfter = null;
+                if (resp.Headers.RetryAfter?.Delta is { } delta)
+                    retryAfter = delta;
+                else if (resp.Headers.RetryAfter?.Date is { } date)
+                    retryAfter = date - DateTimeOffset.UtcNow;
+
+                // Clamp negative values (clock skew / already-elapsed window) to zero
+                if (retryAfter.HasValue && retryAfter.Value < TimeSpan.Zero)
+                    retryAfter = TimeSpan.Zero;
+
+                _logger.LogWarning(
+                    "OpenAI provider rate-limited (429). Retry-After: {RetryAfterSeconds}s. Body: {ErrorBody}",
+                    retryAfter?.TotalSeconds, errorBody);
+
+                throw new RateLimitException(
+                    retryAfter,
+                    $"Rate limited by provider (429). Retry-After: {retryAfter?.TotalSeconds ?? 60}s. Body: {errorBody}");
+            }
+
+            _logger.LogError(
+                "OpenAI provider returned status {StatusCode}: {ErrorBody}", (int)resp.StatusCode, errorBody);
+            throw new HttpRequestException(
+                $"OpenAI provider returned status {resp.StatusCode}: {errorBody}",
+                inner: null,
+                statusCode: resp.StatusCode);
         }
 
         var stream = await resp.Content.ReadAsStreamAsync(cancellationToken);
