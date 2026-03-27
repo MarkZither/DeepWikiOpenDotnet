@@ -173,6 +173,18 @@ public class Program
         // Session manager and generation service
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.SessionManager>();
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Observability.GenerationMetrics>();
+        builder.Services.AddSingleton<DeepWiki.Rag.Core.Observability.WikiMetrics>();
+
+        // Wiki snapshot recording (T064a) — disabled by default; enable via Wiki:Snapshots:Enabled
+        builder.Services.Configure<DeepWiki.Rag.Core.Snapshots.WikiSnapshotOptions>(
+            builder.Configuration.GetSection("Wiki:Snapshots"));
+        var snapshotsEnabled = builder.Configuration.GetValue<bool>("Wiki:Snapshots:Enabled");
+        if (snapshotsEnabled)
+            builder.Services.AddSingleton<DeepWiki.Rag.Core.Snapshots.IWikiSnapshotRecorder,
+                DeepWiki.Rag.Core.Snapshots.WikiSnapshotRecorder>();
+        else
+            builder.Services.AddSingleton<DeepWiki.Rag.Core.Snapshots.IWikiSnapshotRecorder,
+                DeepWiki.Rag.Core.Snapshots.NullWikiSnapshotRecorder>();
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.PromptCancellationRegistry>();
         builder.Services.AddScoped<DeepWiki.Data.Abstractions.IGenerationService>((sp) =>
         {
