@@ -10,6 +10,8 @@ using DeepWiki.Data.Abstractions.Entities;
 using DeepWiki.Data.Abstractions.Interfaces;
 using DeepWiki.Data.Abstractions.Models;
 using DeepWiki.Rag.Core.Models;
+using DeepWiki.Rag.Core.Observability;
+using DeepWiki.Rag.Core.Snapshots;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -33,6 +35,8 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
     private readonly WikiPageParser _pageParser = new();
     private readonly ILogger<WikiGenerationOrchestrator>? _logger;
     private readonly IWikiProgressNotifier? _progressNotifier;
+    private readonly WikiMetrics? _metrics;
+    private readonly IWikiSnapshotRecorder? _snapshotRecorder;
 
     /// <summary>In-process concurrent generation guard: prevents double-triggering for the same collection+name pair.</summary>
     private static readonly ConcurrentDictionary<string, bool> _activeGenerations = new();
@@ -48,7 +52,9 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         IEmbeddingService? embeddingService = null,
         IOptions<WikiGenerationOptions>? options = null,
         ILogger<WikiGenerationOrchestrator>? logger = null,
-        IWikiProgressNotifier? progressNotifier = null)
+        IWikiProgressNotifier? progressNotifier = null,
+        WikiMetrics? metrics = null,
+        IWikiSnapshotRecorder? snapshotRecorder = null)
     {
         _repository = repository;
         _generationService = generationService;
@@ -58,6 +64,8 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
         _options = options?.Value ?? new WikiGenerationOptions();
         _logger = logger;
         _progressNotifier = progressNotifier;
+        _metrics = metrics;
+        _snapshotRecorder = snapshotRecorder;
     }
 
     /// <inheritdoc/>
@@ -142,6 +150,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
     {
         var session = _sessionManager.CreateSession("wiki-generation");
         var sessionId = session.SessionId;
+        var generationSw = Stopwatch.StartNew();
 
         WikiEntity? wiki = null;
         var hasErrors = false;
@@ -258,6 +267,9 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
             var finalStatus = hasErrors ? WikiStatus.Partial : WikiStatus.Complete;
             await _repository.UpdateWikiStatusAsync(wiki.Id, finalStatus, cancellationToken);
 
+            generationSw.Stop();
+            _metrics?.RecordGenerationDuration(generationSw.Elapsed.TotalSeconds);
+
             _logger?.LogInformation(
                 "[Wiki] Generation finished for '{WikiName}' (id: {WikiId}) — status: {Status}",
                 wiki.Name, wiki.Id, finalStatus);
@@ -370,6 +382,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
 
             var sw = Stopwatch.StartNew();
             var sb = new StringBuilder();
+            var tocStreamChunks = new List<string>();
             var tokenCount = 0;
             var firstToken = true;
 
@@ -393,6 +406,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                             await EmitAsync(writer, StatusUpdate(wiki.Id, $"LLM responding — generating table of contents… (first token after {sw.ElapsedMilliseconds}ms)"));
                         }
                         sb.Append(delta.Text);
+                        tocStreamChunks.Add(delta.Text);
                         tokenCount++;
                         if (tokenCount % 50 == 0)
                         {
@@ -436,6 +450,25 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
             _logger?.LogInformation(
                 "[Wiki] TOC LLM response complete — attempt {Attempt}/{Max}, {Tokens} tokens, {Chars} chars in {ElapsedMs}ms",
                 attempt + 1, maxAttempts, tokenCount, response.Length, sw.ElapsedMilliseconds);
+
+            if (_snapshotRecorder is not null)
+            {
+                try
+                {
+                    var snapshotEntry = new WikiSnapshotEntry
+                    {
+                        Feature = "wiki-toc-generation",
+                        Request = new WikiSnapshotRequest { Prompt = tocPrompt },
+                        Stream = tocStreamChunks,
+                        ResponseHash = WikiSnapshotRecorder.ComputeHash(response)
+                    };
+                    await _snapshotRecorder.RecordAsync(snapshotEntry, ct);
+                }
+                catch (Exception snapshotEx)
+                {
+                    _logger?.LogWarning(snapshotEx, "[Wiki] TOC snapshot recording failed — continuing without snapshot.");
+                }
+            }
 
             try
             {
@@ -489,12 +522,14 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
 
             var sw = Stopwatch.StartNew();
             var sb = new StringBuilder();
+            var pageStreamChunks = new List<string>();
             await foreach (var delta in _generationService.GenerateAsync(
                 sessionId, pagePrompt, topK: 0, cancellationToken: ct))
             {
                 if (delta.Type == "token" && delta.Text is not null)
                 {
                     sb.Append(delta.Text);
+                    pageStreamChunks.Add(delta.Text);
                     events.Add(new WikiGenerationProgress
                     {
                         EventType = WikiGenerationProgress.EventPageToken,
@@ -511,6 +546,25 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
             _logger?.LogInformation(
                 "[Wiki] Page LLM call complete — [{PageNum}/{Total}] '{PageTitle}' — {Chars} chars in {ElapsedMs}ms",
                 pageIndex + 1, totalPages, entry.PageTitle, fullResponse.Length, sw.ElapsedMilliseconds);
+
+            if (_snapshotRecorder is not null)
+            {
+                try
+                {
+                    var pageSnapshotEntry = new WikiSnapshotEntry
+                    {
+                        Feature = "wiki-page-generation",
+                        Request = new WikiSnapshotRequest { Prompt = pagePrompt },
+                        Stream = pageStreamChunks,
+                        ResponseHash = WikiSnapshotRecorder.ComputeHash(fullResponse)
+                    };
+                    await _snapshotRecorder.RecordAsync(pageSnapshotEntry, ct);
+                }
+                catch (Exception snapshotEx)
+                {
+                    _logger?.LogWarning(snapshotEx, "[Wiki] Page snapshot recording failed — continuing without snapshot.");
+                }
+            }
             var (content, relatedTitles) = _pageParser.Parse(fullResponse);
 
             // Upsert page with content and OK status
@@ -539,6 +593,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                 PageTitle = entry.PageTitle
             });
 
+            _metrics?.RecordPageGenerated("ok");
             return (true, events);
         }
         catch (OperationCanceledException)
@@ -576,6 +631,7 @@ public class WikiGenerationOrchestrator : IWikiGenerationService
                 ErrorMessage = ex.Message
             });
 
+            _metrics?.RecordPageGenerated("error");
             return (false, events);
         }
     }

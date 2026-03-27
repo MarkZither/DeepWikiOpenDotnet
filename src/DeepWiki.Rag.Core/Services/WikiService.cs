@@ -1,5 +1,6 @@
 using DeepWiki.Data.Abstractions.Entities;
 using DeepWiki.Data.Abstractions.Interfaces;
+using DeepWiki.Rag.Core.Observability;
 
 namespace DeepWiki.Rag.Core.Services;
 
@@ -10,10 +11,12 @@ namespace DeepWiki.Rag.Core.Services;
 public class WikiService : IWikiService
 {
     private readonly IWikiRepository _repository;
+    private readonly WikiMetrics? _metrics;
 
-    public WikiService(IWikiRepository repository)
+    public WikiService(IWikiRepository repository, WikiMetrics? metrics = null)
     {
         _repository = repository;
+        _metrics = metrics;
     }
 
     /// <inheritdoc/>
@@ -43,6 +46,8 @@ public class WikiService : IWikiService
 
         // Persist the wiki shell first so pages can reference it
         wiki = await _repository.CreateWikiAsync(wiki, cancellationToken);
+
+        _metrics?.RecordWikiCreated();
 
         // Persist any initial pages
         if (pages != null)

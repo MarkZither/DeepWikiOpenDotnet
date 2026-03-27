@@ -1,12 +1,19 @@
 using System.Text;
 using System.Text.Json;
 using DeepWiki.Data.Abstractions.Entities;
+using DeepWiki.Rag.Core.Observability;
 
 namespace DeepWiki.Rag.Core.Services;
 
 /// <inheritdoc cref="IWikiExportService"/>
 public sealed class WikiExportService : IWikiExportService
 {
+    private readonly WikiMetrics? _metrics;
+
+    public WikiExportService(WikiMetrics? metrics = null)
+    {
+        _metrics = metrics;
+    }
     /// <inheritdoc/>
     public async Task ExportAsMarkdownAsync(
         WikiEntity wiki,
@@ -83,6 +90,7 @@ public sealed class WikiExportService : IWikiExportService
         }
 
         await writer.FlushAsync(cancellationToken);
+        _metrics?.RecordExport("markdown");
     }
 
     /// <inheritdoc/>
@@ -154,6 +162,7 @@ public sealed class WikiExportService : IWikiExportService
         jsonWriter.WriteEndObject();
 
         await jsonWriter.FlushAsync(cancellationToken);
+        _metrics?.RecordExport("json");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
