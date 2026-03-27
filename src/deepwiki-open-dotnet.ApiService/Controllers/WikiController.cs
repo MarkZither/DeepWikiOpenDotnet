@@ -1,6 +1,7 @@
 using DeepWiki.ApiService.Models;
 using DeepWiki.Rag.Core.Models;
 using DeepWiki.Rag.Core.Services;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using System.Text.Json;
@@ -39,8 +40,10 @@ public class WikiController : ControllerBase
     /// <response code="201">Wiki created successfully.</response>
     /// <response code="400">Validation failed — name or collectionId missing or invalid.</response>
     [HttpPost]
+    [EndpointSummary("Create wiki")]
+    [EndpointDescription("Creates a new wiki with an optional set of initial pages. Returns the created wiki with a 201 status and Location header.")]
     [ProducesResponseType(typeof(WikiResponse), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<WikiResponse>> CreateWiki([FromBody] CreateWikiRequest request)
     {
         if (!ModelState.IsValid)
@@ -85,9 +88,12 @@ public class WikiController : ControllerBase
     /// <response code="400">Validation failed.</response>
     /// <response code="409">A wiki with this name is already being generated for this collection.</response>
     [HttpPost("generate")]
+    [EndpointSummary("Generate wiki from collection")]
+    [EndpointDescription("Starts background wiki generation for a collection using a two-phase LLM pipeline. Returns 202 with the new wikiId immediately; progress events are streamed via SignalR to /hubs/wiki-progress.")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> GenerateWiki([FromBody] GenerateWikiRequest request)
     {
         if (!ModelState.IsValid)
@@ -183,6 +189,8 @@ public class WikiController : ControllerBase
     /// <response code="200">Wiki found.</response>
     /// <response code="404">Wiki not found.</response>
     [HttpGet("{id:guid}")]
+    [EndpointSummary("Get wiki by ID")]
+    [EndpointDescription("Returns the full wiki entity including all pages and their metadata.")]
     [ProducesResponseType(typeof(WikiResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<WikiResponse>> GetWiki(Guid id)
@@ -200,6 +208,8 @@ public class WikiController : ControllerBase
     /// <response code="204">Wiki deleted.</response>
     /// <response code="404">Wiki not found.</response>
     [HttpDelete("{id:guid}")]
+    [EndpointSummary("Delete wiki")]
+    [EndpointDescription("Permanently deletes the wiki and all associated pages and relation links. This action is irreversible.")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteWiki(Guid id)
@@ -215,6 +225,8 @@ public class WikiController : ControllerBase
     /// <param name="pageSize">Items per page, max 100 (default: 20).</param>
     /// <response code="200">Paginated list of wikis.</response>
     [HttpGet("projects")]
+    [EndpointSummary("List wiki projects")]
+    [EndpointDescription("Returns a paginated summary list of all wiki projects including name, collection source, page count, and last-modified date.")]
     [ProducesResponseType(typeof(PagedResult<WikiSummaryResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<PagedResult<WikiSummaryResponse>>> GetProjects(
         [FromQuery] int page = 1,
@@ -241,8 +253,10 @@ public class WikiController : ControllerBase
     /// <response code="400">Request body contains a forbidden "name" field.</response>
     /// <response code="404">Wiki not found.</response>
     [HttpPut("{id:guid}")]
+    [EndpointSummary("Update wiki description")]
+    [EndpointDescription("Updates the wiki description. The wiki name is immutable after creation — a 400 is returned if the request body contains a \"name\" field.")]
     [ProducesResponseType(typeof(WikiSummaryResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<WikiSummaryResponse>> UpdateWiki(Guid id, [FromBody] UpdateWikiRequest request)
     {
@@ -266,6 +280,8 @@ public class WikiController : ControllerBase
     /// <response code="200">Page found.</response>
     /// <response code="404">Wiki or page not found.</response>
     [HttpGet("{id:guid}/pages/{pageId:guid}")]
+    [EndpointSummary("Get wiki page")]
+    [EndpointDescription("Returns a single wiki page with its Markdown content and related-page links.")]
     [ProducesResponseType(typeof(WikiPageResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<WikiPageResponse>> GetPage(Guid id, Guid pageId)
@@ -284,6 +300,8 @@ public class WikiController : ControllerBase
     /// <response code="200">Page updated.</response>
     /// <response code="404">Wiki or page not found.</response>
     [HttpPut("{id:guid}/pages/{pageId:guid}")]
+    [EndpointSummary("Update wiki page")]
+    [EndpointDescription("Partially updates a wiki page. Only non-null fields from the request body are applied (PATCH semantics).")]
     [ProducesResponseType(typeof(WikiPageResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<WikiPageResponse>> UpdatePage(
@@ -311,8 +329,10 @@ public class WikiController : ControllerBase
     /// <response code="400">Validation failed — title or content missing.</response>
     /// <response code="404">Wiki not found.</response>
     [HttpPost("{id:guid}/pages")]
+    [EndpointSummary("Add wiki page")]
+    [EndpointDescription("Adds a new page to an existing wiki. Returns 201 with the created page and a Location header.")]
     [ProducesResponseType(typeof(WikiPageResponse), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<WikiPageResponse>> AddPage(Guid id, [FromBody] CreateWikiPageRequest request)
     {
@@ -351,6 +371,8 @@ public class WikiController : ControllerBase
     /// <response code="204">Page deleted.</response>
     /// <response code="404">Wiki or page not found.</response>
     [HttpDelete("{id:guid}/pages/{pageId:guid}")]
+    [EndpointSummary("Delete wiki page")]
+    [EndpointDescription("Permanently removes a page from the wiki and cleans up any relation links referencing it.")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeletePage(Guid id, Guid pageId)
@@ -368,8 +390,10 @@ public class WikiController : ControllerBase
     /// <response code="400">Missing or invalid WikiId / Format.</response>
     /// <response code="404">Wiki not found.</response>
     [HttpPost("export")]
+    [EndpointSummary("Export wiki")]
+    [EndpointDescription("Exports a wiki as a downloadable file. Supported formats: \"markdown\" (text/markdown with TOC) and \"json\" (application/json with metadata + pages array). The file is returned as an attachment via Content-Disposition.")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ExportWiki([FromBody] WikiExportRequest request)
     {
