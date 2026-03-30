@@ -20,6 +20,13 @@ public class Program
         builder.Host.UseDefaultServiceProvider(opts => { opts.ValidateScopes = true; opts.ValidateOnBuild = true; });
 
         // Add service defaults & Aspire client integrations.
+        // Stamp every console log line with HH:mm:ss so timing is visible in Aspire and terminal.
+        builder.Logging.AddSimpleConsole(options =>
+        {
+            options.TimestampFormat = "HH:mm:ss ";
+            options.SingleLine      = true;
+        });
+
         builder.AddServiceDefaults();
 
         // Add services to the container.
@@ -166,6 +173,18 @@ public class Program
         // Session manager and generation service
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.SessionManager>();
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Observability.GenerationMetrics>();
+        builder.Services.AddSingleton<DeepWiki.Rag.Core.Observability.WikiMetrics>();
+
+        // Wiki snapshot recording (T064a) — disabled by default; enable via Wiki:Snapshots:Enabled
+        builder.Services.Configure<DeepWiki.Rag.Core.Snapshots.WikiSnapshotOptions>(
+            builder.Configuration.GetSection("Wiki:Snapshots"));
+        var snapshotsEnabled = builder.Configuration.GetValue<bool>("Wiki:Snapshots:Enabled");
+        if (snapshotsEnabled)
+            builder.Services.AddSingleton<DeepWiki.Rag.Core.Snapshots.IWikiSnapshotRecorder,
+                DeepWiki.Rag.Core.Snapshots.WikiSnapshotRecorder>();
+        else
+            builder.Services.AddSingleton<DeepWiki.Rag.Core.Snapshots.IWikiSnapshotRecorder,
+                DeepWiki.Rag.Core.Snapshots.NullWikiSnapshotRecorder>();
         builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.PromptCancellationRegistry>();
         builder.Services.AddScoped<DeepWiki.Data.Abstractions.IGenerationService>((sp) =>
         {
@@ -212,12 +231,14 @@ public class Program
             .RemoveAllResilienceHandlers()
             .AddStandardResilienceHandler(options =>
             {
-                // Local Ollama can take 60-120s per request — override the Aspire default of 30s
-                var localModelTimeout = TimeSpan.FromMinutes(2);
+                // Wiki generation can produce large pages that take > 2 min on local models.
+                // Match the OllamaProvider stall timeout (default 5 min) so Polly never
+                // fires before the stall-detection mechanism has a chance to act.
+                var localModelTimeout = TimeSpan.FromMinutes(8);
                 options.AttemptTimeout.Timeout      = localModelTimeout;
-                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(10);
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(30);
                 // SamplingDuration must be >= 2× AttemptTimeout per Polly validation
-                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(5);
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(20);
             });
 #pragma warning restore EXTEXP0001
             builder.Services.AddScoped<DeepWiki.Rag.Core.Providers.IModelProvider>(sp =>
@@ -251,10 +272,10 @@ public class Program
             .RemoveAllResilienceHandlers()
             .AddStandardResilienceHandler(options =>
             {
-                var localModelTimeout = TimeSpan.FromMinutes(2);
+                var localModelTimeout = TimeSpan.FromMinutes(8);
                 options.AttemptTimeout.Timeout      = localModelTimeout;
-                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(10);
-                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(5);
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(30);
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(20);
             });
 #pragma warning restore EXTEXP0001
 
@@ -264,7 +285,17 @@ public class Program
                 var apiKey = cfg.GetValue<string>("OpenAI:ApiKey") ?? cfg.GetValue<string>("OpenAI__ApiKey");
                 var providerType = cfg.GetValue<string>("OpenAI:Provider") ?? "openai";
                 var modelId = cfg.GetValue<string>("OpenAI:ModelId") ?? "phi4-mini";
+                var baseUrl = cfg.GetValue<string>("OpenAI:BaseUrl") ?? "(not set)";
                 var logger = sp.GetRequiredService<ILogger<DeepWiki.Rag.Core.Providers.OpenAIProvider>>();
+
+                // Startup diagnostic — confirm what the provider resolved to
+                var keyStatus = string.IsNullOrEmpty(apiKey)
+                    ? "NOT SET"
+                    : $"set ({apiKey.Length} chars, ends ...{apiKey[^Math.Min(4, apiKey.Length)..]})";
+                logger.LogInformation(
+                    "OpenAI provider resolved — BaseUrl={BaseUrl}, Provider={Provider}, Model={Model}, ApiKey={KeyStatus}",
+                    baseUrl, providerType, modelId, keyStatus);
+
                 var clientFactory = sp.GetRequiredService<IHttpClientFactory>();
                 var client = clientFactory.CreateClient("OpenAIProvider");
                 return new DeepWiki.Rag.Core.Providers.OpenAIProvider(client, apiKey, providerType, modelId, logger);
@@ -355,6 +386,18 @@ public class Program
         // Register document ingestion service (Slice 4: orchestrates chunking, embedding, upsert)
         builder.Services.AddScoped<DeepWiki.Data.Abstractions.IDocumentIngestionService, DeepWiki.Rag.Core.Ingestion.DocumentIngestionService>();
 
+        // Wiki services (Phase 3: US1 MVP — CRUD operations)
+        builder.Services.AddScoped<DeepWiki.Rag.Core.Services.IWikiService, DeepWiki.Rag.Core.Services.WikiService>();
+        // Wiki export service (Phase 6: US4 — Export Wiki as Markdown or JSON)
+        builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.IWikiExportService, DeepWiki.Rag.Core.Services.WikiExportService>();
+        // Wiki generation service (Phase 7: US5 — Generate Wiki from Collection)
+        builder.Services.AddScoped<DeepWiki.Rag.Core.Services.IWikiGenerationService, DeepWiki.Rag.Core.Services.WikiGenerationOrchestrator>();
+        builder.Services.Configure<DeepWiki.Rag.Core.Models.WikiGenerationOptions>(
+            builder.Configuration.GetSection("Wiki:Generation"));
+        // SignalR notifier for wiki generation progress (singleton — IHubContext is thread-safe)
+        builder.Services.AddSingleton<DeepWiki.Rag.Core.Services.IWikiProgressNotifier,
+            DeepWiki.ApiService.Services.SignalRWikiProgressNotifier>();
+
         var app = builder.Build();
 
 // Optional: Auto-run EF Core migrations for Postgres vector DB when requested
@@ -422,15 +465,28 @@ using (var scope = app.Services.CreateScope())
         // Early request logging middleware to help diagnose requests that never reach controllers
         app.Use(async (context, next) =>
         {
-            app.Logger.LogInformation("Incoming request {Method} {Path} from {RemoteIp}", context.Request.Method, context.Request.Path, context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+            // Skip health / metrics / static-asset paths — they are called frequently and add noise
+            var path = context.Request.Path.Value ?? string.Empty;
+            var isNoisy = path.StartsWith("/health", StringComparison.OrdinalIgnoreCase)
+                       || path.StartsWith("/alive", StringComparison.OrdinalIgnoreCase)
+                       || path.StartsWith("/metrics", StringComparison.OrdinalIgnoreCase)
+                       || path.StartsWith("/_", StringComparison.OrdinalIgnoreCase);
+
+            if (!isNoisy)
+                app.Logger.LogInformation("Incoming {Method} {Path} from {RemoteIp}",
+                    context.Request.Method, context.Request.Path,
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
             try
             {
                 await next();
-                app.Logger.LogInformation("Request {Method} {Path} completed with status {StatusCode}", context.Request.Method, context.Request.Path, context.Response.StatusCode);
+                if (!isNoisy)
+                    app.Logger.LogInformation("{Method} {Path} → {StatusCode}",
+                        context.Request.Method, context.Request.Path, context.Response.StatusCode);
             }
             catch (Exception ex)
             {
-                app.Logger.LogError(ex, "Unhandled exception while processing request {Method} {Path}", context.Request.Method, context.Request.Path);
+                app.Logger.LogError(ex, "Unhandled exception: {Method} {Path}",
+                    context.Request.Method, context.Request.Path);
                 throw;
             }
         });
@@ -486,6 +542,8 @@ using (var scope = app.Services.CreateScope())
 
         // Task T069: Map SignalR hub for streaming generation
         app.MapHub<DeepWiki.ApiService.Hubs.GenerationHub>("/hubs/generation");
+        // Wiki progress hub — clients subscribe by wiki ID for real-time generation progress
+        app.MapHub<DeepWiki.ApiService.Hubs.WikiProgressHub>("/hubs/wiki-progress");
 
         // Optionally expose Prometheus-compatible /metrics endpoint for scraping when enabled in configuration
         var promEnabled = app.Configuration.GetValue<bool?>("OpenTelemetry:Prometheus:Enabled") ?? false;

@@ -1,0 +1,269 @@
+@using deepwiki_open_dotnet.Web.Models
+@namespace deepwiki_open_dotnet.Web.Components.Shared
+
+@* T059 – US5: Wiki generation progress component.
+   State is updated incrementally via ApplyEventAsync(evt) — called by the parent page
+   (typically WikiProjects) each time a WikiProgress SignalR event arrives.
+   No event-list replay; every method application is O(1). *@
+
+<MudPaper Elevation="2" Class="pa-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+            <MudText Typo="Typo.h6">@CurrentWikiName</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@_statusText</MudText>
+        </div>
+        @if (!IsComplete && !IsFailed)
+        {
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Warning"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Cancel"
+                       Disabled="IsCancelling"
+                       OnClick="OnCancel">
+                @(IsCancelling ? "Cancelling…" : "Cancel")
+            </MudButton>
+        }
+    </div>
+
+    @* Overall progress bar *@
+    @if (TotalPages > 0)
+    {
+        <MudProgressLinear Color="@_progressColor"
+                           Value="@_progressPercent"
+                           Class="mb-3"
+                           Striped="@(!IsComplete && !IsFailed)"
+                           Rounded="true" />
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+            @_completedPages of @TotalPages pages complete
+        </MudText>
+    }
+    else if (!IsComplete && !IsFailed)
+    {
+        <MudProgressLinear Color="Color.Primary"
+                           Indeterminate="true"
+                           Class="mb-2"
+                           Rounded="true" />
+        @if (_tocTokenCount > 0)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                Generating table of contents — @_tocTokenCount tokens received…
+            </MudText>
+        }
+        else
+        {
+            <div class="mb-3" />
+        }
+    }
+
+    @* Per-page status list *@
+    @if (_pageStatuses.Count > 0)
+    {
+        <MudList T="string" Dense="true" Class="mt-2">
+            @foreach (var entry in _pageStatuses)
+            {
+                <MudListItem Icon="@entry.Icon" IconColor="@entry.IconColor" Dense="true">
+                    <div class="d-flex align-center gap-2">
+                        <MudText Typo="Typo.body2">@entry.Title</MudText>
+                        @if (entry.IsActive && CurrentPageTokenCount > 0)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">— @CurrentPageTokenCount tokens…</MudText>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(entry.Error))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Error">@entry.Error</MudText>
+                    }
+                </MudListItem>
+            }
+        </MudList>
+    }
+
+    @* Terminal state banners *@
+    @if (IsComplete)
+    {
+        <MudAlert Severity="Severity.Success" Dense="true" Class="mt-3">
+            Wiki generation complete — @TotalPages pages generated.
+        </MudAlert>
+    }
+    else if (IsFailed)
+    {
+        <MudAlert Severity="Severity.Error" Dense="true" Class="mt-3">
+            Wiki generation failed. Check the error details above.
+        </MudAlert>
+    }
+    else if (IsCancelling)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
+            Cancellation requested…
+        </MudAlert>
+    }
+
+</MudPaper>
+
+@code {
+    // ── Parameters ────────────────────────────────────────────────────────────
+
+    /// <summary>Wiki display name — shown in the heading.</summary>
+    [Parameter] public string WikiName { get; set; } = string.Empty;
+
+    /// <summary>Raised when the user clicks Cancel.</summary>
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    // ── Internal state ────────────────────────────────────────────────────────
+
+    private List<PageEntry> _pageStatuses = [];
+    private Dictionary<int, PageEntry> _pagesMap = new();
+    private double _progressPercent;
+    private int _completedPages;
+    private int _currentPageTokenCount;
+    private int _tocTokenCount;
+    private int _totalPages;
+    private string _statusText = "Starting…";
+    private Color _progressColor = Color.Primary;
+    private bool _isComplete;
+    private bool _isFailed;
+    private bool _isCancelling;
+
+    // Mirror properties used by the markup
+    private string CurrentWikiName => string.IsNullOrWhiteSpace(WikiName) ? "Generating wiki…" : $"Generating wiki: {WikiName}";
+    private bool IsComplete => _isComplete;
+    private bool IsFailed => _isFailed;
+    private bool IsCancelling => _isCancelling;
+    private int TotalPages => _totalPages;
+    private int CurrentPageTokenCount => _currentPageTokenCount;
+
+    // ── Public API ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Applies a single incoming progress event and schedules a re-render.
+    /// Safe to call from any thread (background SignalR handlers included):
+    /// execution is marshalled onto the component's render-thread context.
+    /// </summary>
+    public Task ApplyEventAsync(WikiGenerationProgressDto evt)
+        => InvokeAsync(() =>
+        {
+            ApplyEvent(evt);
+            StateHasChanged();
+        });
+
+    /// <summary>Resets all progress state ready for a new generation run.</summary>
+    public Task ResetAsync()
+        => InvokeAsync(() =>
+        {
+            _pageStatuses = [];
+            _pagesMap = new();
+            _progressPercent = 0;
+            _completedPages = 0;
+            _currentPageTokenCount = 0;
+            _tocTokenCount = 0;
+            _totalPages = 0;
+            _statusText = "Starting…";
+            _progressColor = Color.Primary;
+            _isComplete = false;
+            _isFailed = false;
+            _isCancelling = false;
+            StateHasChanged();
+        });
+
+    // ── Event application (must be called on render thread) ───────────────────
+
+    private void ApplyEvent(WikiGenerationProgressDto ev)
+    {
+        switch (ev.EventType)
+        {
+            case WikiGenerationProgressDto.WikiCreated:
+                _statusText = "Wiki created, generating table of contents…";
+                break;
+
+            case WikiGenerationProgressDto.TocToken:
+                _tocTokenCount = ev.TokenCount ?? _tocTokenCount;
+                _statusText = $"Generating table of contents… {_tocTokenCount} tokens";
+                break;
+
+            case WikiGenerationProgressDto.StatusUpdate:
+                if (!string.IsNullOrWhiteSpace(ev.Message))
+                    _statusText = ev.Message;
+                break;
+
+            case WikiGenerationProgressDto.TocComplete:
+                _totalPages = ev.TotalPages ?? 0;
+                _statusText = $"Table of contents ready — generating {_totalPages} pages…";
+                break;
+
+            case WikiGenerationProgressDto.PageStart:
+                if (!string.IsNullOrWhiteSpace(ev.PageTitle))
+                {
+                    foreach (var e in _pagesMap.Values) e.IsActive = false;
+                    _currentPageTokenCount = 0;
+                    _pagesMap[ev.PageIndex ?? 0] = new PageEntry
+                    {
+                        Title     = ev.PageTitle,
+                        Icon      = Icons.Material.Filled.AutoStories,
+                        IconColor = Color.Info,
+                        IsActive  = true
+                    };
+                    RefreshPageList();
+                }
+                break;
+
+            case WikiGenerationProgressDto.PageToken:
+                _currentPageTokenCount++;
+                break;
+
+            case WikiGenerationProgressDto.PageComplete:
+                if (_pagesMap.TryGetValue(ev.PageIndex ?? -1, out var completedEntry))
+                {
+                    completedEntry.Icon      = Icons.Material.Filled.CheckCircle;
+                    completedEntry.IconColor = Color.Success;
+                    completedEntry.IsActive  = false;
+                    _completedPages++;
+                    RefreshPageList();
+                    UpdateProgress();
+                }
+                break;
+
+            case WikiGenerationProgressDto.PageError:
+                if (_pagesMap.TryGetValue(ev.PageIndex ?? -1, out var errorEntry))
+                {
+                    errorEntry.Icon      = Icons.Material.Filled.Error;
+                    errorEntry.IconColor = Color.Error;
+                    errorEntry.Error     = ev.ErrorMessage ?? "Page generation failed";
+                    errorEntry.IsActive  = false;
+                    RefreshPageList();
+                }
+                break;
+
+            case WikiGenerationProgressDto.GenerationComplete:
+                _statusText = "Generation complete.";
+                _progressColor = Color.Success;
+                _isComplete = true;
+                UpdateProgress();
+                break;
+
+            case WikiGenerationProgressDto.GenerationCancelled:
+                _statusText = ev.Status == "Error" ? "Generation failed." : "Generation cancelled.";
+                _progressColor = ev.Status == "Error" ? Color.Error : Color.Warning;
+                _isFailed = ev.Status == "Error";
+                _isCancelling = false;
+                break;
+        }
+    }
+
+    private void RefreshPageList()
+        => _pageStatuses = _pagesMap.OrderBy(kv => kv.Key).Select(kv => kv.Value).ToList();
+
+    private void UpdateProgress()
+        => _progressPercent = _totalPages > 0
+            ? Math.Round((double)_completedPages / _totalPages * 100, 1)
+            : 0;
+
+    private sealed class PageEntry
+    {
+        public string Title     { get; set; } = string.Empty;
+        public string Icon      { get; set; } = Icons.Material.Outlined.Article;
+        public Color  IconColor { get; set; } = Color.Default;
+        public string? Error    { get; set; }
+        public bool IsActive    { get; set; }
+    }
+}

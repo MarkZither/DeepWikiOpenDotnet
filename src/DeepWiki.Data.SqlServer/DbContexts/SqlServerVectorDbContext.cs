@@ -1,3 +1,4 @@
+using DeepWiki.Data.Abstractions.Entities;
 using DeepWiki.Data.Entities;
 using DeepWiki.Data.SqlServer.Configuration;
 using Microsoft.EntityFrameworkCore;
@@ -17,12 +18,20 @@ public class SqlServerVectorDbContext : DbContext
 
     public DbSet<DocumentEntity> Documents { get; set; } = null!;
 
+    // ── Wiki entities ──────────────────────────────────────────────────────
+    public DbSet<WikiEntity> Wikis { get; set; } = null!;
+    public DbSet<WikiPageEntity> WikiPages { get; set; } = null!;
+    public DbSet<WikiPageRelation> WikiPageRelations { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         
-        // Apply entity configuration
+        // Apply entity configurations
         modelBuilder.ApplyConfiguration(new DocumentEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new WikiEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new WikiPageEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new WikiPageRelationConfiguration());
     }
 
     /// <summary>

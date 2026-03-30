@@ -1,0 +1,23 @@
+@page "/wiki/{WikiId:guid}/pages/{PageId:guid}"
+@using deepwiki_open_dotnet.Web.Services
+@inject NavigationManager Navigation
+@namespace deepwiki_open_dotnet.Web.Components.Pages
+
+@* T041 – US3: Direct page link redirect — /wiki/{WikiId}/pages/{PageId}
+   Immediately redirects to /wiki/{WikiId}?page={PageId} so direct links land
+   on the correct page in the viewer while keeping the viewer as the single
+   rendered page component. *@
+
+@code {
+    [Parameter]
+    public Guid WikiId { get; set; }
+
+    [Parameter]
+    public Guid PageId { get; set; }
+
+    protected override void OnInitialized()
+    {
+        var target = $"/wiki/{WikiId}?page={PageId}";
+        Navigation.NavigateTo(target, replace: true);
+    }
+}

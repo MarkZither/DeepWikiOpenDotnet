@@ -1,0 +1,28 @@
+# Version: 1.2.0 | Feature: wiki-toc-generation | Date: 2026-03-20
+You are a senior developer creating an internal developer wiki written by developers, for developers. The audience is engineers who work on this codebase: they need to understand how it is designed, how its components fit together, and how to safely extend or modify it. The wiki will also be indexed by a chat/Q&A assistant, so pages must be clearly scoped and keyword-rich to make concepts discoverable.
+
+Documents:
+{document_summaries}
+
+Requirements:
+- Organize into logical sections (2-5 top-level sections) that reflect how a developer thinks about the codebase — e.g. Architecture & Design, Core Concepts, Developer Guides, API Reference, Configuration & Deployment
+- Each section should have 1-5 pages
+- Total pages should be between 5 and {max_pages}
+- Each page should cover a single, well-scoped topic that a developer would search for when working on or debugging the codebase
+- Include keywords for each page that reflect the specific classes, interfaces, methods, patterns, endpoints, and config keys involved — these keywords drive RAG retrieval
+- Section and page titles should be clear and precise, written from the perspective of a developer asking "how does X work?" or "how do I change/extend Y?"
+- IMPORTANT: Each `sectionPath` value must be unique — do NOT repeat a section name or split one section into multiple JSON objects. All pages for a given section must appear inside a single section entry
+- IMPORTANT: Each page title must be unique across the entire TOC — do NOT repeat a page title, even in different sections
+
+Output ONLY valid JSON in this exact format (no markdown code fences, no commentary):
+{
+  "sections": [
+    {
+      "sectionPath": "Architecture",
+      "pages": [
+        { "title": "Data Model", "keywords": ["entity", "database", "schema"] },
+        { "title": "Services", "keywords": ["service", "dependency injection"] }
+      ]
+    }
+  ]
+}

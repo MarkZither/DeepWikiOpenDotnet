@@ -8,6 +8,13 @@ using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Stamp every console log line with HH:mm:ss so timing is visible in Aspire and terminal.
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.TimestampFormat = "HH:mm:ss ";
+    options.SingleLine      = true;
+});
+
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
@@ -86,6 +93,21 @@ builder.Services.AddHttpClient<WeatherApiClient>(client =>
         // Learn more about service discovery scheme resolution at https://aka.ms/dotnet/sdschemes.
         client.BaseAddress = new("https+http://apiservice");
     });
+
+// Wiki API client (T032 – US2)
+builder.Services.AddHttpClient<WikiApiClient>(client =>
+{
+    client.BaseAddress = new("https+http://apiservice");
+});
+
+// Named handler for WikiProgressHubClient: Aspire service-discovery over WebSockets.
+// IHttpMessageHandlerFactory.CreateHandler(name) creates a handler chain that includes
+// Aspire's service resolver, letting HubConnectionBuilder use "https+http://apiservice".
+builder.Services.AddHttpClient("apiservice-signalr", client =>
+    client.BaseAddress = new("https+http://apiservice"));
+
+// WikiProgressHubClient wraps the SignalR connection to /hubs/wiki-progress on the API service.
+builder.Services.AddScoped<WikiProgressHubClient>();
 
 var app = builder.Build();
 

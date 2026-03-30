@@ -1,0 +1,32 @@
+{
+  "id": "toc-baseline-v1-0-0",
+  "created_at": "2026-03-01T00:00:00Z",
+  "model": "baseline-fixture",
+  "feature": "wiki-toc-generation",
+  "request": {
+    "prompt": "You are a technical documentation expert. Given the following document summaries from a collection, produce a structured table of contents for a wiki.\n\nDocuments:\n- README.md: Overview of the DeepWiki project. Describes setup, configuration, and usage.\n- ARCHITECTURE.md: Describes the system architecture including the data layer, service layer, and API.\n- DEPLOYMENT.md: Covers deployment configuration for Postgres, SQL Server, and Docker.\n\nRequirements:\n- Organize into logical sections (2-5 top-level sections)\n- Each section should have 1-5 pages\n- Total pages should be between 5 and 20\n- Each page should cover a distinct topic\n- Include keywords for each page\n\nOutput ONLY valid JSON in this exact format (no markdown code fences, no commentary):\n{\n  \"sections\": [\n    {\n      \"sectionPath\": \"Architecture\",\n      \"pages\": [\n        { \"title\": \"Data Model\", \"keywords\": [\"entity\", \"database\", \"schema\"] }\n      ]\n    }\n  ]\n}"
+  },
+  "stream": [
+    "{",
+    "\n  \"sections\": [",
+    "\n    {",
+    "\n      \"sectionPath\": \"Getting Started\",",
+    "\n      \"pages\": [",
+    "\n        { \"title\": \"Overview\", \"keywords\": [\"introduction\", \"setup\", \"quickstart\"] },",
+    "\n        { \"title\": \"Configuration\", \"keywords\": [\"config\", \"appsettings\", \"environment\"] }",
+    "\n      ]",
+    "\n    },",
+    "\n    {",
+    "\n      \"sectionPath\": \"Architecture\",",
+    "\n      \"pages\": [",
+    "\n        { \"title\": \"Data Layer\", \"keywords\": [\"entity\", \"database\", \"repository\", \"postgres\", \"sql\"] },",
+    "\n        { \"title\": \"Service Layer\", \"keywords\": [\"service\", \"dependency injection\", \"rag\"] }",
+    "\n      ]",
+    "\n    }",
+    "\n  ]",
+    "\n}"
+  ],
+  "response_hash": "a3f8c2d1e5b74f9a2c1d3e8f0b6a4c7d9e2f1b3a5c8d0e4f7a9b2c5d1e3f6a8",
+  "redacted": false,
+  "retention_policy": "indefinite"
+}

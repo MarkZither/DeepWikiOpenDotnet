@@ -23,6 +23,111 @@ namespace DeepWiki.Data.SqlServer.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("DeepWiki.Data.Abstractions.Entities.WikiEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CollectionId")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId")
+                        .HasDatabaseName("IX_Wikis_CollectionId");
+
+                    b.ToTable("Wikis", (string)null);
+                });
+
+            modelBuilder.Entity("DeepWiki.Data.Abstractions.Entities.WikiPageEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ParentPageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SectionPath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WikiId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParentPageId");
+
+                    b.HasIndex("SectionPath")
+                        .HasDatabaseName("IX_WikiPages_SectionPath");
+
+                    b.HasIndex("WikiId")
+                        .HasDatabaseName("IX_WikiPages_WikiId");
+
+                    b.ToTable("WikiPages", (string)null);
+                });
+
+            modelBuilder.Entity("DeepWiki.Data.Abstractions.Entities.WikiPageRelation", b =>
+                {
+                    b.Property<Guid>("SourcePageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TargetPageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("SourcePageId", "TargetPageId");
+
+                    b.HasIndex("TargetPageId")
+                        .HasDatabaseName("IX_WikiPageRelations_TargetPageId");
+
+                    b.ToTable("WikiPageRelations", (string)null);
+                });
+
             modelBuilder.Entity("DeepWiki.Data.Entities.DocumentEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -97,6 +202,61 @@ namespace DeepWiki.Data.SqlServer.Migrations
                         .HasDatabaseName("IX_Documents_RepoUrl");
 
                     b.ToTable("Documents", (string)null);
+                });
+
+            modelBuilder.Entity("DeepWiki.Data.Abstractions.Entities.WikiPageEntity", b =>
+                {
+                    b.HasOne("DeepWiki.Data.Abstractions.Entities.WikiPageEntity", "ParentPage")
+                        .WithMany("ChildPages")
+                        .HasForeignKey("ParentPageId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("FK_WikiPages_ParentPageId");
+
+                    b.HasOne("DeepWiki.Data.Abstractions.Entities.WikiEntity", "Wiki")
+                        .WithMany("Pages")
+                        .HasForeignKey("WikiId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_WikiPages_WikiId");
+
+                    b.Navigation("ParentPage");
+
+                    b.Navigation("Wiki");
+                });
+
+            modelBuilder.Entity("DeepWiki.Data.Abstractions.Entities.WikiPageRelation", b =>
+                {
+                    b.HasOne("DeepWiki.Data.Abstractions.Entities.WikiPageEntity", "SourcePage")
+                        .WithMany("SourceRelations")
+                        .HasForeignKey("SourcePageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_WikiPageRelations_SourcePageId");
+
+                    b.HasOne("DeepWiki.Data.Abstractions.Entities.WikiPageEntity", "TargetPage")
+                        .WithMany("TargetRelations")
+                        .HasForeignKey("TargetPageId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_WikiPageRelations_TargetPageId");
+
+                    b.Navigation("SourcePage");
+
+                    b.Navigation("TargetPage");
+                });
+
+            modelBuilder.Entity("DeepWiki.Data.Abstractions.Entities.WikiEntity", b =>
+                {
+                    b.Navigation("Pages");
+                });
+
+            modelBuilder.Entity("DeepWiki.Data.Abstractions.Entities.WikiPageEntity", b =>
+                {
+                    b.Navigation("ChildPages");
+
+                    b.Navigation("SourceRelations");
+
+                    b.Navigation("TargetRelations");
                 });
 #pragma warning restore 612, 618
         }

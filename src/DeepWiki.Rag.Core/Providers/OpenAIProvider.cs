@@ -36,27 +36,60 @@ public class OpenAIProvider : IModelProvider
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
+        var baseUrl = _http.BaseAddress?.ToString() ?? "(no BaseUrl configured)";
+
+        // Fail fast with a clear message if the API key is missing for non-ollama providers
+        if (!string.Equals(_providerType, "ollama", StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrEmpty(_apiKey))
+        {
+            _logger.LogWarning(
+                "OpenAI provider unavailable — ApiKey is not configured. "
+                + "Set OpenAI:ApiKey in user secrets or environment variable OPENAI__APIKEY. "
+                + "BaseUrl={BaseUrl}, Provider={Provider}, Model={Model}",
+                baseUrl, _providerType, _modelId);
+            return false;
+        }
+
         try
         {
-            // Perform a lightweight availability check depending on provider type
+            HttpResponseMessage resp;
+
+            // Build absolute URIs by appending to the trimmed base address.
+            // Using leading-slash relative paths with HttpClient strips any path component
+            // from the BaseAddress (e.g. /openai/v1 becomes /v1/...) which causes 404s.
+            var trimmedBase = (_http.BaseAddress?.ToString() ?? "").TrimEnd('/');
+
             if (string.Equals(_providerType, "ollama", StringComparison.OrdinalIgnoreCase))
             {
-                // Ollama commonly exposes /api/tags or /api/ping; try /api/tags
-                var resp = await _http.GetAsync("/api/tags", cancellationToken);
-                return resp.IsSuccessStatusCode;
+                // Ollama commonly exposes /api/tags; use it as a health probe
+                resp = await _http.GetAsync(new Uri($"{trimmedBase}/api/tags"), cancellationToken);
             }
             else
             {
-                // Try OpenAI-compatible /v1/models endpoint
-                var req = new HttpRequestMessage(HttpMethod.Get, "/v1/models");
-                if (!string.IsNullOrEmpty(_apiKey)) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
-                var resp = await _http.SendAsync(req, cancellationToken);
-                return resp.IsSuccessStatusCode;
+                // OpenAI-compatible /v1/models is universally supported (Groq, Mistral, OpenAI, etc.)
+                var req = new HttpRequestMessage(HttpMethod.Get, new Uri($"{trimmedBase}/models"));
+                if (!string.IsNullOrEmpty(_apiKey))
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+                resp = await _http.SendAsync(req, cancellationToken);
             }
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "OpenAI provider unavailable — HTTP {StatusCode} {Reason}. "
+                    + "BaseUrl={BaseUrl}, Provider={Provider}, Model={Model}",
+                    (int)resp.StatusCode, resp.ReasonPhrase, baseUrl, _providerType, _modelId);
+                return false;
+            }
+
+            return true;
         }
         catch (Exception ex)
         {
-            _logger.LogInformation(ex, "OpenAI provider availability check failed");
+            _logger.LogWarning(ex,
+                "OpenAI provider unavailable — network error or bad BaseUrl. "
+                + "BaseUrl={BaseUrl}, Provider={Provider}, Model={Model}",
+                baseUrl, _providerType, _modelId);
             return false;
         }
     }
@@ -69,8 +102,11 @@ public class OpenAIProvider : IModelProvider
             throw new InvalidOperationException("OpenAI provider is not configured (missing API key).");
         }
 
-        // Build OpenAI chat completion request body compatible with OpenAI streaming
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/chat/completions");
+        // Build OpenAI chat completion request body compatible with OpenAI streaming.
+        // Construct an absolute URI so that any path component in BaseAddress (e.g. /openai/v1)
+        // is preserved — HttpClient strips path segments when a leading-slash relative path is used.
+        var completionsUri = new Uri($"{(_http.BaseAddress?.ToString() ?? "").TrimEnd('/')}/chat/completions");
+        using var request = new HttpRequestMessage(HttpMethod.Post, completionsUri);
 
         var messages = new List<object>();
         if (!string.IsNullOrEmpty(systemPrompt))
@@ -93,12 +129,40 @@ public class OpenAIProvider : IModelProvider
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
 
         using var resp = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        
+
         if (!resp.IsSuccessStatusCode)
         {
             var errorBody = await resp.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogError("OpenAI provider returned status {StatusCode}: {ErrorBody}", resp.StatusCode, errorBody);
-            throw new HttpRequestException($"OpenAI provider returned status {resp.StatusCode}: {errorBody}");
+
+            if (resp.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                // Extract Retry-After header so callers can honour the provider's backoff window.
+                // Groq (and most OpenAI-compatible providers) sends it as a delta in seconds.
+                TimeSpan? retryAfter = null;
+                if (resp.Headers.RetryAfter?.Delta is { } delta)
+                    retryAfter = delta;
+                else if (resp.Headers.RetryAfter?.Date is { } date)
+                    retryAfter = date - DateTimeOffset.UtcNow;
+
+                // Clamp negative values (clock skew / already-elapsed window) to zero
+                if (retryAfter.HasValue && retryAfter.Value < TimeSpan.Zero)
+                    retryAfter = TimeSpan.Zero;
+
+                _logger.LogWarning(
+                    "OpenAI provider rate-limited (429). Retry-After: {RetryAfterSeconds}s. Body: {ErrorBody}",
+                    retryAfter?.TotalSeconds, errorBody);
+
+                throw new RateLimitException(
+                    retryAfter,
+                    $"Rate limited by provider (429). Retry-After: {retryAfter?.TotalSeconds ?? 60}s. Body: {errorBody}");
+            }
+
+            _logger.LogError(
+                "OpenAI provider returned status {StatusCode}: {ErrorBody}", (int)resp.StatusCode, errorBody);
+            throw new HttpRequestException(
+                $"OpenAI provider returned status {resp.StatusCode}: {errorBody}",
+                inner: null,
+                statusCode: resp.StatusCode);
         }
 
         var stream = await resp.Content.ReadAsStreamAsync(cancellationToken);

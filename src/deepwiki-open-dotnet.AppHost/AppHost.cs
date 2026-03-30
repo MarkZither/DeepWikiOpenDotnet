@@ -19,14 +19,26 @@ var deepwikiDb = postgres.AddDatabase("deepwikidb");
 var ollamaEndpoint = builder.Configuration["Embedding:Ollama:Endpoint"] ?? "http://localhost:11434";
 var ollamaModel = builder.Configuration["Embedding:Ollama:ModelId"] ?? "nomic-embed-text";
 
+// Get OpenAI-compatible generation settings (supports Groq, Mistral, OpenAI, or Ollama OpenAI-compat)
+var openAiBaseUrl = builder.Configuration["OpenAI:BaseUrl"];
+var openAiApiKey  = builder.Configuration["OpenAI:ApiKey"];
+var openAiModel   = builder.Configuration["OpenAI:ModelId"];
+var openAiProvider = builder.Configuration["OpenAI:Provider"];
+
 var apiService = builder.AddProject<Projects.deepwiki_open_dotnet_ApiService>("apiservice")
-    .WithHttpHealthCheck("/health")
+        .WithHttpHealthCheck("/health")
     .WithReference(deepwikiDb)
     .WaitFor(deepwikiDb)
     .WithEnvironment("VectorStore__Provider", "postgres")
     .WithEnvironment("Embedding__Provider", "ollama")
     .WithEnvironment("Embedding__Ollama__Endpoint", ollamaEndpoint)
     .WithEnvironment("Embedding__Ollama__ModelId", ollamaModel);
+
+// Forward OpenAI-compatible provider settings from AppHost config/secrets to ApiService
+if (!string.IsNullOrEmpty(openAiBaseUrl))    apiService = apiService.WithEnvironment("OpenAI__BaseUrl", openAiBaseUrl);
+if (!string.IsNullOrEmpty(openAiApiKey))     apiService = apiService.WithEnvironment("OpenAI__ApiKey", openAiApiKey);
+if (!string.IsNullOrEmpty(openAiModel))      apiService = apiService.WithEnvironment("OpenAI__ModelId", openAiModel);
+if (!string.IsNullOrEmpty(openAiProvider))   apiService = apiService.WithEnvironment("OpenAI__Provider", openAiProvider);
 
 builder.AddProject<Projects.deepwiki_open_dotnet_Web>("webfrontend")
     .WithExternalHttpEndpoints()

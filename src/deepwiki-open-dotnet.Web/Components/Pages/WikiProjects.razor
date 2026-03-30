@@ -1,0 +1,398 @@
+@page "/wiki"
+@using deepwiki_open_dotnet.Web.Components.Shared
+@using deepwiki_open_dotnet.Web.Models
+@using deepwiki_open_dotnet.Web.Services
+@inject WikiApiClient WikiApi
+@inject ChatApiClient ChatApi
+@inject NavigationManager Navigation
+@inject WikiProgressHubClient _hubClient
+@inject ILogger<WikiProjects> Logger
+@namespace deepwiki_open_dotnet.Web.Components.Pages
+@implements IAsyncDisposable
+
+@* T034 – US2: Wiki project browser page *@
+@* T060 – US5: Add wiki generation trigger *@
+
+<PageTitle>Wiki Projects</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-2">
+        <MudText Typo="Typo.h4">Wiki Projects</MudText>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.AutoAwesome"
+                   OnClick="OpenGenerateDialog"
+                   Disabled="@_isDialogOpen">
+            Generate Wiki
+        </MudButton>
+    </div>
+
+    <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">
+        Browse all generated wiki projects. Click a project to view its pages.
+    </MudText>
+
+    @if (!string.IsNullOrWhiteSpace(_generateError))
+    {
+        <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3" ShowCloseIcon="true" CloseIconClicked="@(() => _generateError = null)">
+            @_generateError
+        </MudAlert>
+    }
+
+    <WikiProjectList Projects="@_projects"
+                     TotalCount="@_totalCount"
+                     IsLoading="@_isLoading"
+                     Page="@_currentPage"
+                     PageSize="@PageSize"
+                     OnProjectClick="NavigateToWiki"
+                     OnPageChange="LoadPageAsync" />
+
+</MudContainer>
+
+@* ── Generate Wiki Dialog ──────────────────────────────────────────────────── *@
+<MudDialog @bind-Visible="_isDialogOpen" Options="@_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Class="mr-2" />
+            Generate Wiki from Collection
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+
+            @* Collection selector *@
+            <MudSelect T="string"
+                       Label="Collection"
+                       @bind-Value="_selectedCollectionId"
+                       Required="true"
+                       RequiredError="Please select a collection."
+                       Variant="Variant.Outlined"
+                       HelperText="Choose the document collection to generate a wiki from."
+                       Disabled="@_isGenerating">
+                @foreach (var col in _collections)
+                {
+                    <MudSelectItem T="string" Value="@col.Id">@col.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            @* Wiki name *@
+            <MudTextField T="string"
+                          Label="Wiki Name"
+                          @bind-Value="_wikiName"
+                          Required="true"
+                          RequiredError="Wiki name is required."
+                          MaxLength="200"
+                          Counter="200"
+                          Variant="Variant.Outlined"
+                          HelperText="A short, descriptive name for the wiki."
+                          Disabled="@_isGenerating" />
+
+            @* Description *@  
+            <MudTextField T="string"
+                          Label="Description (optional)"
+                          @bind-Value="_wikiDescription"
+                          MaxLength="500"
+                          Variant="Variant.Outlined"
+                          Lines="2"
+                          Disabled="@_isGenerating" />
+
+            @if (_isGenerating || _generationWikiId.HasValue)
+            {
+                <WikiGenerationProgress @ref="_progressComp"
+                                        WikiName="@_wikiName"
+                                        OnCancel="StopGeneration" />
+                <div class="d-flex justify-space-between align-center mt-1">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Elapsed: @_elapsedDisplay
+                    </MudText>
+                    @if (_generationWikiId.HasValue && !_dialogGenerationComplete)
+                    {
+                        <MudLink Href="@($"/wiki/{_generationWikiId}")" Typo="Typo.caption">
+                            View partial wiki →
+                        </MudLink>
+                    }
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_dialogError))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true">@_dialogError</MudAlert>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        @if (_isGenerating)
+        {
+            <MudButton OnClick="StopGeneration" Color="Color.Warning" Variant="Variant.Outlined">
+                Stop Generation
+            </MudButton>
+        }
+        else
+        {
+            <MudButton OnClick="CloseDialog">
+                @(_dialogGenerationComplete || _generationWikiId.HasValue ? "Close" : "Cancel")
+            </MudButton>
+            @if (!_generationWikiId.HasValue && !_isGenerating)
+            {
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="StartGenerationAsync"
+                           Disabled="@(string.IsNullOrWhiteSpace(_selectedCollectionId) || string.IsNullOrWhiteSpace(_wikiName))">
+                    Generate
+                </MudButton>
+            }
+            @if (_generationWikiId.HasValue)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="NavigateToGeneratedWiki">
+                    Open Wiki
+                </MudButton>
+            }
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private IReadOnlyList<WikiSummaryDto> _projects = [];
+    private int _totalCount;
+    private bool _isLoading = true;
+    private int _currentPage = 1;
+
+    private const int PageSize = 20;
+
+    // ── Generate dialog state ─────────────────────────────────────────────────
+    private bool _isDialogOpen;
+    private bool _isGenerating;
+    private string _selectedCollectionId = string.Empty;
+    private string _wikiName = string.Empty;
+    private string? _wikiDescription;
+    private string? _dialogError;
+    private string? _generateError;
+    private List<DocumentCollectionModel> _collections = [];
+
+    // Reference to the progress component — events are pushed into it directly.
+    private WikiGenerationProgress? _progressComp;
+
+    // ── Generation monitoring state ───────────────────────────────────────────
+    private bool _dialogGenerationComplete;
+    private Guid? _generationWikiId;
+    private string _elapsedDisplay = "0:00";
+    private System.Threading.Timer? _elapsedTimer;
+    private DateTime _generateStartTime;
+
+    private readonly DialogOptions _dialogOptions = new()
+    {
+        MaxWidth = MaxWidth.Medium,
+        FullWidth = true,
+        CloseOnEscapeKey = true
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(
+            LoadPageAsync(_currentPage),
+            LoadCollectionsAsync());
+    }
+
+    private async Task LoadPageAsync(int page)
+    {
+        _isLoading = true;
+        _currentPage = page;
+
+        try
+        {
+            var result = await WikiApi.GetProjectsAsync(page, PageSize);
+            _projects = result.Items;
+            _totalCount = result.TotalCount;
+        }
+        catch
+        {
+            _projects = [];
+            _totalCount = 0;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadCollectionsAsync()
+    {
+        try
+        {
+            var result = await ChatApi.GetCollectionsAsync();
+            _collections = result.Collections;
+        }
+        catch
+        {
+            _collections = [];
+        }
+    }
+
+    private void NavigateToWiki(Guid wikiId)
+    {
+        Navigation.NavigateTo($"/wiki/{wikiId}");
+    }
+
+    private void OpenGenerateDialog()
+    {
+        _selectedCollectionId = string.Empty;
+        _wikiName = string.Empty;
+        _wikiDescription = null;
+        _dialogError = null;
+        _isGenerating = false;
+        _dialogGenerationComplete = false;
+        _generationWikiId = null;
+        _elapsedDisplay = "0:00";
+        _isDialogOpen = true;
+    }
+
+    private void CloseDialog()
+    {
+        _elapsedTimer?.Dispose();
+        _elapsedTimer = null;
+        _isDialogOpen = false;
+        _isGenerating = false;
+    }
+
+    private void StopGeneration()
+    {
+        // Unsubscribe from live SignalR updates — generation continues on the server.
+        if (_generationWikiId.HasValue)
+            _ = _hubClient.UnsubscribeAsync(_generationWikiId.Value);
+        CloseDialog();
+    }
+
+    private void NavigateToGeneratedWiki()
+    {
+        if (_generationWikiId.HasValue)
+        {
+            _isDialogOpen = false;
+            Navigation.NavigateTo($"/wiki/{_generationWikiId}");
+        }
+    }
+
+    private void StartElapsedTimer()
+    {
+        _generateStartTime = DateTime.UtcNow;
+        _elapsedTimer?.Dispose();
+        _elapsedTimer = new System.Threading.Timer(async _ =>
+        {
+            var elapsed = DateTime.UtcNow - _generateStartTime;
+            _elapsedDisplay = elapsed.TotalHours >= 1
+                ? $"{(int)elapsed.TotalHours}:{elapsed.Minutes:D2}:{elapsed.Seconds:D2}"
+                : $"{elapsed.Minutes}:{elapsed.Seconds:D2}";
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    private async Task StartGenerationAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedCollectionId) || string.IsNullOrWhiteSpace(_wikiName))
+            return;
+
+        _isGenerating = true;
+        _dialogError = null;
+        _dialogGenerationComplete = false;
+        _generationWikiId = null;
+        StateHasChanged();
+
+        if (_progressComp is not null)
+            await _progressComp.ResetAsync();
+
+        StartElapsedTimer();
+
+        try
+        {
+            Logger.LogInformation("[UI] Requesting wiki generation for '{Name}'", _wikiName);
+
+            // POST /api/wiki/generate → 202 Accepted with { wikiId }
+            var wikiId = await WikiApi.StartGenerationAsync(new
+            {
+                collectionId = _selectedCollectionId,
+                name = _wikiName,
+                description = _wikiDescription
+            });
+
+            _generationWikiId = wikiId;
+            await InvokeAsync(StateHasChanged);
+
+            Logger.LogInformation("[UI] Generation started — wiki {WikiId}; subscribing to SignalR group", wikiId);
+
+            // Subscribe to SignalR hub progress for this wiki.
+            // The callback is called from a background SignalR thread;
+            // ApplyEventAsync marshals back onto the Blazor render thread.
+            await _hubClient.SubscribeAsync(wikiId, async evt =>
+            {
+                // Push into the progress component (handles its own state + render)
+                if (_progressComp is not null)
+                    await _progressComp.ApplyEventAsync(evt);
+                else
+                    Logger.LogWarning("[UI] WikiProgress event {EventType} arrived but _progressComp is null (dialog closed?)", evt.EventType);
+
+                // Handle terminal / structural events that affect parent page state
+                switch (evt.EventType)
+                {
+                    case WikiGenerationProgressDto.GenerationComplete:
+                        _dialogGenerationComplete = true;
+                        _isGenerating = false;
+                        _elapsedTimer?.Dispose();
+                        _elapsedTimer = null;
+                        await InvokeAsync(StateHasChanged);
+                        await Task.Delay(1800, CancellationToken.None);
+                        await InvokeAsync(() =>
+                        {
+                            _isDialogOpen = false;
+                            Navigation.NavigateTo($"/wiki/{evt.WikiId}");
+                        });
+                        await _hubClient.UnsubscribeAsync(wikiId);
+                        break;
+
+                    case WikiGenerationProgressDto.GenerationCancelled:
+                        _isGenerating = false;
+                        _elapsedTimer?.Dispose();
+                        _elapsedTimer = null;
+                        if (evt.Status == "Error" && !string.IsNullOrWhiteSpace(evt.ErrorMessage))
+                            await InvokeAsync(() => { _dialogError = evt.ErrorMessage; StateHasChanged(); });
+                        else
+                            await InvokeAsync(StateHasChanged);
+                        await _hubClient.UnsubscribeAsync(wikiId);
+                        break;
+
+                    default:
+                        // Nudge parent for page_start / toc_complete so elapsed timer / partial link re-renders
+                        if (evt.EventType is WikiGenerationProgressDto.PageStart
+                                           or WikiGenerationProgressDto.TocComplete)
+                            await InvokeAsync(StateHasChanged);
+                        break;
+                }
+            });
+
+            // StartGenerationAsync returns here; _isGenerating stays true while monitoring.
+            return;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            _dialogError = "A wiki with this name is already being generated for this collection.";
+        }
+        catch (Exception ex)
+        {
+            _dialogError = $"Failed to start generation: {ex.Message}";
+        }
+
+        // Reached only on early failure (before subscription succeeded).
+        _elapsedTimer?.Dispose();
+        _elapsedTimer = null;
+        _isGenerating = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _elapsedTimer?.Dispose();
+        if (_generationWikiId.HasValue)
+        {
+            try { await _hubClient.UnsubscribeAsync(_generationWikiId.Value); }
+            catch { /* best effort */ }
+        }
+    }
+}

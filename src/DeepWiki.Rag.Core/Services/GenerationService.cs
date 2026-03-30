@@ -153,51 +153,82 @@ public class GenerationService : IGenerationService
                     continue;
                 }
 
-                try
+                // Inner retry loop: honours Retry-After on 429s before falling through to the next provider.
+                // maxRateLimitRetries is the number of *retries* (total attempts = maxRateLimitRetries + 1).
+                const int maxRateLimitRetries = 3;
+                for (var rlAttempt = 0; rlAttempt <= maxRateLimitRetries; rlAttempt++)
                 {
-                    var isAvail = await provider.IsAvailableAsync(cts.Token);
-                    if (!isAvail)
+                    try
                     {
-                        _logger.LogWarning("Provider {Provider} is not available", provider.Name);
-                        RegisterFailure(provider.Name);
-                        continue;
-                    }
-
-                    await foreach (var delta in provider.StreamAsync(promptText, systemPrompt, cts.Token))
-                    {
-                        var outDelta = new GenerationDelta
+                        // Only check availability on the first attempt (avoids redundant HTTP round-trips on retry).
+                        if (rlAttempt == 0)
                         {
-                            PromptId = prompt.PromptId,
-                            Type = delta.Type,
-                            Seq = delta.Seq,
-                            Text = delta.Text,
-                            Role = delta.Role,
-                            // Attach provider information so downstream consumers (metrics/health) can attribute events
-                            Metadata = new { provider = provider.Name, original = delta.Metadata }
-                        };
+                            var isAvail = await provider.IsAvailableAsync(cts.Token);
+                            if (!isAvail)
+                            {
+                                _logger.LogWarning("Provider {Provider} is not available", provider.Name);
+                                RegisterFailure(provider.Name);
+                                break; // skip this provider; outer foreach picks up the next one
+                            }
+                        }
 
-                        await channel.Writer.WriteAsync(outDelta, cts.Token);
+                        await foreach (var delta in provider.StreamAsync(promptText, systemPrompt, cts.Token))
+                        {
+                            var outDelta = new GenerationDelta
+                            {
+                                PromptId = prompt.PromptId,
+                                Type = delta.Type,
+                                Seq = delta.Seq,
+                                Text = delta.Text,
+                                Role = delta.Role,
+                                // Attach provider information so downstream consumers (metrics/health) can attribute events
+                                Metadata = new { provider = provider.Name, original = delta.Metadata }
+                            };
+
+                            await channel.Writer.WriteAsync(outDelta, cts.Token);
+                        }
+
+                        // success -> reset failure count
+                        ResetFailures(provider.Name);
+
+                        channel.Writer.Complete();
+                        return;
                     }
-
-                    // success -> reset failure count
-                    ResetFailures(provider.Name);
-
-                    channel.Writer.Complete();
-                    return;
-                }
-                catch (OperationCanceledException ex)
-                {
-                    _logger.LogInformation(ex, "Generation canceled for prompt {PromptId} by provider {Provider}", prompt.PromptId, provider.Name);
-                    _sessionManager.UpdatePromptStatus(sessionId, prompt.PromptId, PromptStatus.Cancelled, recorded.Count);
-                    channel.Writer.Complete(ex);
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Provider {Provider} failed during generation", provider.Name);
-                    RegisterFailure(provider.Name);
-                    lastEx = ex;
-                    // try next provider
+                    catch (DeepWiki.Rag.Core.Providers.RateLimitException rle) when (rlAttempt < maxRateLimitRetries)
+                    {
+                        // Respect the Retry-After window from the provider; fall back to 60 s when absent.
+                        var delay = rle.RetryAfter ?? TimeSpan.FromSeconds(60);
+                        _logger.LogWarning(
+                            "Provider {Provider} rate-limited (429), attempt {Attempt}/{Max}. " +
+                            "Respecting Retry-After: {DelaySeconds}s before next attempt.",
+                            provider.Name, rlAttempt + 1, maxRateLimitRetries + 1, delay.TotalSeconds);
+                        await Task.Delay(delay, cts.Token);
+                        // continue inner loop → retry same provider
+                    }
+                    catch (DeepWiki.Rag.Core.Providers.RateLimitException rle)
+                    {
+                        // All rate-limit retries exhausted. Do NOT register as a circuit-breaker failure
+                        // because 429 is expected quota behaviour, not a provider fault.
+                        _logger.LogError(rle,
+                            "Provider {Provider} rate-limited (429) and all {Max} retry attempt(s) exhausted.",
+                            provider.Name, maxRateLimitRetries + 1);
+                        lastEx = rle;
+                        break; // try next provider
+                    }
+                    catch (OperationCanceledException ex)
+                    {
+                        _logger.LogInformation(ex, "Generation canceled for prompt {PromptId} by provider {Provider}", prompt.PromptId, provider.Name);
+                        _sessionManager.UpdatePromptStatus(sessionId, prompt.PromptId, PromptStatus.Cancelled, recorded.Count);
+                        channel.Writer.Complete(ex);
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Provider {Provider} failed during generation", provider.Name);
+                        RegisterFailure(provider.Name);
+                        lastEx = ex;
+                        break; // try next provider
+                    }
                 }
             }
 
